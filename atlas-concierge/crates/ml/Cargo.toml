@@ -1,0 +1,20 @@
+[package]
+name = "atlas-ml"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+burn-ml = ["dep:burn", "dep:burn-ndarray"]
+
+[dependencies]
+anyhow.workspace = true
+atlas-core = { path = "../core" }
+atlas-retrieval = { path = "../retrieval" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+burn = { version = "0.16", optional = true }
+burn-ndarray = { version = "0.16", optional = true }

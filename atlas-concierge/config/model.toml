@@ -1,0 +1,12 @@
+[ml]
+# fallback or burn
+mode = "fallback"
+
+[ml.embedding]
+model_name = "hash-fallback"
+dims = 192
+
+[ml.burn]
+# Place ONNX model path here if integrating burn-import generated model code.
+onnx_path = "config/models/embedding.onnx"
+classifier_name = "burn-keyword-intent-v1"

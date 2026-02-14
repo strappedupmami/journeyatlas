@@ -1,0 +1,76 @@
+{
+  "generated_at": "2026-02-14",
+  "locale": "he",
+  "notes": [
+    "הנתונים נאספו ממקורות עבריים ברשת.",
+    "חובה לאמת טלפונית לפני הגעה, במיוחד לנקודות ריקון שפכים.",
+    "אין להציע ריקון מים אפורים/שחורים מחוץ לנקודה ייעודית ומורשית."
+  ],
+  "service_points": [
+    {
+      "id": "nahariya-caravan-park",
+      "name": "חניון קרוואנים נהריה",
+      "region": "גליל מערבי",
+      "supports": {
+        "fresh_water_fill": true,
+        "greywater_dump": true,
+        "blackwater_cassette_dump": true,
+        "electric_hookup": true
+      },
+      "evidence": "נכתב שקיימת נקודת ביוב בכניסה + חיבורי מים/חשמל",
+      "source_url": "https://www.maagal.org.il/events/%D7%97%D7%A0%D7%99%D7%95%D7%9F-%D7%A7%D7%A8%D7%95%D7%95%D7%90%D7%A0%D7%99%D7%9D-%D7%A0%D7%94%D7%A8%D7%99%D7%94/",
+      "secondary_url": "https://www.nahariya.muni.il/Lists/List3/CustomDispForm.aspx?ID=121",
+      "verification": {
+        "required": true,
+        "phone": "04-9879800",
+        "confidence": "medium"
+      }
+    },
+    {
+      "id": "karmiel-family-park",
+      "name": "פארק המשפחה כרמיאל",
+      "region": "גליל",
+      "supports": {
+        "fresh_water_fill": true,
+        "greywater_dump": true,
+        "blackwater_cassette_dump": true,
+        "electric_hookup": true
+      },
+      "evidence": "נכתב: נקודת מים נקיים למילוי ונקודת ביוב לריקון",
+      "source_url": "https://www.maagal.org.il/summer-events/%D7%97%D7%A0%D7%99%D7%95%D7%A0%D7%99-%D7%A7%D7%A8%D7%95%D7%95%D7%90%D7%A0%D7%99%D7%9D-%D7%91%D7%A6%D7%A4%D7%95%D7%9F/",
+      "verification": {
+        "required": true,
+        "phone": "04-9085555",
+        "confidence": "medium"
+      }
+    },
+    {
+      "id": "kfar-baruch-maayan-harod",
+      "name": "מעיין חרוד (כפר ברוך)",
+      "region": "עמק יזרעאל",
+      "supports": {
+        "fresh_water_fill": true,
+        "greywater_dump": true,
+        "blackwater_cassette_dump": true,
+        "electric_hookup": true
+      },
+      "evidence": "נכתב: אספקת מים, שירותים/מקלחות, שטיפת כלים וריקון קסטה",
+      "source_url": "https://www.maagal.org.il/stay/%D7%A9%D7%99%D7%99%D7%98%D7%95%D7%AA-%D7%91%D7%A1%D7%99%D7%A8%D7%94-%D7%91%D7%9B%D7%A4%D7%A8-%D7%91%D7%A8%D7%95%D7%9A/",
+      "verification": {
+        "required": true,
+        "phone": "04-6423252",
+        "confidence": "medium"
+      }
+    }
+  ],
+  "policy_sources": [
+    {
+      "topic": "הזרמת שפכים",
+      "source_url": "https://www.gov.il/he/service/permit_to_discharge_wastewater_into_the_sea"
+    },
+    {
+      "topic": "מים, שפכים ונחלים",
+      "source_url": "https://www.gov.il/he/departments/about/wastewater_streams_department"
+    }
+  ]
+}

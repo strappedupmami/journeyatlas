@@ -1,0 +1,34 @@
+{"text":"תכנן לי סופש חופים לזוג", "intent":"trip_planning"}
+{"text":"אני רוצה מסלול לצפון ל3 ימים", "intent":"trip_planning"}
+{"text":"יש לנו יומיים במדבר מה אתה מציע", "intent":"trip_planning"}
+{"text":"תבנה לי מסלול עם נקודות לינה חוקיות", "intent":"trip_planning"}
+{"text":"איך מתכננים מים ומים אפורים לטיול", "intent":"trip_planning"}
+{"text":"תעשה לי תוכנית מסע חווייתי", "intent":"trip_planning"}
+{"text":"מה ההבדל בין מסע חווייתי למנוי מסע", "intent":"pricing"}
+{"text":"כמה עולה מנוי מסע", "intent":"pricing"}
+{"text":"תן לי הסבר מחירון ללקוח", "intent":"pricing"}
+{"text":"איך להסביר למה זה משתלם ממלון", "intent":"pricing"}
+{"text":"יש הנחה למסע חווייתי", "intent":"pricing"}
+{"text":"תכין לי צק ליסט turnover", "intent":"ops_checklist"}
+{"text":"אני צריך checklist ניקיון בין לקוחות", "intent":"ops_checklist"}
+{"text":"מה בודקים בערכת ציוד לפני יציאה", "intent":"ops_checklist"}
+{"text":"חסר לנו מתאם מים בציוד", "intent":"ops_checklist"}
+{"text":"תן SOP להחלפת רכב", "intent":"ops_checklist"}
+{"text":"יש תקלה ברכב באמצע הדרך", "intent":"troubleshooting"}
+{"text":"הרכב לא מניע מה עושים", "intent":"troubleshooting"}
+{"text":"לקוח נתקע בלי מים", "intent":"troubleshooting"}
+{"text":"יש תלונת לקוח על ריח", "intent":"troubleshooting"}
+{"text":"צריך נוהל גרירה", "intent":"troubleshooting"}
+{"text":"אפשר לרוקן מים אפורים בטבע", "intent":"policy"}
+{"text":"מותר לעשן ברכב אם פותחים חלון", "intent":"policy"}
+{"text":"מה מדיניות ללא עישון", "intent":"policy"}
+{"text":"מה הכללים לריקון קסטה", "intent":"policy"}
+{"text":"אפשר לשווק לקטינים", "intent":"policy"}
+{"text":"תכין מדריך seo על חופים בישראל", "intent":"content"}
+{"text":"אני צריך FAQ להתנגדויות של לקוחות", "intent":"content"}
+{"text":"תכתוב לי הודעת וואטסאפ מכירתית", "intent":"content"}
+{"text":"תסכם סיפור מייסד לסרטון", "intent":"content"}
+{"text":"היי", "intent":"small_talk"}
+{"text":"שלום מה נשמע", "intent":"small_talk"}
+{"text":"hi there", "intent":"small_talk"}
+{"text":"תודה רבה", "intent":"small_talk"}

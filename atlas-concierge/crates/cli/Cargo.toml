@@ -1,0 +1,21 @@
+[package]
+name = "atlas-cli"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "concierge"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+atlas-agents = { path = "../agents" }
+atlas-core = { path = "../core" }
+atlas-ml = { path = "../ml" }
+atlas-observability = { path = "../observability" }
+atlas-retrieval = { path = "../retrieval" }
+atlas-storage = { path = "../storage" }
+clap.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

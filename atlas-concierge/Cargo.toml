@@ -1,0 +1,41 @@
+[workspace]
+members = [
+  "crates/core",
+  "crates/retrieval",
+  "crates/ml",
+  "crates/agents",
+  "crates/storage",
+  "crates/observability",
+  "crates/api",
+  "crates/cli",
+  "crates/tests"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["Atlas Concierge Team"]
+
+[workspace.dependencies]
+anyhow = "1.0"
+axum = { version = "0.7", features = ["macros", "json"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive", "env"] }
+futures = "0.3"
+metrics = "0.23"
+once_cell = "1.20"
+parking_lot = "0.12"
+regex = "1.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "migrate"] }
+thiserror = "2.0"
+tokio = { version = "1.43", features = ["full"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace", "limit", "request-id"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+unicode-segmentation = "1.12"
+uuid = { version = "1.12", features = ["v4", "serde"] }
+walkdir = "2.5"

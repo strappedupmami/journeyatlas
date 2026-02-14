@@ -1,0 +1,397 @@
+<!-- index.html -->
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#0b1220" />
+    <title>אטלס מסע — חופשה ניידת, מסודרת, ישראלית</title>
+    <meta
+      name="description"
+      content="אטלס מסע: קמפרוואן + עזרה מלאה לטיול (בחינם). מסע חווייתי לניסיון קצר, או מנוי מסע לחופש קבוע."
+    />
+
+    <!-- Font (optional) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <a class="skip" href="#main">דלג לתוכן</a>
+
+    <header class="header">
+      <div class="container header__inner">
+        <a class="brand" href="#" aria-label="אטלס מסע - דף הבית">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
+              <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M14 46h36" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M32 10v12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M26 22h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand__text">
+            <span class="brand__name">אטלס מסע</span>
+            <span class="brand__tag">חופשה ניידת • ספונטנית • מסודרת</span>
+          </span>
+        </a>
+
+        <nav class="nav nav--desktop" aria-label="ניווט ראשי">
+          <a href="#offers">מסלולים</a>
+          <a href="#free-help">מה כלול</a>
+          <a href="#guides">מדריכים</a>
+          <a href="#faq">שאלות</a>
+          <a class="nav__cta" href="#contact">בדיקת זמינות</a>
+        </nav>
+
+        <details class="nav nav--mobile">
+          <summary aria-label="פתח תפריט">תפריט</summary>
+          <div class="nav__panel" role="navigation" aria-label="ניווט מובייל">
+            <a href="#offers">מסלולים</a>
+            <a href="#free-help">מה כלול</a>
+            <a href="#guides">מדריכים</a>
+            <a href="#faq">שאלות</a>
+            <a class="nav__cta" href="#contact">בדיקת זמינות</a>
+          </div>
+        </details>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="container hero__inner">
+          <div class="hero__copy">
+            <p class="eyebrow">המלון שלך על גלגלים + האטלס שלך בכיס</p>
+            <h1>חופשה בלי מלונות — עם חופש לזוז, לשנות, ולהירגע.</h1>
+            <p class="lead">
+              אטלס מסע נותן לכם קמפרוואן וחבילת עזרה מלאה לטיול — <strong>בחינם</strong>.
+              לינה, נקודות עצירה, מים/אפורים, מקלחות, חופים, ותכנון שמונע הסתבכויות.
+            </p>
+
+            <div class="hero__cta">
+              <a class="btn btn--primary" href="#contact">בדיקת זמינות</a>
+              <a class="btn btn--ghost" href="#guides">לראות מדריכים</a>
+            </div>
+
+            <ul class="badges" aria-label="יתרונות מרכזיים">
+              <li>תכנון מסלול כלול</li>
+              <li>תמיכה בוואטסאפ</li>
+              <li>נקי וריחני (אין עישון)</li>
+            </ul>
+          </div>
+
+          <aside class="hero__card card" aria-label="סיכום מהיר">
+            <div class="hero__cardTop">
+              <span class="pill">חדש</span>
+              <span class="mini">בונים עכשיו • משיקים כשצריך</span>
+            </div>
+
+            <h2 class="hero__cardTitle">מה מקבלים בפועל?</h2>
+            <ul class="checklist">
+              <li>קמפרוואן מוכן לצאת</li>
+              <li>שגרת טיול פשוטה: מים / אפורים / מקלחות</li>
+              <li>סט “איפה ישנים” + חלופות</li>
+              <li>מסלול מותאם סגנון: חופים / צפון / מדבר</li>
+            </ul>
+
+            <div class="split">
+              <div>
+                <div class="kpi">5–10 דק׳</div>
+                <div class="kpi__label">מרגע החלטה עד יציאה</div>
+              </div>
+              <div>
+                <div class="kpi">0</div>
+                <div class="kpi__label">צ׳ק-אין/צ׳ק-אאוט</div>
+              </div>
+            </div>
+
+            <a class="btn btn--primary btn--full" href="#offers">לבחור מסלול</a>
+            <p class="fineprint">
+              *דוגמא/דמו. נחדד פרטים ומחירים לפני השקה רשמית.
+            </p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="offers" class="section">
+        <div class="container">
+          <div class="section__head">
+            <h2>בחרו איך להתחיל</h2>
+            <p class="sub">
+              ניסיון קצר כדי להרגיש את הקונספט, או מנוי שמחזיר לכם חופש שוב ושוב.
+            </p>
+          </div>
+
+          <div class="grid grid--2">
+            <article class="card offer">
+              <header class="offer__head">
+                <h3>מסע חווייתי</h3>
+                <p class="offer__desc">ניסיון קצר • מתאים לוויקנד ראשון</p>
+              </header>
+
+              <div class="price">
+                <span class="price__from">החל מ־</span>
+                <span class="price__num">₪___</span>
+                <span class="price__unit">ליציאה</span>
+              </div>
+
+              <ul class="checklist checklist--compact">
+                <li>הדרכה קצרה + צ׳ק-ליסט יציאה</li>
+                <li>מסלול מומלץ + נקודות שירות</li>
+                <li>סט עצירות וחופים לפי סגנון</li>
+                <li>תמיכה בוואטסאפ לאורך הטיול</li>
+              </ul>
+
+              <a class="btn btn--primary btn--full" href="#contact">מתחילים עם מסע חווייתי</a>
+            </article>
+
+            <article class="card offer offer--featured">
+              <header class="offer__head">
+                <div class="offer__badge">הכי משתלם</div>
+                <h3>מנוי מסע</h3>
+                <p class="offer__desc">מנוי • חופש קבוע וחכם</p>
+              </header>
+
+              <div class="price">
+                <span class="price__from">החל מ־</span>
+                <span class="price__num">₪___</span>
+                <span class="price__unit">לחודש</span>
+              </div>
+
+              <ul class="checklist checklist--compact">
+                <li>עדיפות בזמינות (כשנפתח)</li>
+                <li>מסלולים מוכנים + התאמה אישית</li>
+                <li>שדרוגים/הטבות לחברים</li>
+                <li>ספריית מדריכים ישראלית (עברית)</li>
+              </ul>
+
+              <a class="btn btn--primary btn--full" href="#contact">מצטרפים למנוי מסע</a>
+            </article>
+          </div>
+
+          <div class="note">
+            רוצים להפוך את זה ל״חבילה שאין לה מתחרים״? פה זה קורה — אנחנו כוללים את כל עזרת הטיול בחינם.
+          </div>
+        </div>
+      </section>
+
+      <section id="free-help" class="section section--soft">
+        <div class="container">
+          <div class="section__head">
+            <h2>עזרה לטיול כלולה בחינם</h2>
+            <p class="sub">
+              ספונטניות לא צריכה להיות כאב ראש. אנחנו מסדרים את הדברים שבאמת עוצרים אנשים:
+              מים/אפורים, לינה חכמה, ומקלחות.
+            </p>
+          </div>
+
+          <div class="grid grid--3">
+            <div class="iconCard card">
+              <div class="iconCard__icon" aria-hidden="true">🌊</div>
+              <h3>לינה + חופים</h3>
+              <p>סט נקודות לינה לפי סגנון (שקט/וייב/זוגי) + חלופות כדי לא להיתקע.</p>
+            </div>
+
+            <div class="iconCard card">
+              <div class="iconCard__icon" aria-hidden="true">🚿</div>
+              <h3>מקלחות בפועל</h3>
+              <p>פתרונות אמיתיים: קמפינגים, נקודות שירות, שגרה פשוטה לפי האזור והעונה.</p>
+            </div>
+
+            <div class="iconCard card">
+              <div class="iconCard__icon" aria-hidden="true">💧</div>
+              <h3>מים / אפורים</h3>
+              <p>תכנון “ישראל-פרוף”: איפה ממלאים, איפה מרוקנים, ומה עושים כשצריך תוכנית ב׳.</p>
+            </div>
+          </div>
+
+          <div class="callout">
+            <strong>תובנה חשובה:</strong> חשמל זה בדרך כלל קל. מים ואפורים זה הסיפור.
+            לכן אנחנו נותנים לכם שגרה ברורה — כדי שהטיול ירגיש קל.
+          </div>
+        </div>
+      </section>
+
+      <section id="how" class="section">
+        <div class="container">
+          <div class="section__head">
+            <h2>איך זה עובד</h2>
+            <p class="sub">תהליך קצר, ברור, בלי דרמות.</p>
+          </div>
+
+          <ol class="steps">
+            <li class="steps__item">
+              <div class="steps__title">בוחרים סגנון מסע</div>
+              <div class="steps__text">חופים / צפון / מדבר • זוג / חברים • רגוע או עמוס.</div>
+            </li>
+            <li class="steps__item">
+              <div class="steps__title">מקבלים מסלול “מוכן לצאת”</div>
+              <div class="steps__text">עצירות, לינה, שירותים — הכל מסודר. אפשר לשנות תוך כדי.</div>
+            </li>
+            <li class="steps__item">
+              <div class="steps__title">יוצאים — ואנחנו איתכם</div>
+              <div class="steps__text">תמיכה בוואטסאפ + צ׳ק-ליסטים. אתם רק נהנים.</div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="guides" class="section">
+        <div class="container">
+          <div class="section__head">
+            <h2>מדריכי מסע בישראל</h2>
+            <p class="sub">נבנה עכשיו ספריית מדריכים בעברית. הנה דוגמאות לכיוון.</p>
+          </div>
+
+          <div class="grid grid--3">
+            <a class="card guide" href="guides/israel-beaches-4seas.html" aria-label="מדריך: חופים רגועים">
+              <span class="pill">וויקנד</span>
+              <h3>חופים רגועים: השרון → הכרמל</h3>
+              <p>שקיעות, עצירות אוכל, ונקודות שירות מסודרות.</p>
+              <span class="guide__more">פתיחה →</span>
+            </a>
+
+            <a class="card guide" href="#" aria-label="מדריך: צפון ירוק">
+              <span class="pill">3–4 ימים</span>
+              <h3>צפון ירוק: נחלים, תצפיות, שקט</h3>
+              <p>מסלול קל לנהיגה עם עצירות נוחות ושגרה פשוטה.</p>
+              <span class="guide__more">בקרוב →</span>
+            </a>
+
+            <a class="card guide" href="#" aria-label="מדריך: מדבר">
+              <span class="pill">5–7 ימים</span>
+              <h3>מדבר: מכתש רמון + לילות כוכבים</h3>
+              <p>וייב של ריסט. כולל דגש שירותים/מים כדי לא להסתבך.</p>
+              <span class="guide__more">בקרוב →</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="section section--soft">
+        <div class="container">
+          <div class="section__head">
+            <h2>שאלות נפוצות</h2>
+            <p class="sub">תשובות קצרות עכשיו — ובהמשך גם וידאו.</p>
+          </div>
+
+          <div class="faq">
+            <details class="faq__item">
+              <summary>זה קשה לנהוג בקמפרוואן?</summary>
+              <p>
+                לרוב לא. נותנים הדרכה קצרה + טיפים לנהיגה/חניה לפי מסלול. בוחרים יחד מסלול שמתאים לרמת ביטחון.
+              </p>
+            </details>
+
+            <details class="faq__item">
+              <summary>מה עושים עם מקלחות ושירותים?</summary>
+              <p>
+                יש שגרה פשוטה לפי אזור: נקודות שירות/קמפינגים/פתרונות מקומיים. לא משאירים אתכם “לנחש”.
+              </p>
+            </details>
+
+            <details class="faq__item">
+              <summary>איפה ישנים?</summary>
+              <p>
+                אנחנו מספקים נקודות לינה + חלופות, עם דגש על התנהגות מכבדת וחוקית. המטרה: שקט בראש.
+              </p>
+            </details>
+
+            <details class="faq__item">
+              <summary>יש מדיניות “אין עישון”?</summary>
+              <p>
+                כן. אנחנו שומרים על רכבים נקיים, ריחניים ונעימים לכולם. פרטים מלאים יהיו בעמוד כללים לפני השקה.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="contact" class="section section--cta">
+        <div class="container cta">
+          <div class="cta__copy">
+            <h2>רוצים מסע שמרגיש קל?</h2>
+            <p>
+              שלחו לנו תאריכים וסגנון — ונחזיר זמינות + הצעה למסלול (בחינם למזמינים).
+            </p>
+            <div class="cta__actions">
+              <a class="btn btn--primary" href="https://wa.me/972XXXXXXXXX" target="_blank" rel="noopener">
+                וואטסאפ
+              </a>
+              <a class="btn btn--ghost" href="mailto:hello@atlasmasa.co.il">אימייל</a>
+            </div>
+
+            <p class="fineprint">
+              טיפ: אפשר לכתוב “מסע חווייתי” או “מנוי מסע” כדי שנדע מה מתאים לכם.
+            </p>
+          </div>
+
+          <form class="card form" action="#" method="post" aria-label="טופס פנייה">
+            <div class="form__row">
+              <label>
+                שם
+                <input name="name" autocomplete="name" placeholder="איך קוראים לכם?" />
+              </label>
+              <label>
+                טלפון
+                <input name="phone" inputmode="tel" placeholder="05x-xxxxxxx" />
+              </label>
+            </div>
+
+            <div class="form__row">
+              <label>
+                תאריכים (בערך)
+                <input name="dates" placeholder="למשל: 12–15 במרץ" />
+              </label>
+            </div>
+
+            <label>
+              סגנון מסע
+              <textarea
+                name="style"
+                rows="4"
+                placeholder="חופים/צפון/מדבר • זוג/חברים • רגוע או עמוס • כל דבר חשוב…"
+              ></textarea>
+            </label>
+
+            <button class="btn btn--primary btn--full" type="button" disabled>
+              שליחה (חיבור לשרת בהמשך)
+            </button>
+
+            <p class="fineprint">
+              כרגע אנחנו בונים. כשתשיקו — נחבר את הטופס לשרת מאובטח / אימייל / CRM.
+            </p>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer__inner">
+        <div class="footer__brand">
+          <div class="footer__name">אטלס מסע</div>
+          <div class="footer__muted">חופשה ניידת, ספונטנית, מסודרת.</div>
+        </div>
+
+        <div class="footer__links" aria-label="קישורים">
+          <a href="#offers">מסלולים</a>
+          <a href="#guides">מדריכים</a>
+          <a href="#faq">שאלות</a>
+          <a href="#contact">צור קשר</a>
+        </div>
+
+        <div class="footer__meta">
+          <span>© <span id="year">2026</span> אטלס מסע</span>
+          <span class="dot" aria-hidden="true">•</span>
+          <span class="muted">דמו/בנייה</span>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
