@@ -1,0 +1,232 @@
+{
+  "he": {
+    "meta": {
+      "title": "תיאוריית הניידות | אטלס מסע",
+      "description": "מסמך חזון: סביבת עבודה מקצועית, קרוואן מודרני, וטבע במערכת אחת."
+    },
+    "page": {
+      "title": "תיאוריית הניידות של אטלס מסע",
+      "sub": "שילוב בין סביבת עבודה מקצועית, חוויית קרוואן מודרנית, וזמן טבע רציף - עם תכנון הנדסי אמיתי.",
+      "pillarsTitle": "7 עקרונות ליבה",
+      "p1": "Dock point אחיד בכל תחנה: USB-C, HDMI, חשמל וקישוריות.",
+      "p2": "אזורי עבודה מרובים: נוסע קדמי, בות׳, מיטות, ותמיכה רציפה.",
+      "p3": "ארגונומיה לטווח ארוך: ריקליין עמוק לכל מושב שאינו נהג.",
+      "p4": "הפחתת motion sickness באמצעות NVH, יציבות ומתלים.",
+      "p5": "HVAC שקט ואפקטיבי שמתאים לעבודה ושינה.",
+      "p6": "אחסון מתוכנן כמערכת ולא כתוספת מאוחרת.",
+      "p7": "גישה certification-first: תכנון מול אישורי בטיחות מהשלב הראשון.",
+      "architectureTitle": "ארכיטקטורת המערכת",
+      "architectureText": "24V backbone, המרות נקודתיות ל-USB-C PD ול-12V, וידאו ב-USB-C/HDMI, ומודולים חוזרים לייצור זול וסקיילבילי.",
+      "cleanTechTitle": "שכבת ניקוי עצמי מתוכננת מהבניות המוקדמות",
+      "cleanTechText": "אטלס מסע מתכננת לשלב ציפויים פוטוקטליטיים ותאורת אקטיבציה ייעודית מוקדם ככל האפשר, כולל שימוש באורכי גל נחוצים בלבד להפעלה, בכפוף לבטיחות, תקינה ועלות-תועלת.",
+      "roadmapTitle": "Now vs Future",
+      "nowTitle": "Now: בנייה על ואנים קיימים",
+      "nowText": "מסכים, שולחנות, קישוריות, תחנות עבודה, ניהול לוגיסטיקה ישראלי אמיתי, והטמעת ניקוי עצמי בשלבים המוקדמים.",
+      "futureTitle": "Future: שלדה מקורית",
+      "futureText": "יעדי NVH נמוך, טווח ארוך, גג מתארך, מתלים מתקדמים, מושבי בות׳ factory-first, ויעד R&D אמפיבי.",
+      "futureNote": "אמפיבי = יעד מחקר ופיתוח ארוך טווח, לא הבטחה מיידית.",
+      "safetyTitle": "בטיחות והסמכה",
+      "safetyText": "לא מבטיחים אישורים שלא קיימים. כל רכיב נוסעים קריטי (מושבים/חגורות/כריות אוויר) מתוכנן לפי נתיב הסמכה אמיתי.",
+      "ctaPrimary": "הצטרפות לפיילוט/וייטליסט",
+      "ctaSecondary": "צור קשר לשותפות/השקעה"
+    },
+    "common": {
+      "brandName": "אטלס מסע",
+      "brandTag": "תשתית מסע ניידת",
+      "nav": {
+        "home": "דף הבית",
+        "pricing": "חבילות ומחירים",
+        "mobility": "תיאוריית הניידות",
+        "guides": "מדריכים בישראל",
+        "faq": "שאלות נפוצות",
+        "policies": "כללים ומדיניות",
+        "contact": "צור קשר",
+        "concierge": "עוזר מסע חכם"
+      }
+    }
+  },
+  "en": {
+    "meta": {
+      "title": "Mobility Theory | Atlas Masa",
+      "description": "Vision document: professional work environment, modern caravan luxury, and nature in one integrated system."
+    },
+    "page": {
+      "title": "Atlas Masa Mobility Theory",
+      "sub": "Blend professional work, modern caravan luxury, and nature time into one healthy and productive lifestyle.",
+      "pillarsTitle": "7 Core Principles",
+      "p1": "Standard dock point at every station: USB-C, HDMI, power, and connectivity.",
+      "p2": "Multiple work zones: front passenger, booth, beds, and always-ready support.",
+      "p3": "Long-duration ergonomics: deep recline geometry for all non-driver seats.",
+      "p4": "Motion-sickness reduction via NVH, stability, and suspension strategy.",
+      "p5": "Quiet, effective HVAC for both work and sleep.",
+      "p6": "Storage engineered as a system, not leftover voids.",
+      "p7": "Certification-first architecture from day zero.",
+      "architectureTitle": "System Architecture",
+      "architectureText": "24V backbone, local USB-C PD and 12V conversion, USB-C/HDMI video paths, and repeatable modules for low-cost scale.",
+      "cleanTechTitle": "Self-Cleaning Layer Planned from Earliest Builds",
+      "cleanTechText": "Atlas Masa plans to integrate photocatalytic coatings and dedicated activation lighting as early as feasible, using only required operational wavelengths, subject to safety, compliance, and cost-effectiveness.",
+      "roadmapTitle": "Now vs Future",
+      "nowTitle": "Now: Existing Van Platforms",
+      "nowText": "Screens, tables, connectivity, workstation modules, practical Israel-specific operations, and early self-cleaning deployment.",
+      "futureTitle": "Future: Clean-Sheet Chassis",
+      "futureText": "Low NVH, long range, extendable roof, advanced suspension, factory-first booth seats, and amphibious R&D target.",
+      "futureNote": "Amphibious is a long-term R&D target, not an immediate promise.",
+      "safetyTitle": "Safety & Certification",
+      "safetyText": "No fake claims. Critical passenger systems are planned around real certification paths.",
+      "ctaPrimary": "Join pilot/waitlist",
+      "ctaSecondary": "Contact for partnership/investment"
+    },
+    "common": {
+      "brandName": "Atlas Masa",
+      "brandTag": "Movement-first travel infrastructure",
+      "nav": {
+        "home": "Home",
+        "pricing": "Packages & Pricing",
+        "mobility": "Mobility Theory",
+        "guides": "Guides in Israel",
+        "faq": "FAQ",
+        "policies": "Policies",
+        "contact": "Contact",
+        "concierge": "Smart Concierge"
+      }
+    }
+  },
+  "ar": {
+    "meta": {
+      "title": "نظرية التنقل | Atlas Masa",
+      "description": "وثيقة رؤية: بيئة عمل احترافية وكرفان حديث وطبيعة في منظومة واحدة."
+    },
+    "page": {
+      "title": "نظرية التنقل في Atlas Masa",
+      "sub": "دمج بيئة عمل احترافية مع كرفان حديث فاخر ووقت في الطبيعة في أسلوب حياة واحد.",
+      "pillarsTitle": "7 مبادئ أساسية",
+      "p1": "نقطة توصيل موحدة بكل محطة: USB-C وHDMI وطاقة واتصال.",
+      "p2": "مناطق عمل متعددة: الراكب الأمامي، البوث، الأسرّة.",
+      "p3": "هندسة راحة طويلة المدى مع إمالة عميقة لكل المقاعد غير مقعد السائق.",
+      "p4": "تقليل دوار الحركة عبر NVH والثبات والتعليق.",
+      "p5": "تكييف هادئ وفعّال للعمل والنوم.",
+      "p6": "تخزين مصمم كنظام هندسي.",
+      "p7": "نهج certification-first من البداية.",
+      "architectureTitle": "هندسة النظام",
+      "architectureText": "عمود 24V، تحويلات محلية لـUSB-C PD و12V، مسارات فيديو USB-C/HDMI، ووحدات قابلة للتكرار.",
+      "cleanTechTitle": "طبقة تنظيف ذاتي مخططة منذ البنيات المبكرة",
+      "cleanTechText": "تخطط Atlas Masa لدمج طلاءات فوتوكاتاليتية وإضاءة تفعيل مخصصة في أقرب وقت ممكن، باستخدام الأطوال الموجية التشغيلية المطلوبة فقط، مع مراعاة السلامة والامتثال وجدوى التكلفة.",
+      "roadmapTitle": "الآن مقابل المستقبل",
+      "nowTitle": "Now: منصات فان موجودة",
+      "nowText": "شاشات وطاولات واتصال ووحدات عمل وتشغيل عملي داخل إسرائيل، مع نشر مبكر للتنظيف الذاتي.",
+      "futureTitle": "Future: شاسيه من الصفر",
+      "futureText": "NVH منخفض، مدى طويل، سقف قابل للتمديد، تعليق متقدم، مقاعد booth factory-first، وهدف R&D برمائي.",
+      "futureNote": "البرمائية هدف بحث وتطوير بعيد المدى.",
+      "safetyTitle": "السلامة والاعتماد",
+      "safetyText": "لا وعود مزيفة. أنظمة الركاب الحرجة تُصمم وفق مسار اعتماد حقيقي.",
+      "ctaPrimary": "انضم إلى الطيار/قائمة الانتظار",
+      "ctaSecondary": "تواصل للشراكة/الاستثمار"
+    },
+    "common": {
+      "brandName": "Atlas Masa",
+      "brandTag": "بنية تنقل مبنية على الحركة",
+      "nav": {
+        "home": "الرئيسية",
+        "pricing": "الباقات والأسعار",
+        "mobility": "نظرية التنقل",
+        "guides": "أدلة في إسرائيل",
+        "faq": "الأسئلة الشائعة",
+        "policies": "السياسات",
+        "contact": "اتصل بنا",
+        "concierge": "المساعد الذكي"
+      }
+    }
+  },
+  "ru": {
+    "meta": {
+      "title": "Теория мобильности | Atlas Masa",
+      "description": "Документ видения: профессиональная работа, современный караван и природа в одной системе."
+    },
+    "page": {
+      "title": "Теория мобильности Atlas Masa",
+      "sub": "Объединить профессиональную работу, современный караван и природу в единый продуктивный стиль жизни.",
+      "pillarsTitle": "7 ключевых принципов",
+      "p1": "Единая dock-точка: USB-C, HDMI, питание, связь.",
+      "p2": "Несколько рабочих зон: передний пассажир, booth, кровати.",
+      "p3": "Глубокая эргономичная геометрия всех сидений кроме водительского.",
+      "p4": "Снижение укачивания через NVH, стабильность и подвеску.",
+      "p5": "Тихий и эффективный HVAC.",
+      "p6": "Хранение как инженерная система.",
+      "p7": "Certification-first с самого старта.",
+      "architectureTitle": "Архитектура системы",
+      "architectureText": "24V backbone, локальные модули USB-C PD/12V, видео USB-C/HDMI, повторяемые модульные интерфейсы.",
+      "cleanTechTitle": "Слой самоочистки запланирован с ранних сборок",
+      "cleanTechText": "Atlas Masa планирует как можно раньше интегрировать фотокаталитические покрытия и выделенное освещение активации, используя только необходимые рабочие длины волн, с учетом безопасности, соответствия и экономической целесообразности.",
+      "roadmapTitle": "Сейчас и будущее",
+      "nowTitle": "Now: существующие платформы",
+      "nowText": "Экраны, столы, связь, модульные рабочие зоны, практичная операционка и раннее внедрение самоочистки.",
+      "futureTitle": "Future: чистое шасси",
+      "futureText": "Низкий NVH, большой запас хода, выдвижная крыша, продвинутая подвеска, factory-first booth seats, amphibious R&D.",
+      "futureNote": "Амфибийность — долгосрочная R&D цель.",
+      "safetyTitle": "Безопасность и сертификация",
+      "safetyText": "Без ложных обещаний. Критические пассажирские системы проектируются под реальную сертификацию.",
+      "ctaPrimary": "Присоединиться к пилоту/листу ожидания",
+      "ctaSecondary": "Связаться по партнерству/инвестициям"
+    },
+    "common": {
+      "brandName": "Atlas Masa",
+      "brandTag": "Инфраструктура путешествий",
+      "nav": {
+        "home": "Главная",
+        "pricing": "Пакеты и цены",
+        "mobility": "Теория мобильности",
+        "guides": "Гиды по Израилю",
+        "faq": "FAQ",
+        "policies": "Правила",
+        "contact": "Контакты",
+        "concierge": "Умный консьерж"
+      }
+    }
+  },
+  "fr": {
+    "meta": {
+      "title": "Théorie de mobilité | Atlas Masa",
+      "description": "Document de vision: environnement pro, caravane moderne et nature dans un seul système."
+    },
+    "page": {
+      "title": "Théorie de mobilité Atlas Masa",
+      "sub": "Fusionner environnement de travail professionnel, caravane moderne luxueuse et nature en un mode de vie productif.",
+      "pillarsTitle": "7 principes clés",
+      "p1": "Dock point standard à chaque poste: USB-C, HDMI, alimentation, connectivité.",
+      "p2": "Zones de travail multiples: passager avant, booth, lits.",
+      "p3": "Ergonomie longue durée avec inclinaison profonde pour tous les sièges non conducteur.",
+      "p4": "Réduction du mal des transports via NVH, stabilité et suspension.",
+      "p5": "HVAC silencieux et efficace.",
+      "p6": "Stockage conçu comme système.",
+      "p7": "Approche certification-first dès le départ.",
+      "architectureTitle": "Architecture système",
+      "architectureText": "Backbone 24V, conversion locale USB-C PD/12V, vidéo USB-C/HDMI et modules répétables.",
+      "cleanTechTitle": "Couche auto-nettoyante planifiée dès les premières builds",
+      "cleanTechText": "Atlas Masa prévoit d'intégrer des revêtements photocatalytiques et un éclairage d'activation dédié le plus tôt possible, en utilisant uniquement les longueurs d'onde opérationnelles requises, sous contraintes sécurité, conformité et coût.",
+      "roadmapTitle": "Now vs Future",
+      "nowTitle": "Now: plateformes existantes",
+      "nowText": "Écrans, tables, connectivité, modules de travail, opérations concrètes et déploiement auto-nettoyant précoce.",
+      "futureTitle": "Future: châssis clean-sheet",
+      "futureText": "NVH faible, longue autonomie, toit extensible, suspension avancée, factory-first booth seats, objectif amphibie R&D.",
+      "futureNote": "L'amphibie est un objectif R&D long terme.",
+      "safetyTitle": "Sécurité et certification",
+      "safetyText": "Pas de promesses trompeuses. Les systèmes passagers critiques suivent un vrai chemin de certification.",
+      "ctaPrimary": "Rejoindre pilote/waitlist",
+      "ctaSecondary": "Contacter pour partenariat/investissement"
+    },
+    "common": {
+      "brandName": "Atlas Masa",
+      "brandTag": "Infrastructure voyage orientée mouvement",
+      "nav": {
+        "home": "Accueil",
+        "pricing": "Offres et tarifs",
+        "mobility": "Théorie de mobilité",
+        "guides": "Guides en Israël",
+        "faq": "FAQ",
+        "policies": "Politiques",
+        "contact": "Contact",
+        "concierge": "Concierge intelligent"
+      }
+    }
+  }
+}

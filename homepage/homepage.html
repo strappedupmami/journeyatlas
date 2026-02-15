@@ -1,33 +1,28 @@
-<!-- index.html -->
 <!doctype html>
 <html lang="he" dir="rtl">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#0b1220" />
-    <title>אטלס מסע — חופשה ניידת, מסודרת, ישראלית</title>
+    <title>אטלס מסע - חופשה בלי מלונות</title>
     <meta
       name="description"
-      content="אטלס מסע: קמפרוואן + עזרה מלאה לטיול (בחינם). מסע חווייתי לניסיון קצר, או מנוי מסע לחופש קבוע."
+      content="אטלס מסע: המלון שלך על גלגלים. מסע חווייתי לניסיון קצר, מנוי מסע לחופש קבוע, ועזרה מלאה לטיול כלולה בחינם."
     />
-
-    <!-- Font (optional) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap"
       rel="stylesheet"
     />
-
     <link rel="stylesheet" href="styles.css" />
   </head>
-
   <body>
-    <a class="skip" href="#main">דלג לתוכן</a>
+    <a class="skip" href="#main" data-i18n="common.skip">דלג לתוכן</a>
 
     <header class="header">
       <div class="container header__inner">
-        <a class="brand" href="#" aria-label="אטלס מסע - דף הבית">
+        <a class="brand" href="homepage.html" aria-label="Atlas Masa home" data-i18n-aria-label="common.brandAria">
           <span class="brand__mark" aria-hidden="true">
             <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
               <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
@@ -37,27 +32,33 @@
             </svg>
           </span>
           <span class="brand__text">
-            <span class="brand__name">אטלס מסע</span>
-            <span class="brand__tag">חופשה ניידת • ספונטנית • מסודרת</span>
+            <span class="brand__name" data-i18n="common.brandName">אטלס מסע</span>
+            <span class="brand__tag" data-i18n="common.brandTag">תשתית מסע ניידת: חופש, תנועה, שקט</span>
           </span>
         </a>
 
-        <nav class="nav nav--desktop" aria-label="ניווט ראשי">
-          <a href="#offers">מסלולים</a>
-          <a href="#free-help">מה כלול</a>
-          <a href="#guides">מדריכים</a>
-          <a href="#faq">שאלות</a>
-          <a class="nav__cta" href="#contact">בדיקת זמינות</a>
+        <nav class="nav nav--desktop" aria-label="Primary navigation" data-i18n-aria-label="common.navAria">
+          <a href="homepage.html" data-i18n="common.nav.home">דף הבית</a>
+          <a href="pricing.html" data-i18n="common.nav.pricing">חבילות ומחירים</a>
+          <a href="mobility-theory.html" data-i18n="common.nav.mobility">תיאוריית הניידות</a>
+          <a href="guides.html" data-i18n="common.nav.guides">מדריכים בישראל</a>
+          <a href="faq.html" data-i18n="common.nav.faq">שאלות נפוצות</a>
+          <a href="policies.html" data-i18n="common.nav.policies">כללים ומדיניות</a>
+          <a href="contact.html" data-i18n="common.nav.contact">צור קשר</a>
+          <a href="concierge-local.html" data-i18n="common.nav.concierge">עוזר מסע חכם</a>
         </nav>
 
         <details class="nav nav--mobile">
-          <summary aria-label="פתח תפריט">תפריט</summary>
-          <div class="nav__panel" role="navigation" aria-label="ניווט מובייל">
-            <a href="#offers">מסלולים</a>
-            <a href="#free-help">מה כלול</a>
-            <a href="#guides">מדריכים</a>
-            <a href="#faq">שאלות</a>
-            <a class="nav__cta" href="#contact">בדיקת זמינות</a>
+          <summary aria-label="פתח תפריט" data-i18n-aria-label="common.menuAria" data-i18n="common.menu">תפריט</summary>
+          <div class="nav__panel" role="navigation" aria-label="Mobile navigation" data-i18n-aria-label="common.mobileNavAria">
+            <a href="homepage.html" data-i18n="common.nav.home">דף הבית</a>
+            <a href="pricing.html" data-i18n="common.nav.pricing">חבילות ומחירים</a>
+            <a href="mobility-theory.html" data-i18n="common.nav.mobility">תיאוריית הניידות</a>
+            <a href="guides.html" data-i18n="common.nav.guides">מדריכים בישראל</a>
+            <a href="faq.html" data-i18n="common.nav.faq">שאלות נפוצות</a>
+            <a href="policies.html" data-i18n="common.nav.policies">כללים ומדיניות</a>
+            <a href="contact.html" data-i18n="common.nav.contact">צור קשר</a>
+            <a href="concierge-local.html" data-i18n="common.nav.concierge">עוזר מסע חכם</a>
           </div>
         </details>
       </div>
@@ -67,247 +68,282 @@
       <section class="hero">
         <div class="container hero__inner">
           <div class="hero__copy">
-            <p class="eyebrow">המלון שלך על גלגלים + האטלס שלך בכיס</p>
-            <h1>חופשה בלי מלונות — עם חופש לזוז, לשנות, ולהירגע.</h1>
-            <p class="lead">
-              אטלס מסע נותן לכם קמפרוואן וחבילת עזרה מלאה לטיול — <strong>בחינם</strong>.
-              לינה, נקודות עצירה, מים/אפורים, מקלחות, חופים, ותכנון שמונע הסתבכויות.
+            <p class="eyebrow" data-i18n="home.hero.eyebrow">חופשה בלי מלונות • המלון שלך על גלגלים</p>
+            <h1 data-i18n="home.hero.title">אטלס מסע בונה אקוסיסטם טיול ומגורים שמותאם לתנועה וספונטניות.</h1>
+            <p class="lead" data-i18n="home.hero.lead">
+              אתם לא שוכרים רק רכב. אתם מקבלים יחידת חיים ניידת + שכבת שירות: לינה, מים/אפור,
+              מקלחות, מסלול, תמיכה בוואטסאפ, וכל זה בעיצוב נקי ובסטנדרט של אין עישון.
             </p>
-
             <div class="hero__cta">
-              <a class="btn btn--primary" href="#contact">בדיקת זמינות</a>
-              <a class="btn btn--ghost" href="#guides">לראות מדריכים</a>
+              <a class="btn btn--primary" href="contact.html" data-i18n="home.hero.ctaPrimary">בדיקת זמינות</a>
+              <a class="btn btn--ghost" href="mobility-theory.html" data-i18n="home.hero.ctaSecondary">קריאת תיאוריית הניידות</a>
             </div>
-
-            <ul class="badges" aria-label="יתרונות מרכזיים">
-              <li>תכנון מסלול כלול</li>
-              <li>תמיכה בוואטסאפ</li>
-              <li>נקי וריחני (אין עישון)</li>
+            <ul class="badges" aria-label="Highlights" data-i18n-aria-label="home.hero.badgesAria">
+              <li data-i18n="home.hero.badge1">תכנון טיול כלול בחינם</li>
+              <li data-i18n="home.hero.badge2">מדיניות נקייה ללא עישון</li>
+              <li data-i18n="home.hero.badge3">ניקוי עצמי חכם כבר בבניות מוקדמות</li>
             </ul>
           </div>
 
-          <aside class="hero__card card" aria-label="סיכום מהיר">
+          <aside class="hero__card card" aria-label="Quick summary" data-i18n-aria-label="home.hero.cardAria">
             <div class="hero__cardTop">
-              <span class="pill">חדש</span>
-              <span class="mini">בונים עכשיו • משיקים כשצריך</span>
+              <span class="pill" data-i18n="home.hero.cardPill">Atlas Concierge Included</span>
+              <span class="mini" data-i18n="home.hero.cardMini">Build now • launch when needed</span>
             </div>
-
-            <h2 class="hero__cardTitle">מה מקבלים בפועל?</h2>
+            <h2 class="hero__cardTitle" data-i18n="home.hero.cardTitle">מה מקבלים בכל חבילה?</h2>
             <ul class="checklist">
-              <li>קמפרוואן מוכן לצאת</li>
-              <li>שגרת טיול פשוטה: מים / אפורים / מקלחות</li>
-              <li>סט “איפה ישנים” + חלופות</li>
-              <li>מסלול מותאם סגנון: חופים / צפון / מדבר</li>
+              <li data-i18n="home.hero.cardLi1">יחידת לינה ניידת עם מטבחון ומקלחת</li>
+              <li data-i18n="home.hero.cardLi2">תכנון עצירות שינה + חלופות חוקיות</li>
+              <li data-i18n="home.hero.cardLi3">שגרת מים/אפור פרקטית לפי אזור</li>
+              <li data-i18n="home.hero.cardLi4">תמיכת תפעול בזמן אמת</li>
             </ul>
-
             <div class="split">
               <div>
-                <div class="kpi">5–10 דק׳</div>
-                <div class="kpi__label">מרגע החלטה עד יציאה</div>
+                <div class="kpi" data-i18n="home.hero.kpi1">5-10 דק׳ יציאה</div>
+                <div class="kpi__label" data-i18n="home.hero.kpi1Label">מהחלטה לתזוזה</div>
               </div>
               <div>
-                <div class="kpi">0</div>
-                <div class="kpi__label">צ׳ק-אין/צ׳ק-אאוט</div>
+                <div class="kpi" data-i18n="home.hero.kpi2">0 צ׳ק-אין</div>
+                <div class="kpi__label" data-i18n="home.hero.kpi2Label">בלי לובי ובלי ריסט יומי</div>
               </div>
             </div>
-
-            <a class="btn btn--primary btn--full" href="#offers">לבחור מסלול</a>
-            <p class="fineprint">
-              *דוגמא/דמו. נחדד פרטים ומחירים לפני השקה רשמית.
-            </p>
           </aside>
         </div>
       </section>
 
-      <section id="offers" class="section">
+      <section class="section section--soft" id="mobility-theory">
         <div class="container">
           <div class="section__head">
-            <h2>בחרו איך להתחיל</h2>
-            <p class="sub">
-              ניסיון קצר כדי להרגיש את הקונספט, או מנוי שמחזיר לכם חופש שוב ושוב.
+            <h2 data-i18n="home.mobility.title">תיאוריית הניידות של אטלס מסע</h2>
+            <p class="sub" data-i18n="home.mobility.sub">
+              אנחנו בונים סינתזה בין סביבת עבודה מקצועית, קרוואן מודרני יוקרתי, וזמן טבע רציף.
             </p>
           </div>
+          <ul class="checklist">
+            <li data-i18n="home.mobility.li1">Dock point אחיד בכל תחנה: USB-C, HDMI, חשמל וקישוריות.</li>
+            <li data-i18n="home.mobility.li2">אזורי עבודה מרובים: נוסע קדמי, בות׳, מיטות, ותמיכה רציפה.</li>
+            <li data-i18n="home.mobility.li3">ארגונומיה לעבודה ממושכת: זוויות עמוקות לכל המושבים שאינם נהג.</li>
+            <li data-i18n="home.mobility.li4">מיקוד בהפחתת בחילות תנועה דרך NVH, יציבות ומתלים.</li>
+            <li data-i18n="home.mobility.li5">HVAC שקט ואפקטיבי שמשרת גם עבודה וגם שינה.</li>
+            <li data-i18n="home.mobility.li6">אחסון הנדסי כמערכת ולא ״שאריות חלל״.</li>
+            <li data-i18n="home.mobility.li7">גישה certification-first: בלי הבטחות שווא ובלי קיצורי דרך.</li>
+          </ul>
+          <div class="hero__cta">
+            <a class="btn btn--ghost" href="mobility-theory.html" data-i18n="home.mobility.cta">לקרוא את המסמך המלא</a>
+          </div>
+        </div>
+      </section>
 
+      <section class="section" id="roadmap">
+        <div class="container">
+          <div class="section__head">
+            <h2 data-i18n="home.roadmap.title">מפת דרכים דו-מסלולית</h2>
+            <p class="sub" data-i18n="home.roadmap.sub">נמסור ערך עכשיו על פלטפורמות קיימות, ונפתח שלדה מקורית בהמשך.</p>
+          </div>
+          <div class="grid grid--2">
+            <article class="card iconCard">
+              <h3 data-i18n="home.roadmap.nowTitle">Now: פלטפורמות ואנים קיימות</h3>
+              <p data-i18n="home.roadmap.nowText">Dockpoints, מסכים, שולחנות, קישוריות, אזורי עבודה מודולריים ותכנון שירותים חכם.</p>
+            </article>
+            <article class="card iconCard">
+              <h3 data-i18n="home.roadmap.futureTitle">Future: שלדה נקייה מהיסוד</h3>
+              <p data-i18n="home.roadmap.futureText">NVH נמוך, טווח ארוך, גג מתארך לחניה עירונית, מתלים מתקדמים, ויעדי R&D אמפיביים.</p>
+            </article>
+          </div>
+          <div class="callout" data-i18n="home.roadmap.note">
+            יעד אמפיבי הוא חזון מחקר ופיתוח ארוך-טווח, לא הבטחה מוצרית לטווח מיידי.
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="workstations">
+        <div class="container">
+          <div class="section__head">
+            <h2 data-i18n="home.work.title">Workstations Everywhere</h2>
+            <p class="sub" data-i18n="home.work.sub">אותה שפה הנדסית בכל תחנה, כדי לאפשר סקייל מהיר, עלות נמוכה ואיכות עקבית.</p>
+          </div>
+          <div class="grid grid--2">
+            <article class="card iconCard">
+              <h3 data-i18n="home.work.w1Title">תחנת נוסע קדמי</h3>
+              <p data-i18n="home.work.w1Text">מסך ייעודי + HDMI + USB-C + שולחן נשלף, עם קיפול מהיר לפני נסיעה.</p>
+            </article>
+            <article class="card iconCard">
+              <h3 data-i18n="home.work.w2Title">תחנת מיטה</h3>
+              <p data-i18n="home.work.w2Text">זרוע מסך מתקפלת, USB-C בצד הראש והצד התחתון, תאורה לעבודה ממושכת.</p>
+            </article>
+            <article class="card iconCard">
+              <h3 data-i18n="home.work.w3Title">תחנת בות׳</h3>
+              <p data-i18n="home.work.w3Text">ישיבה עמוקה וארגונומית, תצורת עבודה/אכילה/ישיבה ממושכת עם חגירה מתוכננת.</p>
+            </article>
+            <article class="card iconCard">
+              <h3 data-i18n="home.work.w4Title">תחנת תשתית</h3>
+              <p data-i18n="home.work.w4Text">חשמל DC נקי, HDMI כגיבוי, מוכנות לאת'רנט, ומודולים חוזרים להרכבה זולה.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section--soft" id="clean-tech">
+        <div class="container">
+          <div class="section__head">
+            <h2 data-i18n="home.cleanTech.title">ניקוי עצמי כבר בבניות המוקדמות</h2>
+            <p class="sub" data-i18n="home.cleanTech.sub">
+              אנחנו מתכננים לשלב ציפויים פוטוקטליטיים ותאורת אקטיבציה ייעודית מוקדם ככל האפשר,
+              כולל שימוש באורכי גל נחוצים בלבד להפעלת הציפוי, בכפוף לבטיחות ותקינה.
+            </p>
+          </div>
+          <div class="grid grid--3">
+            <article class="card iconCard">
+              <h3 data-i18n="home.cleanTech.card1.title">ציפויים פוטוקטליטיים</h3>
+              <p data-i18n="home.cleanTech.card1.text">על משטחי שימוש גבוה להפחתת הצטברות ריחות ולכלוך לאורך זמן.</p>
+            </article>
+            <article class="card iconCard">
+              <h3 data-i18n="home.cleanTech.card2.title">תאורת אקטיבציה ממוקדת</h3>
+              <p data-i18n="home.cleanTech.card2.text">אורכי גל תפעוליים להפעלת הציפוי עם מינימום אור נראה לנוסעים.</p>
+            </article>
+            <article class="card iconCard">
+              <h3 data-i18n="home.cleanTech.card3.title">יישום מוקדם עם בקרה</h3>
+              <p data-i18n="home.cleanTech.card3.text">הטמעה מהבניות הראשונות האפשריות, עם מדידה ועמידה בהנחיות בטיחות.</p>
+            </article>
+          </div>
+          <div class="callout" data-i18n="home.cleanTech.note">
+            זה יעד הנדסי פעיל: נפרוס בכל אזור אפשרי שבו המערכת בטוחה, אמינה וכלכלית.
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="offers">
+        <div class="container">
+          <div class="section__head">
+            <h2 data-i18n="home.products.title">שני מוצרים ברורים</h2>
+            <p class="sub" data-i18n="home.products.sub">
+              מסע חווייתי לבדיקה מהירה של הקונספט. מנוי מסע לחופש מתמשך וגישה שוטפת.
+            </p>
+          </div>
           <div class="grid grid--2">
             <article class="card offer">
               <header class="offer__head">
-                <h3>מסע חווייתי</h3>
-                <p class="offer__desc">ניסיון קצר • מתאים לוויקנד ראשון</p>
+                <h3 data-i18n="home.products.trial.title">מסע חווייתי</h3>
+                <p class="offer__desc" data-i18n="home.products.trial.desc">3-14 ימים, ניסיון חכם לפני התחייבות</p>
               </header>
-
               <div class="price">
-                <span class="price__from">החל מ־</span>
-                <span class="price__num">₪___</span>
-                <span class="price__unit">ליציאה</span>
+                <span class="price__from" data-i18n="home.products.from">החל מ-</span>
+                <span class="price__num" data-i18n="home.products.trial.price">₪1,200</span>
+                <span class="price__unit" data-i18n="home.products.perTrip">למסע</span>
               </div>
-
               <ul class="checklist checklist--compact">
-                <li>הדרכה קצרה + צ׳ק-ליסט יציאה</li>
-                <li>מסלול מומלץ + נקודות שירות</li>
-                <li>סט עצירות וחופים לפי סגנון</li>
-                <li>תמיכה בוואטסאפ לאורך הטיול</li>
+                <li data-i18n="home.products.trial.li1">הדרכת יציאה קצרה ופשוטה</li>
+                <li data-i18n="home.products.trial.li2">מפת שינה ומקלחות</li>
+                <li data-i18n="home.products.trial.li3">מסלול מותאם: חוף/צפון/מדבר</li>
+                <li data-i18n="home.products.trial.li4">איסוף פידבק והמרה למנוי</li>
               </ul>
-
-              <a class="btn btn--primary btn--full" href="#contact">מתחילים עם מסע חווייתי</a>
             </article>
 
             <article class="card offer offer--featured">
               <header class="offer__head">
-                <div class="offer__badge">הכי משתלם</div>
-                <h3>מנוי מסע</h3>
-                <p class="offer__desc">מנוי • חופש קבוע וחכם</p>
+                <div class="offer__badge" data-i18n="home.products.member.badge">ללקוחות חוזרים</div>
+                <h3 data-i18n="home.products.member.title">מנוי מסע</h3>
+                <p class="offer__desc" data-i18n="home.products.member.desc">חודשי/רב-חודשי עם שכבת שירות מורחבת</p>
               </header>
-
               <div class="price">
-                <span class="price__from">החל מ־</span>
-                <span class="price__num">₪___</span>
-                <span class="price__unit">לחודש</span>
+                <span class="price__from" data-i18n="home.products.from">החל מ-</span>
+                <span class="price__num" data-i18n="home.products.member.price">₪3,500</span>
+                <span class="price__unit" data-i18n="home.products.perMonth">לחודש</span>
               </div>
-
               <ul class="checklist checklist--compact">
-                <li>עדיפות בזמינות (כשנפתח)</li>
-                <li>מסלולים מוכנים + התאמה אישית</li>
-                <li>שדרוגים/הטבות לחברים</li>
-                <li>ספריית מדריכים ישראלית (עברית)</li>
+                <li data-i18n="home.products.member.li1">זמינות עדיפה ותמיכה רציפה</li>
+                <li data-i18n="home.products.member.li2">תחזוקה, גרירה וגיבוי מוגדר</li>
+                <li data-i18n="home.products.member.li3">שמירת פרופיל אישי להמלצות מותאמות</li>
+                <li data-i18n="home.products.member.li4">קרדיט ממסע חווייתי להצטרפות</li>
               </ul>
-
-              <a class="btn btn--primary btn--full" href="#contact">מצטרפים למנוי מסע</a>
             </article>
           </div>
-
-          <div class="note">
-            רוצים להפוך את זה ל״חבילה שאין לה מתחרים״? פה זה קורה — אנחנו כוללים את כל עזרת הטיול בחינם.
-          </div>
         </div>
       </section>
 
-      <section id="free-help" class="section section--soft">
+      <section class="section section--soft" id="free-help">
         <div class="container">
           <div class="section__head">
-            <h2>עזרה לטיול כלולה בחינם</h2>
-            <p class="sub">
-              ספונטניות לא צריכה להיות כאב ראש. אנחנו מסדרים את הדברים שבאמת עוצרים אנשים:
-              מים/אפורים, לינה חכמה, ומקלחות.
+            <h2 data-i18n="home.freeHelp.title">עזרה בטיול כלולה בחינם בכל חבילה</h2>
+            <p class="sub" data-i18n="home.freeHelp.sub">
+              הכוח שלנו הוא בהורדת חיכוך תפעולי: מים/אפור, לינה, מקלחות, ונתיב יום-יום ברור.
             </p>
           </div>
-
           <div class="grid grid--3">
-            <div class="iconCard card">
+            <article class="card iconCard">
               <div class="iconCard__icon" aria-hidden="true">🌊</div>
-              <h3>לינה + חופים</h3>
-              <p>סט נקודות לינה לפי סגנון (שקט/וייב/זוגי) + חלופות כדי לא להיתקע.</p>
-            </div>
-
-            <div class="iconCard card">
-              <div class="iconCard__icon" aria-hidden="true">🚿</div>
-              <h3>מקלחות בפועל</h3>
-              <p>פתרונות אמיתיים: קמפינגים, נקודות שירות, שגרה פשוטה לפי האזור והעונה.</p>
-            </div>
-
-            <div class="iconCard card">
+              <h3 data-i18n="home.freeHelp.card1.title">תכנון שינה חוקי</h3>
+              <p data-i18n="home.freeHelp.card1.text">נקודת לינה ראשית + גיבוי לכל לילה, בלי הבטחות לא חוקיות.</p>
+            </article>
+            <article class="card iconCard">
               <div class="iconCard__icon" aria-hidden="true">💧</div>
-              <h3>מים / אפורים</h3>
-              <p>תכנון “ישראל-פרוף”: איפה ממלאים, איפה מרוקנים, ומה עושים כשצריך תוכנית ב׳.</p>
-            </div>
-          </div>
-
-          <div class="callout">
-            <strong>תובנה חשובה:</strong> חשמל זה בדרך כלל קל. מים ואפורים זה הסיפור.
-            לכן אנחנו נותנים לכם שגרה ברורה — כדי שהטיול ירגיש קל.
+              <h3 data-i18n="home.freeHelp.card2.title">מים ואפורים בלי הסתבכות</h3>
+              <p data-i18n="home.freeHelp.card2.text">מילוי וריקון רק בנקודות מורשות, עם תזמון חכם לכל מסלול.</p>
+            </article>
+            <article class="card iconCard">
+              <div class="iconCard__icon" aria-hidden="true">🚿</div>
+              <h3 data-i18n="home.freeHelp.card3.title">שגרת מקלחות נגישה</h3>
+              <p data-i18n="home.freeHelp.card3.text">קמפינגים, מתחמי רחצה וחלופות נוספות לפי האזור והיום.</p>
+            </article>
           </div>
         </div>
       </section>
 
-      <section id="how" class="section">
+      <section class="section" id="guides">
         <div class="container">
           <div class="section__head">
-            <h2>איך זה עובד</h2>
-            <p class="sub">תהליך קצר, ברור, בלי דרמות.</p>
+            <h2 data-i18n="home.guides.title">מדריכי מסע בישראל</h2>
+            <p class="sub" data-i18n="home.guides.sub">ספריית מדריכים רב-לשונית עם דגש תפעולי, בטיחותי ושיווקי.</p>
           </div>
-
-          <ol class="steps">
-            <li class="steps__item">
-              <div class="steps__title">בוחרים סגנון מסע</div>
-              <div class="steps__text">חופים / צפון / מדבר • זוג / חברים • רגוע או עמוס.</div>
-            </li>
-            <li class="steps__item">
-              <div class="steps__title">מקבלים מסלול “מוכן לצאת”</div>
-              <div class="steps__text">עצירות, לינה, שירותים — הכל מסודר. אפשר לשנות תוך כדי.</div>
-            </li>
-            <li class="steps__item">
-              <div class="steps__title">יוצאים — ואנחנו איתכם</div>
-              <div class="steps__text">תמיכה בוואטסאפ + צ׳ק-ליסטים. אתם רק נהנים.</div>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <section id="guides" class="section">
-        <div class="container">
-          <div class="section__head">
-            <h2>מדריכי מסע בישראל</h2>
-            <p class="sub">נבנה עכשיו ספריית מדריכים בעברית. הנה דוגמאות לכיוון.</p>
-          </div>
-
           <div class="grid grid--3">
-            <a class="card guide" href="guides/israel-beaches-4seas.html" aria-label="מדריך: חופים רגועים">
-              <span class="pill">וויקנד</span>
-              <h3>חופים רגועים: השרון → הכרמל</h3>
-              <p>שקיעות, עצירות אוכל, ונקודות שירות מסודרות.</p>
-              <span class="guide__more">פתיחה →</span>
+            <a class="card guide" href="guides/israel-beaches-4seas.html">
+              <span class="pill" data-i18n="home.guides.card1.pill">6-8 ימים</span>
+              <h3 data-i18n="home.guides.card1.title">מדריך חופים: ים תיכון, כנרת, ים המלח, ים סוף</h3>
+              <p data-i18n="home.guides.card1.text">מסלול דגל של ארבעת הימים עם לוגיסטיקה מלאה.</p>
             </a>
-
-            <a class="card guide" href="#" aria-label="מדריך: צפון ירוק">
-              <span class="pill">3–4 ימים</span>
-              <h3>צפון ירוק: נחלים, תצפיות, שקט</h3>
-              <p>מסלול קל לנהיגה עם עצירות נוחות ושגרה פשוטה.</p>
-              <span class="guide__more">בקרוב →</span>
+            <a class="card guide" href="guides/north-green-guide.html">
+              <span class="pill" data-i18n="home.guides.card2.pill">3-4 ימים</span>
+              <h3 data-i18n="home.guides.card2.title">צפון ירוק</h3>
+              <p data-i18n="home.guides.card2.text">נחלים, תצפיות ושגרה קלה לזוגות וחברים.</p>
             </a>
-
-            <a class="card guide" href="#" aria-label="מדריך: מדבר">
-              <span class="pill">5–7 ימים</span>
-              <h3>מדבר: מכתש רמון + לילות כוכבים</h3>
-              <p>וייב של ריסט. כולל דגש שירותים/מים כדי לא להסתבך.</p>
-              <span class="guide__more">בקרוב →</span>
+            <a class="card guide" href="guides/desert-routine-guide.html">
+              <span class="pill" data-i18n="home.guides.card3.pill">5-7 ימים</span>
+              <h3 data-i18n="home.guides.card3.title">מדבר חכם</h3>
+              <p data-i18n="home.guides.card3.text">רזרבות, בטיחות ותפעול מדויק בנגב.</p>
             </a>
           </div>
         </div>
       </section>
 
-      <section id="faq" class="section section--soft">
+      <section class="section section--soft" id="faq">
         <div class="container">
           <div class="section__head">
-            <h2>שאלות נפוצות</h2>
-            <p class="sub">תשובות קצרות עכשיו — ובהמשך גם וידאו.</p>
+            <h2 data-i18n="home.faq.title">שאלות נפוצות</h2>
           </div>
-
           <div class="faq">
-            <details class="faq__item">
-              <summary>זה קשה לנהוג בקמפרוואן?</summary>
-              <p>
-                לרוב לא. נותנים הדרכה קצרה + טיפים לנהיגה/חניה לפי מסלול. בוחרים יחד מסלול שמתאים לרמת ביטחון.
-              </p>
+            <details class="faq__item" open>
+              <summary data-i18n="home.faq.q1">למה "חופשה בלי מלונות"?</summary>
+              <p data-i18n="home.faq.a1">כי זה מבטל צ׳ק-אין/צ׳ק-אאוט, נסיעות חזור ללינה קבועה ואריזה יומית מחדש.</p>
             </details>
-
             <details class="faq__item">
-              <summary>מה עושים עם מקלחות ושירותים?</summary>
-              <p>
-                יש שגרה פשוטה לפי אזור: נקודות שירות/קמפינגים/פתרונות מקומיים. לא משאירים אתכם “לנחש”.
-              </p>
+              <summary data-i18n="home.faq.q2">זה מתאים גם לטיולים קצרים?</summary>
+              <p data-i18n="home.faq.a2">כן. מסע חווייתי נבנה בדיוק לניסוי קצר, ואז אפשר להמיר למנוי.</p>
             </details>
-
             <details class="faq__item">
-              <summary>איפה ישנים?</summary>
-              <p>
-                אנחנו מספקים נקודות לינה + חלופות, עם דגש על התנהגות מכבדת וחוקית. המטרה: שקט בראש.
-              </p>
+              <summary data-i18n="home.faq.q3">מה לגבי חוקיות מים אפורים?</summary>
+              <p data-i18n="home.faq.a3">אין ריקון בשטח. אנחנו מתכננים רק נקודות מורשות וחלופות.</p>
             </details>
-
             <details class="faq__item">
-              <summary>יש מדיניות “אין עישון”?</summary>
-              <p>
-                כן. אנחנו שומרים על רכבים נקיים, ריחניים ונעימים לכולם. פרטים מלאים יהיו בעמוד כללים לפני השקה.
-              </p>
+              <summary data-i18n="home.faq.q4">אפשר לעבוד תוך כדי נסיעה?</summary>
+              <p data-i18n="home.faq.a4">רק לנוסעים ובתנאי בטיחות. הנהג חייב להישאר ממוקד בנהיגה בלבד.</p>
+            </details>
+            <details class="faq__item">
+              <summary data-i18n="home.faq.q5">איך המסכים מתחברים בפועל?</summary>
+              <p data-i18n="home.faq.a5">USB-C כראשי, HDMI כגיבוי, ותשתית חשמל יציבה בכל תחנת עבודה.</p>
+            </details>
+            <details class="faq__item">
+              <summary data-i18n="home.faq.q6">מה מצב זמינות היום לעומת החזון?</summary>
+              <p data-i18n="home.faq.a6">היום עובדים על ואנים קיימים. שלדה מקורית ויכולות מתקדמות הן שלב עתידי.</p>
             </details>
           </div>
         </div>
@@ -316,58 +352,24 @@
       <section id="contact" class="section section--cta">
         <div class="container cta">
           <div class="cta__copy">
-            <h2>רוצים מסע שמרגיש קל?</h2>
-            <p>
-              שלחו לנו תאריכים וסגנון — ונחזיר זמינות + הצעה למסלול (בחינם למזמינים).
-            </p>
+            <h2 data-i18n="home.cta.title">רוצים להתחיל עם מסע חווייתי או מנוי מסע?</h2>
+            <p data-i18n="home.cta.text">שלחו תאריכים, סגנון מסע, וכמה אנשים אתם. נחזיר תוכנית תנועה מדויקת.</p>
             <div class="cta__actions">
-              <a class="btn btn--primary" href="https://wa.me/972XXXXXXXXX" target="_blank" rel="noopener">
-                וואטסאפ
-              </a>
-              <a class="btn btn--ghost" href="mailto:hello@atlasmasa.co.il">אימייל</a>
+              <a class="btn btn--primary" href="https://wa.me/972000000000" target="_blank" rel="noopener" data-i18n="home.cta.whatsapp">וואטסאפ</a>
+              <a class="btn btn--ghost" href="contact.html" data-i18n="home.cta.contactPage">עמוד יצירת קשר מלא</a>
             </div>
-
-            <p class="fineprint">
-              טיפ: אפשר לכתוב “מסע חווייתי” או “מנוי מסע” כדי שנדע מה מתאים לכם.
-            </p>
+            <p class="fineprint" data-i18n="home.cta.note">תכנון טיול כלול בחינם למזמינים. אין שיווק לקטינים. אין עישון.</p>
+            <p class="fineprint" data-i18n="home.cta.invest">אטלס מסע פתוחה לשותפויות ולהשקעות אסטרטגיות.</p>
           </div>
 
-          <form class="card form" action="#" method="post" aria-label="טופס פנייה">
-            <div class="form__row">
-              <label>
-                שם
-                <input name="name" autocomplete="name" placeholder="איך קוראים לכם?" />
-              </label>
-              <label>
-                טלפון
-                <input name="phone" inputmode="tel" placeholder="05x-xxxxxxx" />
-              </label>
+          <article class="card form">
+            <h3 data-i18n="home.cta.formTitle">עדכון מהיר לפני שיחה</h3>
+            <p class="sub" data-i18n="home.cta.formText">לניהול מלא של בקשות ושמירת פרופיל, עברו לעמוד יצירת קשר או לעוזר המסע החכם.</p>
+            <div class="hero__cta" style="margin-top:12px">
+              <a class="btn btn--primary" href="contact.html" data-i18n="home.cta.formBtn1">פתיחת עמוד יצירת קשר</a>
+              <a class="btn btn--ghost" href="concierge-local.html" data-i18n="home.cta.formBtn2">פתיחת עוזר מסע חכם</a>
             </div>
-
-            <div class="form__row">
-              <label>
-                תאריכים (בערך)
-                <input name="dates" placeholder="למשל: 12–15 במרץ" />
-              </label>
-            </div>
-
-            <label>
-              סגנון מסע
-              <textarea
-                name="style"
-                rows="4"
-                placeholder="חופים/צפון/מדבר • זוג/חברים • רגוע או עמוס • כל דבר חשוב…"
-              ></textarea>
-            </label>
-
-            <button class="btn btn--primary btn--full" type="button" disabled>
-              שליחה (חיבור לשרת בהמשך)
-            </button>
-
-            <p class="fineprint">
-              כרגע אנחנו בונים. כשתשיקו — נחבר את הטופס לשרת מאובטח / אימייל / CRM.
-            </p>
-          </form>
+          </article>
         </div>
       </section>
     </main>
@@ -375,23 +377,967 @@
     <footer class="footer">
       <div class="container footer__inner">
         <div class="footer__brand">
-          <div class="footer__name">אטלס מסע</div>
-          <div class="footer__muted">חופשה ניידת, ספונטנית, מסודרת.</div>
+          <div class="footer__name" data-i18n="common.brandName">אטלס מסע</div>
+          <div class="footer__muted" data-i18n="common.footerTag">תשתית מסע ניידת עם תכנון חינם.</div>
         </div>
-
-        <div class="footer__links" aria-label="קישורים">
-          <a href="#offers">מסלולים</a>
-          <a href="#guides">מדריכים</a>
-          <a href="#faq">שאלות</a>
-          <a href="#contact">צור קשר</a>
+        <div class="footer__links" aria-label="Footer links" data-i18n-aria-label="common.footerLinksAria">
+          <a href="pricing.html" data-i18n="common.nav.pricing">חבילות ומחירים</a>
+          <a href="mobility-theory.html" data-i18n="common.nav.mobility">תיאוריית הניידות</a>
+          <a href="guides.html" data-i18n="common.nav.guides">מדריכים בישראל</a>
+          <a href="faq.html" data-i18n="common.nav.faq">שאלות נפוצות</a>
+          <a href="policies.html" data-i18n="common.nav.policies">כללים ומדיניות</a>
+          <a href="contact.html" data-i18n="common.nav.contact">צור קשר</a>
         </div>
-
         <div class="footer__meta">
-          <span>© <span id="year">2026</span> אטלס מסע</span>
+          <span>© <span id="year">2026</span> <span data-i18n="common.brandName">אטלס מסע</span></span>
           <span class="dot" aria-hidden="true">•</span>
-          <span class="muted">דמו/בנייה</span>
+          <span class="muted" data-i18n="common.buildMode">מצב בנייה</span>
         </div>
       </div>
     </footer>
+
+    <script>
+      window.ATLAS_PAGE_I18N = {
+        he: {
+          meta: {
+            title: "אטלס מסע - חופשה בלי מלונות",
+            description: "אטלס מסע: המלון שלך על גלגלים. מסע חווייתי לניסיון קצר, מנוי מסע לחופש קבוע, ועזרה מלאה לטיול כלולה בחינם."
+          },
+          common: {
+            skip: "דלג לתוכן",
+            brandAria: "אטלס מסע דף הבית",
+            navAria: "ניווט ראשי",
+            mobileNavAria: "ניווט מובייל",
+            menuAria: "פתח תפריט",
+            menu: "תפריט",
+            brandName: "אטלס מסע",
+            brandTag: "תשתית מסע ניידת: חופש, תנועה, שקט",
+            nav: {
+              home: "דף הבית",
+              pricing: "חבילות ומחירים",
+              guides: "מדריכים בישראל",
+              faq: "שאלות נפוצות",
+              policies: "כללים ומדיניות",
+              contact: "צור קשר",
+              concierge: "עוזר מסע חכם"
+            },
+            footerTag: "תשתית מסע ניידת עם תכנון חינם.",
+            footerLinksAria: "קישורי תחתית",
+            buildMode: "מצב בנייה"
+          },
+          home: {
+            hero: {
+              eyebrow: "חופשה בלי מלונות • המלון שלך על גלגלים",
+              title: "אטלס מסע בונה אקוסיסטם טיול ומגורים שמותאם לתנועה וספונטניות.",
+              lead: "אתם לא שוכרים רק רכב. אתם מקבלים יחידת חיים ניידת + שכבת שירות: לינה, מים/אפור, מקלחות, מסלול, תמיכה בוואטסאפ, וכל זה בעיצוב נקי ובסטנדרט של אין עישון.",
+              ctaPrimary: "בדיקת זמינות",
+              ctaSecondary: "פתיחת מדריכים",
+              badgesAria: "יתרונות",
+              badge1: "תכנון טיול כלול בחינם",
+              badge2: "מדיניות נקייה ללא עישון",
+              badge3: "לוגיסטיקה ישראלית אמיתית",
+              cardAria: "סיכום מהיר",
+              cardPill: "Atlas Concierge Included",
+              cardMini: "Build now • launch when needed",
+              cardTitle: "מה מקבלים בכל חבילה?",
+              cardLi1: "יחידת לינה ניידת עם מטבחון ומקלחת",
+              cardLi2: "תכנון עצירות שינה + חלופות חוקיות",
+              cardLi3: "שגרת מים/אפור פרקטית לפי אזור",
+              cardLi4: "תמיכת תפעול בזמן אמת",
+              kpi1: "5-10 דק׳ יציאה",
+              kpi1Label: "מהחלטה לתזוזה",
+              kpi2: "0 צ׳ק-אין",
+              kpi2Label: "בלי לובי ובלי ריסט יומי"
+            },
+            products: {
+              title: "שני מוצרים ברורים",
+              sub: "מסע חווייתי לבדיקה מהירה של הקונספט. מנוי מסע לחופש מתמשך וגישה שוטפת.",
+              from: "החל מ-",
+              perTrip: "למסע",
+              perMonth: "לחודש",
+              trial: {
+                title: "מסע חווייתי",
+                desc: "3-14 ימים, ניסיון חכם לפני התחייבות",
+                price: "₪1,200",
+                li1: "הדרכת יציאה קצרה ופשוטה",
+                li2: "מפת שינה ומקלחות",
+                li3: "מסלול מותאם: חוף/צפון/מדבר",
+                li4: "איסוף פידבק והמרה למנוי"
+              },
+              member: {
+                badge: "ללקוחות חוזרים",
+                title: "מנוי מסע",
+                desc: "חודשי/רב-חודשי עם שכבת שירות מורחבת",
+                price: "₪3,500",
+                li1: "זמינות עדיפה ותמיכה רציפה",
+                li2: "תחזוקה, גרירה וגיבוי מוגדר",
+                li3: "שמירת פרופיל אישי להמלצות מותאמות",
+                li4: "קרדיט ממסע חווייתי להצטרפות"
+              }
+            },
+            freeHelp: {
+              title: "עזרה בטיול כלולה בחינם בכל חבילה",
+              sub: "הכוח שלנו הוא בהורדת חיכוך תפעולי: מים/אפור, לינה, מקלחות, ונתיב יום-יום ברור.",
+              card1: { title: "תכנון שינה חוקי", text: "נקודת לינה ראשית + גיבוי לכל לילה, בלי הבטחות לא חוקיות." },
+              card2: { title: "מים ואפורים בלי הסתבכות", text: "מילוי וריקון רק בנקודות מורשות, עם תזמון חכם לכל מסלול." },
+              card3: { title: "שגרת מקלחות נגישה", text: "קמפינגים, מתחמי רחצה וחלופות נוספות לפי האזור והיום." }
+            },
+            guides: {
+              title: "מדריכי מסע בישראל",
+              sub: "ספריית מדריכים רב-לשונית עם דגש תפעולי, בטיחותי ושיווקי.",
+              card1: { pill: "6-8 ימים", title: "מדריך חופים: ים תיכון, כנרת, ים המלח, ים סוף", text: "מסלול דגל של ארבעת הימים עם לוגיסטיקה מלאה." },
+              card2: { pill: "3-4 ימים", title: "צפון ירוק", text: "נחלים, תצפיות ושגרה קלה לזוגות וחברים." },
+              card3: { pill: "5-7 ימים", title: "מדבר חכם", text: "רזרבות, בטיחות ותפעול מדויק בנגב." }
+            },
+            faq: {
+              title: "שאלות נפוצות",
+              q1: "למה \"חופשה בלי מלונות\"?",
+              a1: "כי זה מבטל צ׳ק-אין/צ׳ק-אאוט, נסיעות חזור ללינה קבועה ואריזה יומית מחדש.",
+              q2: "זה מתאים גם לטיולים קצרים?",
+              a2: "כן. מסע חווייתי נבנה בדיוק לניסוי קצר, ואז אפשר להמיר למנוי.",
+              q3: "מה לגבי חוקיות מים אפורים?",
+              a3: "אין ריקון בשטח. אנחנו מתכננים רק נקודות מורשות וחלופות."
+            },
+            cta: {
+              title: "רוצים להתחיל עם מסע חווייתי או מנוי מסע?",
+              text: "שלחו תאריכים, סגנון מסע, וכמה אנשים אתם. נחזיר תוכנית תנועה מדויקת.",
+              whatsapp: "וואטסאפ",
+              contactPage: "עמוד יצירת קשר מלא",
+              note: "תכנון טיול כלול בחינם למזמינים. אין שיווק לקטינים. אין עישון.",
+              formTitle: "עדכון מהיר לפני שיחה",
+              formText: "לניהול מלא של בקשות ושמירת פרופיל, עברו לעמוד יצירת קשר או לעוזר המסע החכם.",
+              formBtn1: "פתיחת עמוד יצירת קשר",
+              formBtn2: "פתיחת עוזר מסע חכם"
+            }
+          }
+        },
+        en: {
+          meta: {
+            title: "Atlas Masa - Vacation Without Hotels",
+            description: "Atlas Masa: your hotel on wheels. Trial journeys, membership access, and free travel logistics support included."
+          },
+          common: {
+            skip: "Skip to content",
+            brandAria: "Atlas Masa home",
+            navAria: "Primary navigation",
+            mobileNavAria: "Mobile navigation",
+            menuAria: "Open menu",
+            menu: "Menu",
+            brandName: "Atlas Masa",
+            brandTag: "Movement-first travel infrastructure",
+            nav: {
+              home: "Home",
+              pricing: "Packages & Pricing",
+              guides: "Guides in Israel",
+              faq: "FAQ",
+              policies: "Policies",
+              contact: "Contact",
+              concierge: "Smart Concierge"
+            },
+            footerTag: "Mobile travel infrastructure with free planning.",
+            footerLinksAria: "Footer links",
+            buildMode: "Build mode"
+          },
+          home: {
+            hero: {
+              eyebrow: "Vacation without hotels • Your hotel on wheels",
+              title: "Atlas Masa is building a movement-optimized travel and housing ecosystem.",
+              lead: "You are not renting only a van. You get a mobile living unit plus service layer: sleep spots, water/grey routines, showers, route planning, and WhatsApp support with a strict no-smoking quality standard.",
+              ctaPrimary: "Check availability",
+              ctaSecondary: "Open guides",
+              badgesAria: "Highlights",
+              badge1: "Travel planning included for free",
+              badge2: "Strict clean no-smoking policy",
+              badge3: "Real Israel logistics",
+              cardAria: "Quick summary",
+              cardPill: "Atlas Concierge Included",
+              cardMini: "Build now • launch when needed",
+              cardTitle: "What is included in every package?",
+              cardLi1: "Mobile sleep unit with kitchen and shower",
+              cardLi2: "Legal sleep stop planning with backups",
+              cardLi3: "Practical water/grey routine by region",
+              cardLi4: "Real-time support when needed",
+              kpi1: "5-10 min start",
+              kpi1Label: "From decision to movement",
+              kpi2: "0 check-ins",
+              kpi2Label: "No lobby friction"
+            },
+            products: {
+              title: "Two clear products",
+              sub: "Masa Experience for short validation. Masa Membership for recurring freedom.",
+              from: "From",
+              perTrip: "per trip",
+              perMonth: "per month",
+              trial: {
+                title: "Masa Experience",
+                desc: "3-14 days, smart trial before commitment",
+                price: "₪1,200",
+                li1: "Simple departure briefing",
+                li2: "Sleep and shower map",
+                li3: "Route tailored to beach/north/desert",
+                li4: "Feedback loop into membership conversion"
+              },
+              member: {
+                badge: "For recurring users",
+                title: "Masa Membership",
+                desc: "Monthly or multi-month with expanded service",
+                price: "₪3,500",
+                li1: "Priority availability and ongoing support",
+                li2: "Maintenance, towing, and fallback policy",
+                li3: "Saved user profile for tailored recommendations",
+                li4: "Trial credit applied toward membership"
+              }
+            },
+            freeHelp: {
+              title: "Free travel help included in every package",
+              sub: "Our edge is friction removal: water/grey, sleep spots, showers, and day-by-day routing.",
+              card1: { title: "Legal sleep planning", text: "Primary sleep stop plus legal backup for every night." },
+              card2: { title: "Water and grey done right", text: "Refill and disposal only at authorized points." },
+              card3: { title: "Accessible shower routine", text: "Campgrounds, service points, and alternatives by route." }
+            },
+            guides: {
+              title: "Travel guides in Israel",
+              sub: "Multilingual guide library built for operations, safety, and conversion.",
+              card1: { pill: "6-8 days", title: "Four Seas Beach Guide", text: "Mediterranean, Kinneret, Dead Sea, and Red Sea." },
+              card2: { pill: "3-4 days", title: "Green North", text: "Streams, views, and simple routines." },
+              card3: { pill: "5-7 days", title: "Smart Desert", text: "Reserves, safety, and structured movement." }
+            },
+            faq: {
+              title: "Frequently asked questions",
+              q1: "Why " + '"Vacation without hotels"' + "?",
+              a1: "Because it removes check-in workflows, return commutes, and daily repacking.",
+              q2: "Is this good for short trips too?",
+              a2: "Yes. Masa Experience is designed for short validation trips.",
+              q3: "What about legal greywater disposal?",
+              a3: "No illegal dumping. We route only authorized disposal points."
+            },
+            cta: {
+              title: "Ready for Masa Experience or Masa Membership?",
+              text: "Send dates, preferred style, and group size. We return a practical movement plan.",
+              whatsapp: "WhatsApp",
+              contactPage: "Full contact page",
+              note: "Free planning is included for bookers. No minor targeting. No smoking.",
+              formTitle: "Quick update before a call",
+              formText: "For full request tracking and profile storage, open Contact or Smart Concierge.",
+              formBtn1: "Open contact page",
+              formBtn2: "Open smart concierge"
+            }
+          }
+        },
+        ar: {
+          meta: {
+            title: "Atlas Masa - عطلة بدون فنادق",
+            description: "Atlas Masa: فندقك على عجلات. تجربة قصيرة أو اشتراك شهري مع مساعدة سفر مجانية."
+          },
+          common: {
+            skip: "تخطي إلى المحتوى",
+            brandAria: "الصفحة الرئيسية Atlas Masa",
+            navAria: "التنقل الرئيسي",
+            mobileNavAria: "تنقل الهاتف",
+            menuAria: "فتح القائمة",
+            menu: "القائمة",
+            brandName: "Atlas Masa",
+            brandTag: "بنية سفر متحركة مبنية على الحركة",
+            nav: {
+              home: "الرئيسية",
+              pricing: "الباقات والأسعار",
+              guides: "أدلة في إسرائيل",
+              faq: "الأسئلة الشائعة",
+              policies: "السياسات",
+              contact: "اتصل بنا",
+              concierge: "مساعد السفر الذكي"
+            },
+            footerTag: "بنية سفر متحركة مع تخطيط مجاني.",
+            footerLinksAria: "روابط التذييل",
+            buildMode: "وضع البناء"
+          },
+          home: {
+            hero: {
+              eyebrow: "عطلة بدون فنادق • فندقك على عجلات",
+              title: "Atlas Masa تبني منظومة سفر وسكن مصممة للحركة والعفوية.",
+              lead: "أنتم لا تستأجرون مركبة فقط. تحصلون على وحدة حياة متنقلة + طبقة خدمة: مبيت، خطة مياه/رمادية، استحمام، مسار، ودعم واتساب مع سياسة صارمة بدون تدخين.",
+              ctaPrimary: "فحص التوفر",
+              ctaSecondary: "فتح الأدلة",
+              badgesAria: "مزايا",
+              badge1: "تخطيط الرحلة مجاني",
+              badge2: "سياسة نظافة بلا تدخين",
+              badge3: "لوجستيات إسرائيلية عملية",
+              cardAria: "ملخص سريع",
+              cardPill: "Atlas Concierge Included",
+              cardMini: "Build now • launch when needed",
+              cardTitle: "ماذا تتضمن كل باقة؟",
+              cardLi1: "وحدة نوم متنقلة مع مطبخ ودش",
+              cardLi2: "تخطيط مبيت قانوني مع بدائل",
+              cardLi3: "خطة مياه/رمادية حسب المنطقة",
+              cardLi4: "دعم تشغيلي عند الحاجة",
+              kpi1: "5-10 دقائق انطلاق",
+              kpi1Label: "من القرار إلى الحركة",
+              kpi2: "0 تسجيل دخول",
+              kpi2Label: "بدون ضغط الفنادق"
+            },
+            products: {
+              title: "منتجان واضحان",
+              sub: "Masa Experience للتجربة القصيرة. Masa Membership للحرية المستمرة.",
+              from: "ابتداءً من",
+              perTrip: "لكل رحلة",
+              perMonth: "شهرياً",
+              trial: {
+                title: "Masa Experience",
+                desc: "3-14 يوماً، تجربة ذكية قبل الالتزام",
+                price: "₪1,200",
+                li1: "إرشاد انطلاق بسيط",
+                li2: "خريطة مبيت واستحمام",
+                li3: "مسار حسب الشاطئ/الشمال/الصحراء",
+                li4: "تحويل من التجربة إلى الاشتراك"
+              },
+              member: {
+                badge: "للاستخدام المتكرر",
+                title: "Masa Membership",
+                desc: "شهري أو متعدد الأشهر مع خدمة أوسع",
+                price: "₪3,500",
+                li1: "أولوية توفر ودعم مستمر",
+                li2: "صيانة وسحب وخطة بديلة",
+                li3: "ملف مستخدم لحلول مخصصة",
+                li4: "خصم من التجربة على الاشتراك"
+              }
+            },
+            freeHelp: {
+              title: "مساعدة السفر مجانية في كل باقة",
+              sub: "تميزنا هو تقليل الاحتكاك التشغيلي: مياه/رمادية، مبيت، استحمام، ومسار يومي واضح.",
+              card1: { title: "تخطيط مبيت قانوني", text: "نقطة مبيت أساسية وبديل قانوني لكل ليلة." },
+              card2: { title: "إدارة مياه صحيحة", text: "تعبئة وتفريغ فقط في نقاط معتمدة." },
+              card3: { title: "روتين استحمام متاح", text: "مخيمات ونقاط خدمة وبدائل حسب المنطقة." }
+            },
+            guides: {
+              title: "أدلة سفر في إسرائيل",
+              sub: "مكتبة أدلة متعددة اللغات مع تركيز عملي وسلامة.",
+              card1: { pill: "6-8 أيام", title: "دليل الشواطئ الأربعة", text: "المتوسط، طبريا، الميت، والأحمر." },
+              card2: { pill: "3-4 أيام", title: "الشمال الأخضر", text: "جداول ومناظر وروتين بسيط." },
+              card3: { pill: "5-7 أيام", title: "صحراء ذكية", text: "احتياطات وسلامة وحركة منظمة." }
+            },
+            faq: {
+              title: "أسئلة شائعة",
+              q1: "لماذا " + '"عطلة بدون فنادق"' + "؟",
+              a1: "لأنها تلغي إجراءات الفندق والتنقل اليومي وإعادة ترتيب الأمتعة.",
+              q2: "هل تناسب الرحلات القصيرة؟",
+              a2: "نعم، Masa Experience مصممة لهذا الغرض.",
+              q3: "وماذا عن المياه الرمادية؟",
+              a3: "لا تفريغ غير قانوني. فقط نقاط معتمدة."
+            },
+            cta: {
+              title: "جاهزون لـ Masa Experience أو Masa Membership؟",
+              text: "أرسلوا التواريخ ونمط الرحلة وعدد الأشخاص وسنرجع بخطة حركة دقيقة.",
+              whatsapp: "واتساب",
+              contactPage: "صفحة الاتصال الكاملة",
+              note: "التخطيط مجاني للحجوزات. لا نستهدف القاصرين. ممنوع التدخين.",
+              formTitle: "تحديث سريع قبل المكالمة",
+              formText: "لإدارة الطلبات وحفظ الملف الشخصي، افتحوا صفحة الاتصال أو المساعد الذكي.",
+              formBtn1: "فتح صفحة الاتصال",
+              formBtn2: "فتح المساعد الذكي"
+            }
+          }
+        },
+        ru: {
+          meta: {
+            title: "Atlas Masa - Отпуск без отелей",
+            description: "Atlas Masa: ваш отель на колесах. Короткий тестовый формат или подписка с бесплатной тревел-поддержкой."
+          },
+          common: {
+            skip: "Перейти к содержимому",
+            brandAria: "Главная Atlas Masa",
+            navAria: "Основная навигация",
+            mobileNavAria: "Мобильная навигация",
+            menuAria: "Открыть меню",
+            menu: "Меню",
+            brandName: "Atlas Masa",
+            brandTag: "Инфраструктура путешествий, ориентированная на движение",
+            nav: {
+              home: "Главная",
+              pricing: "Пакеты и цены",
+              guides: "Гиды по Израилю",
+              faq: "FAQ",
+              policies: "Правила",
+              contact: "Контакты",
+              concierge: "Умный консьерж"
+            },
+            footerTag: "Мобильная инфраструктура путешествий с бесплатным планированием.",
+            footerLinksAria: "Ссылки в подвале",
+            buildMode: "Режим разработки"
+          },
+          home: {
+            hero: {
+              eyebrow: "Отпуск без отелей • Ваш отель на колесах",
+              title: "Atlas Masa строит экосистему путешествий и мобильного жилья для спонтанного движения.",
+              lead: "Вы получаете не просто фургон, а мобильный жилой модуль плюс сервис: ночевки, вода/серые воды, душ, маршрут и поддержка в WhatsApp при строгой политике no-smoking.",
+              ctaPrimary: "Проверить доступность",
+              ctaSecondary: "Открыть гиды",
+              badgesAria: "Преимущества",
+              badge1: "План поездки включен бесплатно",
+              badge2: "Чистая среда без курения",
+              badge3: "Практичная израильская логистика",
+              cardAria: "Кратко",
+              cardPill: "Atlas Concierge Included",
+              cardMini: "Build now • launch when needed",
+              cardTitle: "Что входит в каждый пакет?",
+              cardLi1: "Мобильный модуль сна с кухней и душем",
+              cardLi2: "Законные точки ночевки с резервом",
+              cardLi3: "Практичный план воды/серых вод",
+              cardLi4: "Оперативная поддержка в пути",
+              kpi1: "Старт за 5-10 мин",
+              kpi1Label: "От решения до движения",
+              kpi2: "0 check-in",
+              kpi2Label: "Без отельной рутины"
+            },
+            products: {
+              title: "Два понятных продукта",
+              sub: "Masa Experience для короткого теста. Masa Membership для регулярной свободы.",
+              from: "От",
+              perTrip: "за поездку",
+              perMonth: "в месяц",
+              trial: {
+                title: "Masa Experience",
+                desc: "3-14 дней, короткая валидация формата",
+                price: "₪1,200",
+                li1: "Простой инструктаж перед выездом",
+                li2: "Карта ночевок и душа",
+                li3: "Маршрут: море/север/пустыня",
+                li4: "Сбор фидбека и переход в подписку"
+              },
+              member: {
+                badge: "Для повторных поездок",
+                title: "Masa Membership",
+                desc: "Ежемесячно или на несколько месяцев",
+                price: "₪3,500",
+                li1: "Приоритетная доступность",
+                li2: "Обслуживание, эвакуация, резерв",
+                li3: "Профиль пользователя для персонализации",
+                li4: "Зачет стоимости теста в подписку"
+              }
+            },
+            freeHelp: {
+              title: "Бесплатная тревел-помощь во всех пакетах",
+              sub: "Мы убираем операционные трения: вода/серые воды, ночевки, душ и понятный дневной план.",
+              card1: { title: "Законные ночевки", text: "Основная и резервная точка ночевки на каждую ночь." },
+              card2: { title: "Вода и серые воды", text: "Заправка и слив только в разрешенных точках." },
+              card3: { title: "Душ по маршруту", text: "Кемпинги, сервис-поинты и запасные варианты." }
+            },
+            guides: {
+              title: "Гиды по Израилю",
+              sub: "Многоязычная библиотека с фокусом на безопасность и практику.",
+              card1: { pill: "6-8 дней", title: "Пляжный гид четырех морей", text: "Средиземное, Кинерет, Мертвое и Красное море." },
+              card2: { pill: "3-4 дня", title: "Зеленый север", text: "Ручьи, виды и спокойный ритм." },
+              card3: { pill: "5-7 дней", title: "Умная пустыня", text: "Запасы, безопасность, четкий план." }
+            },
+            faq: {
+              title: "Частые вопросы",
+              q1: "Почему " + '"отпуск без отелей"' + "?",
+              a1: "Это убирает check-in/check-out и ежедневную пересборку багажа.",
+              q2: "Подходит ли для коротких поездок?",
+              a2: "Да. Masa Experience создан именно для этого.",
+              q3: "Что с легальным сливом серых вод?",
+              a3: "Никаких нелегальных сливов, только разрешенные точки."
+            },
+            cta: {
+              title: "Готовы начать с Masa Experience или Masa Membership?",
+              text: "Отправьте даты, стиль и размер группы. Мы вернем практичный план движения.",
+              whatsapp: "WhatsApp",
+              contactPage: "Полная страница контактов",
+              note: "Планирование бесплатно для бронирований. Не таргетируем несовершеннолетних. No-smoking.",
+              formTitle: "Быстрое обновление перед звонком",
+              formText: "Для управления заявками и профилем откройте Контакты или Умный консьерж.",
+              formBtn1: "Открыть контакты",
+              formBtn2: "Открыть умный консьерж"
+            }
+          }
+        },
+        fr: {
+          meta: {
+            title: "Atlas Masa - Vacances sans hôtels",
+            description: "Atlas Masa: votre hôtel sur roues. Essai court ou abonnement, avec aide voyage incluse gratuitement."
+          },
+          common: {
+            skip: "Aller au contenu",
+            brandAria: "Accueil Atlas Masa",
+            navAria: "Navigation principale",
+            mobileNavAria: "Navigation mobile",
+            menuAria: "Ouvrir le menu",
+            menu: "Menu",
+            brandName: "Atlas Masa",
+            brandTag: "Infrastructure voyage orientée mouvement",
+            nav: {
+              home: "Accueil",
+              pricing: "Offres et tarifs",
+              guides: "Guides en Israël",
+              faq: "FAQ",
+              policies: "Politiques",
+              contact: "Contact",
+              concierge: "Concierge intelligent"
+            },
+            footerTag: "Infrastructure mobile avec planification gratuite.",
+            footerLinksAria: "Liens de pied de page",
+            buildMode: "Mode pré-lancement"
+          },
+          home: {
+            hero: {
+              eyebrow: "Vacances sans hôtels • Votre hôtel sur roues",
+              title: "Atlas Masa construit un écosystème voyage/logement optimisé pour le mouvement et la spontanéité.",
+              lead: "Vous n'obtenez pas seulement un véhicule. Vous obtenez une unité de vie mobile + une couche service: nuitées, eau/eaux grises, douches, itinéraire et support WhatsApp avec politique stricte sans tabac.",
+              ctaPrimary: "Vérifier la disponibilité",
+              ctaSecondary: "Ouvrir les guides",
+              badgesAria: "Points clés",
+              badge1: "Planification incluse gratuitement",
+              badge2: "Politique stricte sans tabac",
+              badge3: "Logistique israélienne concrète",
+              cardAria: "Résumé",
+              cardPill: "Atlas Concierge Included",
+              cardMini: "Build now • launch when needed",
+              cardTitle: "Que contient chaque offre ?",
+              cardLi1: "Unité mobile avec cuisine et douche",
+              cardLi2: "Plan de nuitées légales + secours",
+              cardLi3: "Routine eau/eaux grises par zone",
+              cardLi4: "Support opérationnel en temps réel",
+              kpi1: "Départ en 5-10 min",
+              kpi1Label: "De la décision au mouvement",
+              kpi2: "0 check-in",
+              kpi2Label: "Sans friction hôtelière"
+            },
+            products: {
+              title: "Deux offres claires",
+              sub: "Masa Experience pour tester rapidement. Masa Membership pour un accès continu.",
+              from: "À partir de",
+              perTrip: "par voyage",
+              perMonth: "par mois",
+              trial: {
+                title: "Masa Experience",
+                desc: "3-14 jours, test intelligent avant engagement",
+                price: "₪1,200",
+                li1: "Brief de départ simple",
+                li2: "Carte nuitées + douches",
+                li3: "Itinéraire plage/nord/désert",
+                li4: "Feedback pour conversion abonnement"
+              },
+              member: {
+                badge: "Utilisation récurrente",
+                title: "Masa Membership",
+                desc: "Mensuel ou multi-mois avec service renforcé",
+                price: "₪3,500",
+                li1: "Priorité de disponibilité",
+                li2: "Maintenance, remorquage, secours",
+                li3: "Profil utilisateur pour personnalisation",
+                li4: "Crédit de l'essai vers l'abonnement"
+              }
+            },
+            freeHelp: {
+              title: "Aide voyage gratuite incluse",
+              sub: "Notre avantage: réduire les frictions opérationnelles au quotidien.",
+              card1: { title: "Plan de couchage légal", text: "Point principal + option de secours chaque nuit." },
+              card2: { title: "Eau et eaux grises", text: "Remplissage/vidange uniquement en points autorisés." },
+              card3: { title: "Routine douche accessible", text: "Campings, points service et alternatives locales." }
+            },
+            guides: {
+              title: "Guides de voyage en Israël",
+              sub: "Bibliothèque multilingue pratique, orientée sécurité et conversion.",
+              card1: { pill: "6-8 jours", title: "Guide plages des quatre mers", text: "Méditerranée, Kinneret, mer Morte, mer Rouge." },
+              card2: { pill: "3-4 jours", title: "Nord vert", text: "Rivières, vues, rythme simple." },
+              card3: { pill: "5-7 jours", title: "Désert intelligent", text: "Réserves, sécurité, plan structuré." }
+            },
+            faq: {
+              title: "Questions fréquentes",
+              q1: "Pourquoi " + '"vacances sans hôtels"' + " ?",
+              a1: "Parce que cela supprime check-in/check-out et la logistique quotidienne lourde.",
+              q2: "Convient aussi aux courts séjours ?",
+              a2: "Oui, Masa Experience est conçu pour cela.",
+              q3: "Et la vidange des eaux grises ?",
+              a3: "Jamais de vidange illégale, seulement des points autorisés."
+            },
+            cta: {
+              title: "Prêt pour Masa Experience ou Masa Membership ?",
+              text: "Envoyez vos dates, votre style et la taille du groupe. Nous renvoyons un plan d'action clair.",
+              whatsapp: "WhatsApp",
+              contactPage: "Page contact complète",
+              note: "Planification gratuite pour les réservations. Pas de ciblage mineurs. No-smoking.",
+              formTitle: "Mise à jour rapide avant appel",
+              formText: "Pour gérer les demandes et stocker le profil, ouvrez Contact ou Concierge intelligent.",
+              formBtn1: "Ouvrir la page contact",
+              formBtn2: "Ouvrir le concierge intelligent"
+            }
+          }
+        }
+      };
+    </script>
+    <script>
+      (function () {
+        const patch = {
+          he: {
+            common: { nav: { mobility: "תיאוריית הניידות" } },
+            home: {
+              hero: {
+                ctaSecondary: "לקרוא את תיאוריית הניידות",
+                badge3: "ניקוי עצמי חכם כבר בבניות מוקדמות"
+              },
+              mobility: {
+                title: "תיאוריית הניידות של אטלס מסע",
+                sub: "עבודה מקצועית + קרוואן מודרני + טבע רציף במערכת אחת.",
+                li1: "Dock point אחיד בכל תחנה: USB-C, HDMI, חשמל וקישוריות.",
+                li2: "אזורי עבודה מרובים: נוסע קדמי, בות׳, מיטות ותמיכה רציפה.",
+                li3: "ארגונומיה לעבודה ממושכת: זוויות עמוקות לכל המושבים שאינם נהג.",
+                li4: "מיקוד בהפחתת בחילות תנועה דרך NVH, יציבות ומתלים.",
+                li5: "HVAC שקט ואפקטיבי שמשרת עבודה ושינה.",
+                li6: "אחסון הנדסי כמערכת ולא ״שאריות חלל״.",
+                li7: "גישה certification-first: בלי הבטחות שווא ובלי קיצורי דרך.",
+                cta: "לקרוא את המסמך המלא"
+              },
+              roadmap: {
+                title: "מפת דרכים דו-מסלולית",
+                sub: "נמסור ערך עכשיו על פלטפורמות קיימות, ונפתח שלדה מקורית בהמשך.",
+                nowTitle: "Now: פלטפורמות ואנים קיימות",
+                nowText: "Dockpoints, מסכים, שולחנות, קישוריות, אזורי עבודה מודולריים ותכנון שירותים חכם, כולל ניקוי עצמי מתוכנן מוקדם.",
+                futureTitle: "Future: שלדה נקייה מהיסוד",
+                futureText: "NVH נמוך, טווח ארוך, גג מתארך לחניה עירונית, מתלים מתקדמים, ויעדי R&D אמפיביים.",
+                note: "יעד אמפיבי הוא חזון מחקר ופיתוח ארוך-טווח, לא הבטחה מוצרית לטווח מיידי."
+              },
+              work: {
+                title: "Workstations Everywhere",
+                sub: "אותה שפה הנדסית בכל תחנה כדי לאפשר סקייל מהיר ועלות נמוכה.",
+                w1Title: "תחנת נוסע קדמי",
+                w1Text: "מסך ייעודי + HDMI + USB-C + שולחן נשלף עם קיפול מהיר.",
+                w2Title: "תחנת מיטה",
+                w2Text: "זרוע מסך מתקפלת, USB-C בצד הראש והתחתון, ותאורת עבודה.",
+                w3Title: "תחנת בות׳",
+                w3Text: "ישיבה עמוקה וארגונומית לעבודה/אכילה/שהייה ממושכת.",
+                w4Title: "תחנת תשתית",
+                w4Text: "חשמל DC נקי, HDMI גיבוי, מוכנות לאת'רנט ומודולים חוזרים."
+              },
+              cleanTech: {
+                title: "ניקוי עצמי כבר בבניות המוקדמות",
+                sub: "אנחנו מתכננים לשלב ציפויים פוטוקטליטיים ותאורת אקטיבציה ייעודית מוקדם ככל האפשר, כולל אורכי גל נחוצים בלבד להפעלת הציפוי, בכפוף לבטיחות ותקינה.",
+                card1: {
+                  title: "ציפויים פוטוקטליטיים",
+                  text: "על משטחי שימוש גבוה להפחתת הצטברות ריחות ולכלוך לאורך זמן."
+                },
+                card2: {
+                  title: "תאורת אקטיבציה ממוקדת",
+                  text: "אורכי גל תפעוליים להפעלת הציפוי עם מינימום אור נראה לנוסעים."
+                },
+                card3: {
+                  title: "יישום מוקדם עם בקרה",
+                  text: "הטמעה מהבניות הראשונות האפשריות, עם מדידה ועמידה בהנחיות בטיחות."
+                },
+                note: "זה יעד הנדסי פעיל: נפרוס בכל אזור אפשרי שבו המערכת בטוחה, אמינה וכלכלית."
+              },
+              faq: {
+                q4: "אפשר לעבוד תוך כדי נסיעה?",
+                a4: "רק לנוסעים ובתנאי בטיחות. הנהג חייב להישאר ממוקד בנהיגה בלבד.",
+                q5: "איך המסכים מתחברים בפועל?",
+                a5: "USB-C כראשי, HDMI כגיבוי, ותשתית חשמל יציבה בכל תחנת עבודה.",
+                q6: "מה מצב זמינות היום לעומת החזון?",
+                a6: "היום עובדים על ואנים קיימים. שלדה מקורית ויכולות מתקדמות הן שלב עתידי."
+              },
+              cta: {
+                invest: "אטלס מסע פתוחה לשותפויות ולהשקעות אסטרטגיות."
+              }
+            }
+          },
+          en: {
+            common: { nav: { mobility: "Mobility Theory" } },
+            home: {
+              hero: {
+                ctaSecondary: "Read Mobility Theory",
+                badge3: "Self-cleaning tech planned for earliest builds"
+              },
+              mobility: {
+                title: "Atlas Masa Mobility Theory",
+                sub: "Professional work environment + modern caravan luxury + continuous nature time in one system.",
+                li1: "Standard dock point at every station: USB-C, HDMI, power, and connectivity.",
+                li2: "Multiple work zones: front passenger, booth, beds, and always-ready support.",
+                li3: "Long-session ergonomics: deep recline geometry for every non-driver seat.",
+                li4: "Motion-sickness mitigation through NVH, stability, and suspension strategy.",
+                li5: "Quiet and effective HVAC for both work and sleep.",
+                li6: "Storage engineered as a system, not leftover voids.",
+                li7: "Certification-first architecture with no fake claims.",
+                cta: "Read full theory page"
+              },
+              roadmap: {
+                title: "Two-Track Roadmap",
+                sub: "Deliver now on existing van platforms, build a clean-sheet chassis later.",
+                nowTitle: "Now: Existing van platforms",
+                nowText: "Dockpoints, screens, tables, connectivity, modular work zones, practical logistics, and early self-cleaning deployment.",
+                futureTitle: "Future: Clean-sheet chassis",
+                futureText: "Low NVH, long range, extendable roof for garage fit, advanced suspension, and amphibious R&D targets.",
+                note: "Amphibious capability is a long-term R&D goal, not an immediate product claim."
+              },
+              work: {
+                title: "Workstations Everywhere",
+                sub: "One engineering language across stations to scale quality at lower cost.",
+                w1Title: "Front Passenger Station",
+                w1Text: "Dedicated screen + HDMI + USB-C + deployable table with fast stow.",
+                w2Title: "Bedside Station",
+                w2Text: "Foldable monitor arm, dual-side USB-C reach, focused lighting.",
+                w3Title: "Booth Station",
+                w3Text: "Deep ergonomic geometry for long work, dining, and riding sessions.",
+                w4Title: "Infrastructure Station",
+                w4Text: "Clean DC power, HDMI fallback, ethernet readiness, repeatable modules."
+              },
+              cleanTech: {
+                title: "Self-Cleaning Layer in Earliest Builds",
+                sub: "We plan to integrate photocatalytic coatings and dedicated activation lighting as early as possible, using only required operational wavelengths, subject to safety and compliance.",
+                card1: {
+                  title: "Photocatalytic coatings",
+                  text: "Applied on high-touch surfaces to reduce dirt and odor accumulation over time."
+                },
+                card2: {
+                  title: "Targeted activation lighting",
+                  text: "Operational wavelengths for coating activation with minimal visible spill to passengers."
+                },
+                card3: {
+                  title: "Early rollout with controls",
+                  text: "Deploy in earliest feasible builds with measurement and safety guardrails."
+                },
+                note: "This is an active engineering target: we deploy where the system is safe, reliable, and cost-effective."
+              },
+              faq: {
+                q4: "Can people work while the vehicle is moving?",
+                a4: "Passengers only, in safe conditions. The driver must remain fully focused on driving.",
+                q5: "How do screens connect?",
+                a5: "USB-C as primary, HDMI as fallback, with stable power at each station.",
+                q6: "What is available now vs later?",
+                a6: "Now: existing van platforms. Later: clean-sheet chassis and advanced capabilities."
+              },
+              cta: {
+                invest: "Atlas Masa is open to strategic partnerships and investments."
+              }
+            }
+          },
+          ar: {
+            common: { nav: { mobility: "نظرية التنقل" } },
+            home: {
+              hero: {
+                ctaSecondary: "قراءة نظرية التنقل",
+                badge3: "تقنيات التنظيف الذاتي مخططة للبدايات المبكرة"
+              },
+              mobility: {
+                title: "نظرية التنقل في Atlas Masa",
+                sub: "بيئة عمل احترافية + كرفان حديث فاخر + وقت مستمر في الطبيعة ضمن نظام واحد.",
+                li1: "نقطة توصيل موحدة بكل محطة: USB-C وHDMI وطاقة واتصال.",
+                li2: "مناطق عمل متعددة: الراكب الأمامي، البوث، الأسرّة.",
+                li3: "هندسة راحة للجلسات الطويلة مع إمالة عميقة لكل المقاعد غير مقعد السائق.",
+                li4: "تقليل دوار الحركة عبر NVH والثبات والتعليق.",
+                li5: "تكييف هادئ وفعّال للعمل والنوم.",
+                li6: "التخزين كنظام هندسي وليس فراغات متبقية.",
+                li7: "نهج certification-first بدون ادعاءات غير دقيقة.",
+                cta: "قراءة الصفحة الكاملة"
+              },
+              roadmap: {
+                title: "خارطة طريق ثنائية المسار",
+                sub: "تنفيذ الآن على منصات فان موجودة، ثم تطوير شاسيه خاص لاحقًا.",
+                nowTitle: "Now: منصات فان موجودة",
+                nowText: "نقاط توصيل، شاشات، طاولات، اتصال، ومناطق عمل معيارية مع نشر مبكر للتنظيف الذاتي.",
+                futureTitle: "Future: شاسيه من الصفر",
+                futureText: "NVH منخفض، مدى طويل، سقف قابل للتمديد، تعليق متقدم، وأهداف R&D برمائية.",
+                note: "القدرة البرمائية هدف بحث وتطوير طويل المدى وليست وعدًا فوريًا."
+              },
+              work: {
+                title: "محطات عمل في كل مكان",
+                sub: "لغة هندسية موحدة لتوسّع أسرع وكلفة أقل.",
+                w1Title: "محطة الراكب الأمامي",
+                w1Text: "شاشة مخصصة + HDMI + USB-C + طاولة قابلة للطي.",
+                w2Title: "محطة بجانب السرير",
+                w2Text: "ذراع شاشة قابلة للطي ومنافذ USB-C وإضاءة عمل.",
+                w3Title: "محطة البوث",
+                w3Text: "هندسة جلوس عميقة ومريحة لفترات طويلة.",
+                w4Title: "محطة البنية التحتية",
+                w4Text: "طاقة DC نظيفة وHDMI احتياطي وجاهزية Ethernet."
+              },
+              cleanTech: {
+                title: "طبقة تنظيف ذاتي في البنيات المبكرة",
+                sub: "نخطط لدمج طلاءات فوتوكاتاليتية وإضاءة تفعيل مخصصة في أقرب وقت ممكن، باستخدام الأطوال الموجية التشغيلية المطلوبة فقط، مع الالتزام بالسلامة والمعايير.",
+                card1: {
+                  title: "طلاءات فوتوكاتاليتية",
+                  text: "على الأسطح عالية الاستخدام لتقليل تراكم الأوساخ والروائح مع الوقت."
+                },
+                card2: {
+                  title: "إضاءة تفعيل موجهة",
+                  text: "أطوال موجية تشغيلية لتفعيل الطلاء مع حد أدنى من الضوء المرئي للركاب."
+                },
+                card3: {
+                  title: "تطبيق مبكر مع رقابة",
+                  text: "تنفيذ في أقرب البنيات الممكنة مع القياس وضوابط السلامة."
+                },
+                note: "هذا هدف هندسي نشط: ننشره حيث يكون النظام آمنًا وموثوقًا ومجديًا اقتصاديًا."
+              },
+              faq: {
+                q4: "هل يمكن العمل أثناء الحركة؟",
+                a4: "للركاب فقط وبشروط أمان. السائق يبقى مركزًا على القيادة فقط.",
+                q5: "كيف تتصل الشاشات؟",
+                a5: "USB-C كأساس وHDMI كخيار احتياطي مع طاقة مستقرة.",
+                q6: "ما المتاح الآن وما لاحقًا؟",
+                a6: "الآن منصات موجودة، لاحقًا شاسيه خاص وقدرات متقدمة."
+              },
+              cta: {
+                invest: "Atlas Masa منفتحة على الشراكات الاستراتيجية والاستثمار."
+              }
+            }
+          },
+          ru: {
+            common: { nav: { mobility: "Теория мобильности" } },
+            home: {
+              hero: {
+                ctaSecondary: "Читать теорию мобильности",
+                badge3: "Технологии самоочистки планируются с ранних сборок"
+              },
+              mobility: {
+                title: "Теория мобильности Atlas Masa",
+                sub: "Профессиональная рабочая среда + современный люкс-караван + природа в одной системе.",
+                li1: "Единая dock-точка в каждой станции: USB-C, HDMI, питание, связь.",
+                li2: "Несколько рабочих зон: передний пассажир, booth, спальные зоны.",
+                li3: "Глубокая эргономичная геометрия для всех сидений кроме водительского.",
+                li4: "Снижение укачивания через NVH, стабильность и подвеску.",
+                li5: "Тихий и эффективный HVAC для работы и сна.",
+                li6: "Хранение как инженерная система, а не остаточное пространство.",
+                li7: "Certification-first без ложных обещаний.",
+                cta: "Читать полную страницу"
+              },
+              roadmap: {
+                title: "Двухтрековая дорожная карта",
+                sub: "Сейчас ценность на существующих платформах, позже — собственное шасси.",
+                nowTitle: "Now: существующие платформы",
+                nowText: "Dockpoints, экраны, столы, связь, модульные рабочие зоны и раннее внедрение самоочистки.",
+                futureTitle: "Future: чистое шасси",
+                futureText: "Низкий NVH, большой запас хода, выдвижная крыша, продвинутая подвеска, amphibious R&D.",
+                note: "Амфибийность — долгосрочная R&D цель, а не ближайшее обещание."
+              },
+              work: {
+                title: "Workstations Everywhere",
+                sub: "Единый инженерный язык по всем станциям для масштаба и низкой себестоимости.",
+                w1Title: "Передняя пассажирская станция",
+                w1Text: "Экран + HDMI + USB-C + выдвижной стол с быстрым складыванием.",
+                w2Title: "Станция у кровати",
+                w2Text: "Складной кронштейн экрана, USB-C по зонам доступа, рабочий свет.",
+                w3Title: "Booth-станция",
+                w3Text: "Глубокая эргономика для длительной работы и поездок.",
+                w4Title: "Инфраструктурная станция",
+                w4Text: "Чистое DC-питание, HDMI fallback, готовность к Ethernet."
+              },
+              cleanTech: {
+                title: "Слой самоочистки в ранних сборках",
+                sub: "Мы планируем как можно раньше внедрять фотокаталитические покрытия и выделенное освещение активации, используя только необходимые рабочие длины волн, при соблюдении безопасности и стандартов.",
+                card1: {
+                  title: "Фотокаталитические покрытия",
+                  text: "На поверхностях высокой нагрузки для снижения накопления грязи и запахов."
+                },
+                card2: {
+                  title: "Точечное освещение активации",
+                  text: "Рабочие длины волн для активации покрытия при минимуме видимого света для пассажиров."
+                },
+                card3: {
+                  title: "Ранний rollout с контролем",
+                  text: "Внедрение в первых возможных сборках с измерением эффективности и ограничениями безопасности."
+                },
+                note: "Это активная инженерная цель: внедряем там, где система безопасна, надежна и экономически оправдана."
+              },
+              faq: {
+                q4: "Можно ли работать в движении?",
+                a4: "Только пассажирам и при соблюдении безопасности. Водитель работает только на управление.",
+                q5: "Как подключаются экраны?",
+                a5: "USB-C как основной, HDMI как резервный, стабильное питание на каждой станции.",
+                q6: "Что доступно сейчас и позже?",
+                a6: "Сейчас — существующие платформы. Позже — собственное шасси и расширенные функции."
+              },
+              cta: {
+                invest: "Atlas Masa открыта к стратегическим партнерствам и инвестициям."
+              }
+            }
+          },
+          fr: {
+            common: { nav: { mobility: "Théorie de mobilité" } },
+            home: {
+              hero: {
+                ctaSecondary: "Lire la théorie de mobilité",
+                badge3: "Technologie auto-nettoyante prévue dès les premières builds"
+              },
+              mobility: {
+                title: "Théorie de mobilité Atlas Masa",
+                sub: "Environnement pro + caravane moderne luxueuse + nature continue dans un seul système.",
+                li1: "Dock point standard à chaque poste: USB-C, HDMI, puissance, connectivité.",
+                li2: "Zones de travail multiples: passager avant, booth, lits.",
+                li3: "Ergonomie longue durée: inclinaison profonde pour tous les sièges non conducteur.",
+                li4: "Réduction du mal des transports via NVH, stabilité et suspension.",
+                li5: "HVAC silencieux et efficace pour travailler et dormir.",
+                li6: "Stockage conçu comme système, pas comme espace restant.",
+                li7: "Approche certification-first sans promesses trompeuses.",
+                cta: "Lire la page complète"
+              },
+              roadmap: {
+                title: "Feuille de route à deux pistes",
+                sub: "Valeur immédiate sur plateformes existantes, châssis propre en phase suivante.",
+                nowTitle: "Now: plateformes de vans existantes",
+                nowText: "Dockpoints, écrans, tables, connectivité, zones modulaires, et déploiement précoce auto-nettoyant.",
+                futureTitle: "Future: châssis clean-sheet",
+                futureText: "NVH bas, longue autonomie, toit extensible, suspension avancée, objectifs amphibies R&D.",
+                note: "L'amphibie est un objectif R&D long terme, pas une promesse court terme."
+              },
+              work: {
+                title: "Workstations Everywhere",
+                sub: "Un langage d'ingénierie unique pour scaler qualité et coût.",
+                w1Title: "Poste passager avant",
+                w1Text: "Écran dédié + HDMI + USB-C + table déployable.",
+                w2Title: "Poste côté lit",
+                w2Text: "Bras écran pliable, USB-C accessible, éclairage de travail.",
+                w3Title: "Poste booth",
+                w3Text: "Géométrie ergonomique profonde pour sessions longues.",
+                w4Title: "Poste infrastructure",
+                w4Text: "DC propre, HDMI fallback, préparation Ethernet."
+              },
+              cleanTech: {
+                title: "Couche auto-nettoyante dès les premières builds",
+                sub: "Nous prévoyons d'intégrer des revêtements photocatalytiques et un éclairage d'activation dédié le plus tôt possible, avec uniquement les longueurs d'onde opérationnelles requises, sous contraintes sécurité/conformité.",
+                card1: {
+                  title: "Revêtements photocatalytiques",
+                  text: "Sur les surfaces à forte utilisation pour réduire l'accumulation de saletés et d'odeurs."
+                },
+                card2: {
+                  title: "Éclairage d'activation ciblé",
+                  text: "Longueurs d'onde opérationnelles pour activer le revêtement avec un minimum de lumière visible."
+                },
+                card3: {
+                  title: "Déploiement précoce contrôlé",
+                  text: "Intégration dans les premières builds possibles avec mesures et garde-fous sécurité."
+                },
+                note: "Objectif d'ingénierie actif: déployer là où le système est sûr, fiable et économiquement pertinent."
+              },
+              faq: {
+                q4: "Peut-on travailler pendant le mouvement ?",
+                a4: "Uniquement passagers et en sécurité. Le conducteur reste concentré sur la conduite.",
+                q5: "Comment les écrans se connectent-ils ?",
+                a5: "USB-C en principal, HDMI en secours, alimentation stable par poste.",
+                q6: "Qu'est-ce qui est disponible maintenant vs plus tard ?",
+                a6: "Maintenant: plateformes existantes. Plus tard: châssis propre et capacités avancées."
+              },
+              cta: {
+                invest: "Atlas Masa est ouverte aux partenariats stratégiques et aux investissements."
+              }
+            }
+          }
+        };
+
+        function merge(target, source) {
+          for (const key in source) {
+            const value = source[key];
+            if (value && typeof value === "object" && !Array.isArray(value)) {
+              if (!target[key] || typeof target[key] !== "object") {
+                target[key] = {};
+              }
+              merge(target[key], value);
+            } else {
+              target[key] = value;
+            }
+          }
+          return target;
+        }
+
+        merge(window.ATLAS_PAGE_I18N, patch);
+      })();
+    </script>
+    <script src="sitewide-language.js"></script>
   </body>
 </html>

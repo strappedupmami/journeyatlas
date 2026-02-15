@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>עוזר מסע חכם | אטלס מסע</title>
+    <meta name="description" content="צ'אט מסלולים ולוגיסטיקה של אטלס מסע עם שמירת פרופיל משתמש." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .panel { padding: 18px; }
+      .subtle { color: var(--muted); }
+      .segment { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      .chip {
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(255,255,255,.04);
+        color: var(--ink);
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .chip[aria-pressed="true"] {
+        background: linear-gradient(135deg, rgba(124,92,255,.55), rgba(46,230,166,.22));
+        border-color: rgba(124,92,255,.34);
+      }
+      .field { display: grid; gap: 8px; margin-top: 10px; }
+      .field label { font-weight: 800; }
+      .field input, .field textarea, .field select {
+        width: 100%;
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(0,0,0,.24);
+        color: var(--ink);
+      }
+      .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+      .output {
+        background: rgba(0,0,0,.3);
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 14px;
+        padding: 14px;
+        min-height: 160px;
+      }
+      .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .tag {
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .days-stepper { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; }
+      .days-stepper button {
+        width: 36px; height: 36px; border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(255,255,255,.05);
+        color: var(--ink);
+        font-size: 20px; font-weight: 800; cursor: pointer;
+      }
+      .days-badge {
+        min-width: 72px; text-align: center;
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 10px; padding: 7px 10px; font-weight: 800;
+      }
+      .account-box {
+        margin-top: 12px; padding: 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(255,255,255,.03);
+      }
+      .hidden { display: none; }
+      details.advanced { margin-top: 12px; }
+      details.advanced summary { cursor: pointer; color: var(--muted); font-weight: 700; }
+      .raw {
+        margin-top: 10px; white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px; line-height: 1.5;
+        background: rgba(0,0,0,.32);
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 10px; padding: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="section">
+      <div class="container">
+        <div class="section__head">
+          <span class="pill" data-i18n="concierge.pill">אטלס מסע</span>
+          <h1 data-i18n="concierge.title">עוזר מסע חכם</h1>
+          <p class="sub" data-i18n="concierge.sub">צ'אט מסלול, תפעול ופרופיל לקוח מותאם אישית.</p>
+        </div>
+
+        <section class="grid grid--2">
+          <article class="card panel">
+            <h2 data-i18n="concierge.modeTitle">מה תרצו עכשיו?</h2>
+            <div class="segment" id="mode-segment">
+              <button class="chip" data-mode="chat" aria-pressed="true" type="button" data-i18n="concierge.modeChat">שאלה כללית</button>
+              <button class="chip" data-mode="trip" aria-pressed="false" type="button" data-i18n="concierge.modeTrip">תכנון מסלול</button>
+              <button class="chip" data-mode="health" aria-pressed="false" type="button" data-i18n="concierge.modeHealth">בדיקת שירות</button>
+            </div>
+
+            <p class="subtle" id="active-locale-label" data-i18n="concierge.localeHint">שפת שירות: עברית (נשלטת ברמת האתר)</p>
+
+            <div class="account-box">
+              <p class="subtle" id="user-status" data-i18n="concierge.auth.statusGuest">לא מחוברים כרגע. חיבור שומר פרופיל לצורך התאמה אישית.</p>
+              <div class="segment">
+                <button class="chip" type="button" id="google-signin" data-i18n="concierge.auth.google">Sign in with Google</button>
+                <button class="chip" type="button" id="apple-signin" data-i18n="concierge.auth.apple">Sign in with Apple</button>
+                <button class="chip hidden" type="button" id="signout-btn" data-i18n="concierge.auth.signout">התנתקות</button>
+              </div>
+              <div class="field">
+                <label for="profile-style" data-i18n="concierge.auth.prefStyle">העדפת סגנון מסע</label>
+                <select id="profile-style">
+                  <option value="mixed">mixed</option>
+                  <option value="beach">beach</option>
+                  <option value="north">north</option>
+                  <option value="desert">desert</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="risk-pref" data-i18n="concierge.auth.prefRisk">העדפת סיכון</label>
+                <select id="risk-pref">
+                  <option value="low">low</option>
+                  <option value="medium" selected>medium</option>
+                  <option value="high">high</option>
+                </select>
+              </div>
+              <div class="actions">
+                <button class="btn btn--ghost" type="button" id="save-profile-btn" data-i18n="concierge.auth.save">שמירת פרופיל</button>
+              </div>
+            </div>
+
+            <div class="field" id="suggestions-field">
+              <label data-i18n="concierge.suggestionsTitle">הצעות פרומפט מהירות</label>
+              <div class="segment" id="suggestions-segment"></div>
+            </div>
+
+            <div class="field" id="chat-field">
+              <label for="message" data-i18n="concierge.questionLabel">מה בא לכם לדעת?</label>
+              <textarea id="message" rows="4" data-i18n-placeholder="concierge.questionPh" placeholder="לדוגמה: תכנן לי סופ״ש חופים"></textarea>
+            </div>
+
+            <div class="field hidden" id="trip-fields">
+              <label data-i18n="concierge.styleLabel">סגנון מסלול</label>
+              <div class="segment" id="style-segment">
+                <button class="chip" data-style="beach" aria-pressed="true" type="button" data-i18n="concierge.styleBeach">חוף</button>
+                <button class="chip" data-style="north" aria-pressed="false" type="button" data-i18n="concierge.styleNorth">צפון</button>
+                <button class="chip" data-style="desert" aria-pressed="false" type="button" data-i18n="concierge.styleDesert">מדבר</button>
+                <button class="chip" data-style="mixed" aria-pressed="false" type="button" data-i18n="concierge.styleMixed">מעורב</button>
+              </div>
+
+              <label style="margin-top:8px" data-i18n="concierge.daysLabel">משך</label>
+              <div class="days-stepper">
+                <button type="button" id="days-minus" aria-label="minus">-</button>
+                <div class="days-badge" id="days-value">3 ימים</div>
+                <button type="button" id="days-plus" aria-label="plus">+</button>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn--primary" id="send-btn" type="button" data-i18n="concierge.send">שלחו</button>
+              <a class="btn btn--ghost" href="homepage.html" data-i18n="concierge.back">חזרה לדף הבית</a>
+            </div>
+
+            <details class="advanced hidden debug-only">
+              <summary data-i18n="concierge.advanced">הגדרות מתקדמות</summary>
+              <div class="field">
+                <label for="api-base">API Base</label>
+                <input id="api-base" value="http://localhost:8080" />
+              </div>
+              <div class="field">
+                <label for="api-key">API Key</label>
+                <input id="api-key" value="dev-atlas-key" />
+              </div>
+            </details>
+          </article>
+
+          <article class="card panel">
+            <h2 data-i18n="concierge.outputTitle">תוצאה</h2>
+            <div class="output" id="output-box">
+              <h3 data-i18n="concierge.readyTitle">מוכן לעזור</h3>
+              <p class="subtle" data-i18n="concierge.readySub">בחרו מצב ולחצו על הצעת פרומפט להתחלה מהירה.</p>
+            </div>
+            <div class="tag-row" id="tag-row"></div>
+            <details class="advanced hidden debug-only">
+              <summary data-i18n="concierge.debug">נתונים טכניים</summary>
+              <div class="raw" id="raw-json">-</div>
+            </details>
+          </article>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      window.ATLAS_PAGE_I18N = {
+        he: {
+          meta: { title: "עוזר מסע חכם | אטלס מסע", description: "צ'אט מסלולים ולוגיסטיקה של אטלס מסע עם שמירת פרופיל משתמש." },
+          concierge: {
+            pill: "אטלס מסע",
+            title: "עוזר מסע חכם",
+            sub: "צ'אט מסלול, תפעול ופרופיל לקוח מותאם אישית.",
+            modeTitle: "מה תרצו עכשיו?",
+            modeChat: "שאלה כללית",
+            modeTrip: "תכנון מסלול",
+            modeHealth: "בדיקת שירות",
+            localeHint: "שפת שירות: עברית (נשלטת ברמת האתר)",
+            suggestionsTitle: "הצעות פרומפט מהירות",
+            questionLabel: "מה בא לכם לדעת?",
+            questionPh: "לדוגמה: תכנן לי סופ״ש חופים עם שגרת מים/אפור",
+            styleLabel: "סגנון מסלול",
+            styleBeach: "חוף",
+            styleNorth: "צפון",
+            styleDesert: "מדבר",
+            styleMixed: "מעורב",
+            daysLabel: "משך",
+            send: "שלחו",
+            back: "חזרה לדף הבית",
+            outputTitle: "תוצאה",
+            readyTitle: "מוכן לעזור",
+            readySub: "בחרו מצב ולחצו על הצעת פרומפט להתחלה מהירה.",
+            advanced: "הגדרות מתקדמות",
+            debug: "נתונים טכניים",
+            auth: {
+              statusGuest: "לא מחוברים כרגע. חיבור שומר פרופיל לצורך התאמה אישית.",
+              google: "כניסה עם Google",
+              apple: "כניסה עם Apple",
+              signout: "התנתקות",
+              prefStyle: "העדפת סגנון מסע",
+              prefRisk: "העדפת סיכון",
+              save: "שמירת פרופיל"
+            }
+          }
+        },
+        en: { meta: { title: "Smart Concierge | Atlas Masa", description: "Route and operations chat with user profile memory." }, concierge: { pill: "Atlas Masa", title: "Smart Concierge", sub: "Route chat, operations help, and tailored user profile.", modeTitle: "What do you need now?", modeChat: "General question", modeTrip: "Plan a trip", modeHealth: "Service health", localeHint: "Service language follows site language", suggestionsTitle: "Prompt suggestions", questionLabel: "What do you want to ask?", questionPh: "Example: plan me a beach weekend with legal water/grey routine", styleLabel: "Trip style", styleBeach: "Beach", styleNorth: "North", styleDesert: "Desert", styleMixed: "Mixed", daysLabel: "Days", send: "Send", back: "Back to home", outputTitle: "Output", readyTitle: "Ready", readySub: "Pick a mode and click a suggestion to start fast.", advanced: "Advanced settings", debug: "Debug payload", auth: { statusGuest: "Not signed in. Sign in to save profile and tailor responses.", google: "Sign in with Google", apple: "Sign in with Apple", signout: "Sign out", prefStyle: "Trip style preference", prefRisk: "Risk preference", save: "Save profile" } } },
+        ar: { meta: { title: "المساعد الذكي | Atlas Masa", description: "دردشة مسارات ولوجستيات مع حفظ ملف المستخدم." }, concierge: { pill: "Atlas Masa", title: "المساعد الذكي", sub: "دردشة مسار وتشغيل مع ملف مستخدم مخصص.", modeTitle: "ماذا تريد الآن؟", modeChat: "سؤال عام", modeTrip: "تخطيط مسار", modeHealth: "فحص الخدمة", localeHint: "لغة الخدمة تتبع لغة الموقع", suggestionsTitle: "اقتراحات برومبت", questionLabel: "ماذا تريد أن تعرف؟", questionPh: "مثال: خطط لي عطلة شاطئية مع خطة مياه قانونية", styleLabel: "نمط المسار", styleBeach: "شاطئ", styleNorth: "شمال", styleDesert: "صحراء", styleMixed: "مختلط", daysLabel: "الأيام", send: "إرسال", back: "العودة للرئيسية", outputTitle: "النتيجة", readyTitle: "جاهز", readySub: "اختر وضعاً ثم اقتراحاً للبدء بسرعة.", advanced: "إعدادات متقدمة", debug: "بيانات تقنية", auth: { statusGuest: "غير مسجل الدخول. الدخول يحفظ الملف للتخصيص.", google: "تسجيل مع Google", apple: "تسجيل مع Apple", signout: "تسجيل خروج", prefStyle: "تفضيل نمط الرحلة", prefRisk: "تفضيل المخاطرة", save: "حفظ الملف" } } },
+        ru: { meta: { title: "Умный консьерж | Atlas Masa", description: "Чат маршрутов и логистики с хранением профиля." }, concierge: { pill: "Atlas Masa", title: "Умный консьерж", sub: "Маршруты, операционка и персональный профиль.", modeTitle: "Что нужно сейчас?", modeChat: "Общий вопрос", modeTrip: "План поездки", modeHealth: "Проверка сервиса", localeHint: "Язык сервиса берется с сайта", suggestionsTitle: "Подсказки промптов", questionLabel: "Что вы хотите узнать?", questionPh: "Пример: спланируй пляжный уикенд с легальной логистикой воды", styleLabel: "Стиль маршрута", styleBeach: "Пляж", styleNorth: "Север", styleDesert: "Пустыня", styleMixed: "Смешанный", daysLabel: "Дни", send: "Отправить", back: "Назад на главную", outputTitle: "Результат", readyTitle: "Готов", readySub: "Выберите режим и подсказку для быстрого старта.", advanced: "Расширенные настройки", debug: "Технические данные", auth: { statusGuest: "Вы не вошли. Вход сохраняет профиль для персонализации.", google: "Войти через Google", apple: "Войти через Apple", signout: "Выйти", prefStyle: "Предпочтительный стиль", prefRisk: "Предпочтение риска", save: "Сохранить профиль" } } },
+        fr: { meta: { title: "Concierge intelligent | Atlas Masa", description: "Chat itinéraire/logistique avec mémoire profil utilisateur." }, concierge: { pill: "Atlas Masa", title: "Concierge intelligent", sub: "Chat itinéraire, opérations et profil personnalisé.", modeTitle: "Que voulez-vous maintenant ?", modeChat: "Question générale", modeTrip: "Planifier un trajet", modeHealth: "État du service", localeHint: "La langue suit celle du site", suggestionsTitle: "Suggestions de prompt", questionLabel: "Que voulez-vous demander ?", questionPh: "Exemple : planifie un week-end plage avec routine eau légale", styleLabel: "Style de trajet", styleBeach: "Plage", styleNorth: "Nord", styleDesert: "Désert", styleMixed: "Mixte", daysLabel: "Jours", send: "Envoyer", back: "Retour accueil", outputTitle: "Résultat", readyTitle: "Prêt", readySub: "Choisissez un mode puis une suggestion.", advanced: "Paramètres avancés", debug: "Données techniques", auth: { statusGuest: "Non connecté. Connectez-vous pour sauvegarder votre profil.", google: "Connexion Google", apple: "Connexion Apple", signout: "Se déconnecter", prefStyle: "Préférence de style", prefRisk: "Préférence de risque", save: "Enregistrer profil" } } }
+      };
+    </script>
+    <script src="sitewide-language.js"></script>
+    <script>
+      const state = {
+        mode: "chat",
+        locale: "he",
+        style: "beach",
+        days: 3,
+        user: null
+      };
+
+      const modeSegment = document.getElementById("mode-segment");
+      const styleSegment = document.getElementById("style-segment");
+      const chatField = document.getElementById("chat-field");
+      const tripFields = document.getElementById("trip-fields");
+      const messageEl = document.getElementById("message");
+      const sendBtn = document.getElementById("send-btn");
+      const outputBox = document.getElementById("output-box");
+      const rawJson = document.getElementById("raw-json");
+      const tagRow = document.getElementById("tag-row");
+      const daysValue = document.getElementById("days-value");
+      const activeLocaleLabel = document.getElementById("active-locale-label");
+      const suggestionsSegment = document.getElementById("suggestions-segment");
+      const userStatus = document.getElementById("user-status");
+      const googleSigninBtn = document.getElementById("google-signin");
+      const appleSigninBtn = document.getElementById("apple-signin");
+      const signoutBtn = document.getElementById("signout-btn");
+      const saveProfileBtn = document.getElementById("save-profile-btn");
+      const profileStyle = document.getElementById("profile-style");
+      const riskPref = document.getElementById("risk-pref");
+
+      const debugMode = new URLSearchParams(window.location.search).get("debug") === "1";
+      const PROFILE_KEY = "atlas_concierge_user";
+
+      const QUICK_PROMPTS = {
+        chat: {
+          he: [
+            "מה כולל מסע חווייתי לעומת מנוי מסע?",
+            "תסביר לי למה חופשה בלי מלונות עובדת יותר טוב",
+            "מה אתם כוללים בחינם בתכנון טיול?"
+          ],
+          en: [
+            "What is included in Masa Experience vs Membership?",
+            "Why is vacation without hotels better for movement?",
+            "What free travel help is included?"
+          ],
+          ar: [
+            "ما الفرق بين Masa Experience وMasa Membership؟",
+            "لماذا عطلة بدون فنادق أفضل للحركة؟",
+            "ما المساعدة المجانية المضمنة؟"
+          ],
+          ru: [
+            "Что входит в Masa Experience и Membership?",
+            "Почему отпуск без отелей лучше для мобильности?",
+            "Какая бесплатная помощь включена?"
+          ],
+          fr: [
+            "Que contient Masa Experience vs Membership ?",
+            "Pourquoi les vacances sans hôtels sont meilleures ?",
+            "Quelle aide gratuite est incluse ?"
+          ]
+        },
+        trip: {
+          he: ["חוף", "צפון", "מדבר"],
+          en: ["beach", "north", "desert"],
+          ar: ["شاطئ", "شمال", "صحراء"],
+          ru: ["пляж", "север", "пустыня"],
+          fr: ["plage", "nord", "désert"]
+        },
+        health: {
+          he: ["בדיקת בריאות שירות"],
+          en: ["Check service health"],
+          ar: ["فحص الخدمة"],
+          ru: ["Проверить сервис"],
+          fr: ["Vérifier le service"]
+        }
+      };
+
+      function getByPath(objectValue, path) {
+        if (!objectValue || !path) return undefined;
+        return path.split(".").reduce((acc, key) => {
+          if (acc && Object.prototype.hasOwnProperty.call(acc, key)) return acc[key];
+          return undefined;
+        }, objectValue);
+      }
+
+      function t(path) {
+        const all = window.ATLAS_PAGE_I18N || {};
+        const value = getByPath(all[state.locale] || all.he || {}, path);
+        if (value !== undefined && value !== null) return value;
+        const fallback = getByPath(all.he || {}, path);
+        return fallback !== undefined ? fallback : path;
+      }
+
+      function getSiteLocale() {
+        if (window.AtlasLanguage && typeof window.AtlasLanguage.getCurrent === "function") {
+          return window.AtlasLanguage.getCurrent();
+        }
+        return document.documentElement.getAttribute("lang") || "he";
+      }
+
+      function setPressed(container, key, value) {
+        container.querySelectorAll(".chip").forEach((button) => {
+          button.setAttribute("aria-pressed", button.dataset[key] === value ? "true" : "false");
+        });
+      }
+
+      function updateDays() {
+        const dayText = state.locale === "he" || state.locale === "ar" ? "ימים" : "days";
+        daysValue.textContent = `${state.days} ${dayText}`;
+      }
+
+      function renderLocaleLabel() {
+        const labels = { he: "עברית", en: "English", ar: "العربية", ru: "Русский", fr: "Français" };
+        activeLocaleLabel.textContent = `${t("concierge.localeHint")} (${labels[state.locale] || state.locale})`;
+      }
+
+      function renderMode() {
+        setPressed(modeSegment, "mode", state.mode);
+        chatField.classList.toggle("hidden", state.mode === "health");
+        tripFields.classList.toggle("hidden", state.mode !== "trip");
+
+        if (state.mode === "chat") sendBtn.textContent = t("concierge.modeChat");
+        if (state.mode === "trip") sendBtn.textContent = t("concierge.modeTrip");
+        if (state.mode === "health") sendBtn.textContent = t("concierge.modeHealth");
+
+        renderPromptSuggestions();
+      }
+
+      function renderPromptSuggestions() {
+        const byMode = QUICK_PROMPTS[state.mode] || QUICK_PROMPTS.chat;
+        const prompts = byMode[state.locale] || byMode.he || [];
+        suggestionsSegment.innerHTML = "";
+
+        prompts.forEach((prompt, index) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "chip";
+          button.textContent = prompt;
+          button.dataset.index = String(index);
+          button.addEventListener("click", () => {
+            if (state.mode === "trip") {
+              const style = index === 0 ? "beach" : index === 1 ? "north" : "desert";
+              state.style = style;
+              setPressed(styleSegment, "style", style);
+              state.days = style === "beach" ? 3 : style === "north" ? 4 : 5;
+              updateDays();
+            } else if (state.mode === "health") {
+              sendBtn.click();
+            } else {
+              messageEl.value = prompt;
+            }
+          });
+          suggestionsSegment.appendChild(button);
+        });
+      }
+
+      function renderOutput(title, text, tags = [], raw = null) {
+        outputBox.innerHTML = `<h3>${title}</h3><p>${text}</p>`;
+        tagRow.innerHTML = tags.map((tag) => `<span class="tag">${tag}</span>`).join("");
+        rawJson.textContent = raw ? JSON.stringify(raw, null, 2) : "-";
+      }
+
+      function renderConnectionHelp(errorText) {
+        const base = document.getElementById("api-base").value.trim();
+        const isFileProtocol = window.location.protocol === "file:";
+
+        const msg = isFileProtocol
+          ? "אתם פותחים את הדף כ-file://. כדי שהקונסיירז יעבוד, פתחו אותו דרך שרת מקומי ב-http://localhost:5500."
+          : `לא הצלחנו להתחבר ל-API ב-${base}.`;
+
+        renderOutput(
+          "חיבור API נכשל",
+          `${msg} שגיאה טכנית: ${errorText}`,
+          ["network", "local-api", "action-needed"],
+          {
+            next_steps: [
+              "cd /Users/avrohom/Downloads/journeyatlas",
+              "./scripts/start-concierge-local.sh",
+              "./scripts/serve-homepage-local.sh",
+              "open http://localhost:5500/concierge-local.html"
+            ]
+          }
+        );
+      }
+
+      function readLocalUser() {
+        try {
+          const raw = localStorage.getItem(PROFILE_KEY);
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function writeLocalUser(user) {
+        try {
+          localStorage.setItem(PROFILE_KEY, JSON.stringify(user));
+        } catch (_) {}
+      }
+
+      function clearLocalUser() {
+        try {
+          localStorage.removeItem(PROFILE_KEY);
+        } catch (_) {}
+      }
+
+      function renderUserState() {
+        if (!state.user) {
+          userStatus.textContent = t("concierge.auth.statusGuest");
+          signoutBtn.classList.add("hidden");
+          return;
+        }
+
+        userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}`;
+        signoutBtn.classList.remove("hidden");
+
+        if (state.user.trip_style) profileStyle.value = state.user.trip_style;
+        if (state.user.risk_preference) riskPref.value = state.user.risk_preference;
+      }
+
+      async function request(path, body, includeKey = true) {
+        const base = document.getElementById("api-base").value.trim();
+        const key = document.getElementById("api-key").value.trim();
+
+        const headers = {};
+        if (body) headers["content-type"] = "application/json";
+        if (includeKey) headers["x-api-key"] = key;
+
+        const response = await fetch(base + path, {
+          method: body ? "POST" : "GET",
+          headers,
+          body: body ? JSON.stringify(body) : undefined
+        });
+
+        const text = await response.text();
+        let payload;
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = { raw: text };
+        }
+
+        return { ok: response.ok, status: response.status, payload };
+      }
+
+      async function socialLogin(provider) {
+        const email = window.prompt("Email:");
+        if (!email) return;
+        const name = window.prompt("Name:") || "";
+
+        try {
+          const result = await request("/v1/auth/social_login", {
+            provider,
+            email,
+            name,
+            locale: state.locale
+          });
+
+          if (!result.ok) {
+            renderOutput("Auth failed", `status ${result.status}`, ["auth", "error"], result.payload);
+            return;
+          }
+
+          state.user = result.payload.user;
+          writeLocalUser(state.user);
+          renderUserState();
+          renderOutput("התחברות הצליחה", `${state.user.name || state.user.email}`, ["auth", provider], result.payload);
+        } catch (error) {
+          renderConnectionHelp(error && error.message ? error.message : "Load failed");
+        }
+      }
+
+      async function saveUserProfile() {
+        if (!state.user) {
+          renderOutput("יש להתחבר קודם", "התחברו עם Google או Apple ואז שמרו פרופיל.", ["profile", "missing-user"]);
+          return;
+        }
+
+        const payload = {
+          user_id: state.user.user_id,
+          trip_style: profileStyle.value,
+          risk_preference: riskPref.value,
+          memory_opt_in: true,
+          locale: state.locale
+        };
+
+        try {
+          const result = await request("/v1/profile/upsert", payload);
+          if (!result.ok) {
+            renderOutput("שמירת פרופיל נכשלה", `status ${result.status}`, ["profile", "error"], result.payload);
+            return;
+          }
+
+          state.user = Object.assign({}, state.user, payload);
+          writeLocalUser(state.user);
+          renderOutput("הפרופיל נשמר", "מעתה התשובות יותאמו לפי העדפות המשתמש.", ["profile", payload.trip_style, payload.risk_preference], result.payload);
+        } catch (error) {
+          renderConnectionHelp(error && error.message ? error.message : "Load failed");
+        }
+      }
+
+      async function runStartupHealthCheck() {
+        try {
+          const result = await request("/health", null, false);
+          if (result.ok) {
+            renderOutput(
+              "השירות המקומי פעיל",
+              "אפשר להתחיל בצ'אט, לבנות מסלול, ולשמור פרופיל משתמש.",
+              ["health", "ready"],
+              result.payload
+            );
+            return;
+          }
+
+          renderOutput(
+            "השירות המקומי לא זמין",
+            `סטטוס ${result.status}. הפעילו API ואז רעננו.`,
+            ["health", "offline"],
+            result.payload
+          );
+        } catch (error) {
+          renderConnectionHelp(error && error.message ? error.message : "Load failed");
+        }
+      }
+
+      modeSegment.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-mode]");
+        if (!button) return;
+        state.mode = button.dataset.mode;
+        renderMode();
+      });
+
+      styleSegment.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-style]");
+        if (!button) return;
+        state.style = button.dataset.style;
+        setPressed(styleSegment, "style", state.style);
+      });
+
+      document.getElementById("days-minus").addEventListener("click", () => {
+        state.days = Math.max(1, state.days - 1);
+        updateDays();
+      });
+
+      document.getElementById("days-plus").addEventListener("click", () => {
+        state.days = Math.min(10, state.days + 1);
+        updateDays();
+      });
+
+      googleSigninBtn.addEventListener("click", () => socialLogin("google"));
+      appleSigninBtn.addEventListener("click", () => socialLogin("apple"));
+      signoutBtn.addEventListener("click", () => {
+        state.user = null;
+        clearLocalUser();
+        renderUserState();
+        renderOutput("התנתקתם", "אפשר להמשיך כאורח או להתחבר מחדש.", ["auth", "signed-out"]);
+      });
+      saveProfileBtn.addEventListener("click", saveUserProfile);
+
+      sendBtn.addEventListener("click", async () => {
+        try {
+          sendBtn.disabled = true;
+
+          if (state.mode === "health") {
+            const result = await request("/health", null, false);
+            renderOutput(
+              result.ok ? "השירות פעיל" : "יש בעיה בגישה לשירות",
+              result.ok ? "המערכת זמינה." : `סטטוס ${result.status}`,
+              ["health", `status:${result.status}`],
+              result.payload
+            );
+            return;
+          }
+
+          if (state.mode === "trip") {
+            const result = await request("/v1/plan_trip", {
+              style: state.style,
+              days: state.days,
+              locale: state.locale,
+              constraints: []
+            });
+
+            if (!result.ok) {
+              renderOutput("יצירת מסלול נכשלה", `status ${result.status}`, ["plan_trip", "error"], result.payload);
+              return;
+            }
+
+            const summary = result.payload.summary || "נוצרה תוכנית מסלול.";
+            renderOutput("התוכנית מוכנה", summary, ["plan_trip", state.style, `${state.days}d`], result.payload);
+            return;
+          }
+
+          const text = messageEl.value.trim();
+          if (!text) {
+            renderOutput("חסר תוכן", "בחרו הצעה מהירה או כתבו שאלה קצרה.", ["input"]);
+            return;
+          }
+
+          const result = await request("/v1/chat", {
+            text,
+            locale: state.locale,
+            user_id: state.user ? state.user.user_id : null
+          });
+
+          if (!result.ok) {
+            renderOutput("לא הצלחנו לענות כרגע", `status ${result.status}`, ["chat", "error"], result.payload);
+            return;
+          }
+
+          renderOutput(
+            "התשובה שלכם",
+            result.payload.reply_text || "התקבלה תשובה.",
+            ["chat", state.locale, result.payload.intent || "unknown"],
+            result.payload
+          );
+        } catch (error) {
+          renderConnectionHelp(error && error.message ? error.message : "Load failed");
+        } finally {
+          sendBtn.disabled = false;
+        }
+      });
+
+      state.locale = getSiteLocale();
+      state.user = readLocalUser();
+      renderUserState();
+      renderLocaleLabel();
+      updateDays();
+      renderMode();
+      setPressed(styleSegment, "style", state.style);
+
+      window.addEventListener("atlas:language-change", (event) => {
+        state.locale = event && event.detail && event.detail.code ? event.detail.code : "he";
+        renderLocaleLabel();
+        updateDays();
+        renderPromptSuggestions();
+      });
+
+      if (debugMode) {
+        document.querySelectorAll(".debug-only").forEach((element) => {
+          element.classList.remove("hidden");
+        });
+      }
+
+      runStartupHealthCheck();
+    </script>
+  </body>
+</html>

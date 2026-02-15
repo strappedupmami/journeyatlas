@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>חבילות ומחירים | אטלס מסע</title>
+    <meta
+      name="description"
+      content="מסע חווייתי ומנוי מסע: מחירי ניסיון קצר, מנוי חודשי, ומה בדיוק כלול בחינם בכל חבילה."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main" data-i18n="common.skip">דלג לתוכן</a>
+    <header class="header">
+      <div class="container header__inner">
+        <a class="brand" href="homepage.html">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
+              <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M14 46h36" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M32 10v12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M26 22h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand__text">
+            <span class="brand__name" data-i18n="common.brandName">אטלס מסע</span>
+            <span class="brand__tag" data-i18n="common.brandTag">תשתית מסע ניידת</span>
+          </span>
+        </a>
+        <nav class="nav nav--desktop">
+          <a href="homepage.html" data-i18n="common.nav.home">דף הבית</a>
+          <a href="pricing.html" data-i18n="common.nav.pricing">חבילות ומחירים</a>
+          <a href="mobility-theory.html" data-i18n="common.nav.mobility">תיאוריית הניידות</a>
+          <a href="guides.html" data-i18n="common.nav.guides">מדריכים בישראל</a>
+          <a href="faq.html" data-i18n="common.nav.faq">שאלות נפוצות</a>
+          <a href="policies.html" data-i18n="common.nav.policies">כללים ומדיניות</a>
+          <a href="contact.html" data-i18n="common.nav.contact">צור קשר</a>
+          <a href="concierge-local.html" data-i18n="common.nav.concierge">עוזר מסע חכם</a>
+        </nav>
+        <details class="nav nav--mobile">
+          <summary data-i18n="common.menu">תפריט</summary>
+          <div class="nav__panel">
+            <a href="homepage.html" data-i18n="common.nav.home">דף הבית</a>
+            <a href="pricing.html" data-i18n="common.nav.pricing">חבילות ומחירים</a>
+          <a href="mobility-theory.html" data-i18n="common.nav.mobility">תיאוריית הניידות</a>
+            <a href="guides.html" data-i18n="common.nav.guides">מדריכים בישראל</a>
+            <a href="faq.html" data-i18n="common.nav.faq">שאלות נפוצות</a>
+            <a href="policies.html" data-i18n="common.nav.policies">כללים ומדיניות</a>
+            <a href="contact.html" data-i18n="common.nav.contact">צור קשר</a>
+            <a href="concierge-local.html" data-i18n="common.nav.concierge">עוזר מסע חכם</a>
+          </div>
+        </details>
+      </div>
+    </header>
+
+    <main id="main" class="section">
+      <div class="container">
+        <div class="section__head">
+          <h1 data-i18n="pricing.title">חבילות ומחירים</h1>
+          <p class="sub" data-i18n="pricing.sub">מודל דו-כניסתי: מסע חווייתי לטווח קצר + מנוי מסע לטווח ארוך.</p>
+        </div>
+
+        <section class="grid grid--2">
+          <article class="card offer">
+            <header class="offer__head">
+              <h2 data-i18n="pricing.trial.title">מסע חווייתי (ניסיון קצר)</h2>
+              <p class="offer__desc" data-i18n="pricing.trial.desc">פאזה 1 לאימות מוצר וללמידת לקוח.</p>
+            </header>
+            <div class="price">
+              <span class="price__from" data-i18n="pricing.from">החל מ-</span>
+              <span class="price__num" data-i18n="pricing.trial.range">₪1,200-₪5,000</span>
+              <span class="price__unit" data-i18n="pricing.perTrip">למסע</span>
+            </div>
+            <ul class="checklist checklist--compact">
+              <li data-i18n="pricing.trial.li1">3 ימים: מיני אדוונצ'ר</li>
+              <li data-i18n="pricing.trial.li2">7 ימים: שבוע מסע</li>
+              <li data-i18n="pricing.trial.li3">14 ימים: מסע עומק</li>
+              <li data-i18n="pricing.trial.li4">החזר קרדיט מהניסיון להצטרפות למנוי</li>
+            </ul>
+          </article>
+
+          <article class="card offer offer--featured">
+            <header class="offer__head">
+              <div class="offer__badge" data-i18n="pricing.member.badge">לאחר ואלידציה</div>
+              <h2 data-i18n="pricing.member.title">מנוי מסע (גישה רציפה)</h2>
+              <p class="offer__desc" data-i18n="pricing.member.desc">מודל Infrastructure-as-a-Service.</p>
+            </header>
+            <div class="price">
+              <span class="price__from" data-i18n="pricing.from">החל מ-</span>
+              <span class="price__num" data-i18n="pricing.member.range">₪3,500-₪5,500</span>
+              <span class="price__unit" data-i18n="pricing.perMonth">לחודש</span>
+            </div>
+            <ul class="checklist checklist--compact">
+              <li data-i18n="pricing.member.li1">שירות תחזוקה ותמיכה שוטפת</li>
+              <li data-i18n="pricing.member.li2">קרן גרירה/מכונאי מוגדרת</li>
+              <li data-i18n="pricing.member.li3">שמירת פרופיל לקוח והתאמה אישית</li>
+              <li data-i18n="pricing.member.li4">עדיפות זמינות ללקוחות מנוי</li>
+            </ul>
+          </article>
+        </section>
+
+        <section class="section__head" style="margin-top:24px">
+          <h2 data-i18n="pricing.included.title">מה כלול בחינם בכל הזמנה</h2>
+        </section>
+        <div class="grid grid--3">
+          <article class="card iconCard">
+            <div class="iconCard__icon" aria-hidden="true">🧭</div>
+            <h3 data-i18n="pricing.included.card1.title">תכנון מסלול</h3>
+            <p data-i18n="pricing.included.card1.text">מסלול יום-יום לפי העדפות, עומסים ועונתיות.</p>
+          </article>
+          <article class="card iconCard">
+            <div class="iconCard__icon" aria-hidden="true">💧</div>
+            <h3 data-i18n="pricing.included.card2.title">מים/אפור</h3>
+            <p data-i18n="pricing.included.card2.text">תכנון חוקי לנקודות מילוי וריקון מורשות בלבד.</p>
+          </article>
+          <article class="card iconCard">
+            <div class="iconCard__icon" aria-hidden="true">📲</div>
+            <h3 data-i18n="pricing.included.card3.title">תמיכה מהירה</h3>
+            <p data-i18n="pricing.included.card3.text">וואטסאפ תפעולי לשאלות חיות בזמן המסע.</p>
+          </article>
+        </div>
+
+        <article class="note" style="margin-top:18px" data-i18n="pricing.note">
+          המחירים המדויקים נקבעים לפי עונה, זמינות יחידה, ואורך מסע. אין עישון ברכבים. אין הנחיות לא חוקיות.
+        </article>
+
+        <div class="hero__cta" style="margin-top:18px">
+          <a class="btn btn--primary" href="contact.html" data-i18n="pricing.ctaPrimary">קבלת הצעה מותאמת</a>
+          <a class="btn btn--ghost" href="concierge-local.html" data-i18n="pricing.ctaSecondary">בדיקת תרחישים עם עוזר מסע</a>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      window.ATLAS_PAGE_I18N = {
+        he: {
+          meta: { title: "חבילות ומחירים | אטלס מסע", description: "מסע חווייתי ומנוי מסע: מחירי ניסיון קצר, מנוי חודשי, ומה בדיוק כלול בחינם בכל חבילה." },
+          common: {
+            skip: "דלג לתוכן",
+            brandName: "אטלס מסע",
+            brandTag: "תשתית מסע ניידת",
+            menu: "תפריט",
+            nav: { home: "דף הבית", pricing: "חבילות ומחירים", guides: "מדריכים בישראל", faq: "שאלות נפוצות", policies: "כללים ומדיניות", contact: "צור קשר", concierge: "עוזר מסע חכם" }
+          },
+          pricing: {
+            title: "חבילות ומחירים",
+            sub: "מודל דו-כניסתי: מסע חווייתי לטווח קצר + מנוי מסע לטווח ארוך.",
+            from: "החל מ-",
+            perTrip: "למסע",
+            perMonth: "לחודש",
+            trial: { title: "מסע חווייתי (ניסיון קצר)", desc: "פאזה 1 לאימות מוצר וללמידת לקוח.", range: "₪1,200-₪5,000", li1: "3 ימים: מיני אדוונצ'ר", li2: "7 ימים: שבוע מסע", li3: "14 ימים: מסע עומק", li4: "החזר קרדיט מהניסיון להצטרפות למנוי" },
+            member: { badge: "לאחר ואלידציה", title: "מנוי מסע (גישה רציפה)", desc: "מודל Infrastructure-as-a-Service.", range: "₪3,500-₪5,500", li1: "שירות תחזוקה ותמיכה שוטפת", li2: "קרן גרירה/מכונאי מוגדרת", li3: "שמירת פרופיל לקוח והתאמה אישית", li4: "עדיפות זמינות ללקוחות מנוי" },
+            included: {
+              title: "מה כלול בחינם בכל הזמנה",
+              card1: { title: "תכנון מסלול", text: "מסלול יום-יום לפי העדפות, עומסים ועונתיות." },
+              card2: { title: "מים/אפור", text: "תכנון חוקי לנקודות מילוי וריקון מורשות בלבד." },
+              card3: { title: "תמיכה מהירה", text: "וואטסאפ תפעולי לשאלות חיות בזמן המסע." }
+            },
+            note: "המחירים המדויקים נקבעים לפי עונה, זמינות יחידה, ואורך מסע. אין עישון ברכבים. אין הנחיות לא חוקיות.",
+            ctaPrimary: "קבלת הצעה מותאמת",
+            ctaSecondary: "בדיקת תרחישים עם עוזר מסע"
+          }
+        },
+        en: {
+          meta: { title: "Packages & Pricing | Atlas Masa", description: "Masa Experience and Masa Membership pricing with full included services." },
+          common: {
+            skip: "Skip to content",
+            brandName: "Atlas Masa",
+            brandTag: "Movement-first travel infrastructure",
+            menu: "Menu",
+            nav: { home: "Home", pricing: "Packages & Pricing", guides: "Guides in Israel", faq: "FAQ", policies: "Policies", contact: "Contact", concierge: "Smart Concierge" }
+          },
+          pricing: {
+            title: "Packages & Pricing",
+            sub: "Dual entry model: short trial mode plus long-term membership mode.",
+            from: "From",
+            perTrip: "per trip",
+            perMonth: "per month",
+            trial: { title: "Masa Experience (short trial)", desc: "Phase-1 product validation and customer learning.", range: "₪1,200-₪5,000", li1: "3-day mini adventure", li2: "7-day week journey", li3: "14-day deep experience", li4: "Trial credit applied to membership" },
+            member: { badge: "After validation", title: "Masa Membership (ongoing access)", desc: "Infrastructure-as-a-Service model.", range: "₪3,500-₪5,500", li1: "Ongoing maintenance and support", li2: "Defined towing/mechanic coverage", li3: "Stored user profile and personalization", li4: "Priority availability" },
+            included: {
+              title: "Included for free in every booking",
+              card1: { title: "Route planning", text: "Day-by-day flow aligned to style, season, and density." },
+              card2: { title: "Water/grey logistics", text: "Legal refill/disposal points only." },
+              card3: { title: "Fast support", text: "Operational WhatsApp support during trips." }
+            },
+            note: "Final pricing depends on season, availability, and duration. No smoking. No illegal guidance.",
+            ctaPrimary: "Get tailored offer",
+            ctaSecondary: "Run scenarios with concierge"
+          }
+        },
+        ar: {
+          meta: { title: "الباقات والأسعار | Atlas Masa", description: "أسعار Masa Experience وMasa Membership مع الخدمات المجانية المضمنة." },
+          common: {
+            skip: "تخطي إلى المحتوى",
+            brandName: "Atlas Masa",
+            brandTag: "بنية سفر متحركة",
+            menu: "القائمة",
+            nav: { home: "الرئيسية", pricing: "الباقات والأسعار", guides: "أدلة في إسرائيل", faq: "الأسئلة الشائعة", policies: "السياسات", contact: "اتصل بنا", concierge: "المساعد الذكي" }
+          },
+          pricing: {
+            title: "الباقات والأسعار",
+            sub: "نموذج دخول مزدوج: تجربة قصيرة ثم اشتراك طويل.",
+            from: "ابتداءً من",
+            perTrip: "لكل رحلة",
+            perMonth: "شهرياً",
+            trial: { title: "Masa Experience (تجربة قصيرة)", desc: "مرحلة تحقق وتعلم احتياجات العميل.", range: "₪1,200-₪5,000", li1: "3 أيام: مغامرة قصيرة", li2: "7 أيام: أسبوع كامل", li3: "14 يوماً: تجربة عميقة", li4: "تحويل قيمة التجربة للاشتراك" },
+            member: { badge: "بعد التحقق", title: "Masa Membership (وصول مستمر)", desc: "نموذج بنية تحتية كخدمة.", range: "₪3,500-₪5,500", li1: "صيانة ودعم مستمران", li2: "تغطية سحب/ميكانيك محددة", li3: "حفظ ملف المستخدم وتخصيص", li4: "أولوية توفر" },
+            included: {
+              title: "مضمن مجاناً في كل حجز",
+              card1: { title: "تخطيط المسار", text: "خطة يومية حسب النمط والموسم." },
+              card2: { title: "مياه/رمادية", text: "تعبئة وتفريغ فقط في نقاط مرخصة." },
+              card3: { title: "دعم سريع", text: "دعم واتساب تشغيلي أثناء الرحلة." }
+            },
+            note: "السعر النهائي حسب الموسم والتوفر والمدة. ممنوع التدخين. لا إرشادات غير قانونية.",
+            ctaPrimary: "احصل على عرض مخصص",
+            ctaSecondary: "اختبر السيناريوهات مع المساعد"
+          }
+        },
+        ru: {
+          meta: { title: "Пакеты и цены | Atlas Masa", description: "Цены на Masa Experience и Masa Membership с бесплатной включенной поддержкой." },
+          common: {
+            skip: "Перейти к содержимому",
+            brandName: "Atlas Masa",
+            brandTag: "Мобильная travel-инфраструктура",
+            menu: "Меню",
+            nav: { home: "Главная", pricing: "Пакеты и цены", guides: "Гиды по Израилю", faq: "FAQ", policies: "Правила", contact: "Контакты", concierge: "Умный консьерж" }
+          },
+          pricing: {
+            title: "Пакеты и цены",
+            sub: "Два входа: короткая проверка формата и долгосрочный доступ.",
+            from: "От",
+            perTrip: "за поездку",
+            perMonth: "в месяц",
+            trial: { title: "Masa Experience (короткий тест)", desc: "Фаза проверки продукта и клиента.", range: "₪1,200-₪5,000", li1: "3 дня: мини-поездка", li2: "7 дней: недельный формат", li3: "14 дней: расширенный тест", li4: "Кредит теста в подписку" },
+            member: { badge: "После валидации", title: "Masa Membership (постоянный доступ)", desc: "Модель Infrastructure-as-a-Service.", range: "₪3,500-₪5,500", li1: "Постоянная поддержка и сервис", li2: "Покрытие эвакуации и механика", li3: "Сохраненный профиль для персонализации", li4: "Приоритет по доступности" },
+            included: {
+              title: "Бесплатно включено в каждое бронирование",
+              card1: { title: "План маршрута", text: "Дневной план по стилю и сезону." },
+              card2: { title: "Вода/серые воды", text: "Только легальные точки заправки и слива." },
+              card3: { title: "Быстрая поддержка", text: "Оперативный WhatsApp во время поездки." }
+            },
+            note: "Точная цена зависит от сезона, доступности и длительности. No smoking. Никаких нелегальных инструкций.",
+            ctaPrimary: "Получить персональное предложение",
+            ctaSecondary: "Проверить сценарии с консьержем"
+          }
+        },
+        fr: {
+          meta: { title: "Offres et tarifs | Atlas Masa", description: "Tarifs Masa Experience et Masa Membership avec services inclus gratuitement." },
+          common: {
+            skip: "Aller au contenu",
+            brandName: "Atlas Masa",
+            brandTag: "Infrastructure de voyage mobile",
+            menu: "Menu",
+            nav: { home: "Accueil", pricing: "Offres et tarifs", guides: "Guides en Israël", faq: "FAQ", policies: "Politiques", contact: "Contact", concierge: "Concierge intelligent" }
+          },
+          pricing: {
+            title: "Offres et tarifs",
+            sub: "Entrée double: essai court puis abonnement long terme.",
+            from: "À partir de",
+            perTrip: "par voyage",
+            perMonth: "par mois",
+            trial: { title: "Masa Experience (essai court)", desc: "Phase de validation produit et client.", range: "₪1,200-₪5,000", li1: "3 jours: mini-aventure", li2: "7 jours: semaine complète", li3: "14 jours: test approfondi", li4: "Crédit essai appliqué à l'abonnement" },
+            member: { badge: "Après validation", title: "Masa Membership (accès continu)", desc: "Modèle Infrastructure-as-a-Service.", range: "₪3,500-₪5,500", li1: "Maintenance et support continus", li2: "Couverture remorquage/mécanicien", li3: "Profil utilisateur pour personnalisation", li4: "Priorité de disponibilité" },
+            included: {
+              title: "Inclus gratuitement dans chaque réservation",
+              card1: { title: "Planification itinéraire", text: "Plan jour par jour selon style et saison." },
+              card2: { title: "Eau/eaux grises", text: "Uniquement points autorisés." },
+              card3: { title: "Support rapide", text: "Support WhatsApp opérationnel en voyage." }
+            },
+            note: "Prix final selon saison, disponibilité et durée. No-smoking. Aucun conseil illégal.",
+            ctaPrimary: "Obtenir une offre personnalisée",
+            ctaSecondary: "Tester des scénarios avec le concierge"
+          }
+        }
+      };
+    </script>
+    <script>
+      (function () {
+        const labels = { he: "תיאוריית הניידות", en: "Mobility Theory", ar: "نظرية التنقل", ru: "Теория мобильности", fr: "Théorie de mobilité" };
+        window.ATLAS_PAGE_I18N = window.ATLAS_PAGE_I18N || {};
+        for (const code in labels) {
+          if (!window.ATLAS_PAGE_I18N[code]) window.ATLAS_PAGE_I18N[code] = {};
+          if (!window.ATLAS_PAGE_I18N[code].common) window.ATLAS_PAGE_I18N[code].common = {};
+          if (!window.ATLAS_PAGE_I18N[code].common.nav) window.ATLAS_PAGE_I18N[code].common.nav = {};
+          window.ATLAS_PAGE_I18N[code].common.nav.mobility = labels[code];
+        }
+      })();
+    </script>
+    <script src="sitewide-language.js"></script>
+  </body>
+</html>

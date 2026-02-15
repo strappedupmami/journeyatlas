@@ -134,6 +134,7 @@ async fn run_chat(agent: ConciergeAgent<Store>) -> Result<()> {
                 session_id: session_id.clone(),
                 text: message.to_string(),
                 locale: None,
+                user_id: None,
             })
             .await?;
 

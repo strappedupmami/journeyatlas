@@ -93,9 +93,17 @@ where
         let session_id = input
             .session_id
             .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let user_id = input.user_id.clone();
 
-        self.persist_turn(&session_id, locale, &normalized, &reply.reply_text, intent)
-            .await?;
+        self.persist_turn(
+            &session_id,
+            user_id.as_deref(),
+            locale,
+            &normalized,
+            &reply.reply_text,
+            intent,
+        )
+        .await?;
 
         if let Some(payload_obj) = reply.json_payload.as_object_mut() {
             payload_obj.insert("session_id".to_string(), serde_json::json!(session_id));
@@ -156,6 +164,7 @@ where
     async fn persist_turn(
         &self,
         session_id: &str,
+        user_id: Option<&str>,
         locale: Locale,
         user_text: &str,
         assistant_text: &str,
@@ -174,6 +183,9 @@ where
             });
 
         session.locale = locale;
+        if let Some(user_id) = user_id {
+            session.user_id = Some(user_id.to_string());
+        }
         session.expires_at = Utc::now() + Duration::hours(24);
         session.turns.push(ConversationTurn {
             at: Utc::now(),

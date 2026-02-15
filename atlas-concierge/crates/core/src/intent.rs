@@ -17,12 +17,18 @@ pub fn detect_locale(explicit: Option<Locale>, text: &str) -> Locale {
     }
 
     let mut hebrew_count = 0usize;
+    let mut arabic_count = 0usize;
+    let mut cyrillic_count = 0usize;
     let mut latin_count = 0usize;
 
     for ch in text.chars() {
         let code = ch as u32;
         if (0x0590..=0x05FF).contains(&code) {
             hebrew_count += 1;
+        } else if (0x0600..=0x06FF).contains(&code) {
+            arabic_count += 1;
+        } else if (0x0400..=0x04FF).contains(&code) {
+            cyrillic_count += 1;
         } else if ch.is_ascii_alphabetic() {
             latin_count += 1;
         }
@@ -30,6 +36,10 @@ pub fn detect_locale(explicit: Option<Locale>, text: &str) -> Locale {
 
     if hebrew_count > latin_count && hebrew_count > 0 {
         Locale::He
+    } else if arabic_count > 0 {
+        Locale::Ar
+    } else if cyrillic_count > 0 {
+        Locale::Ru
     } else if latin_count > 0 {
         Locale::En
     } else {

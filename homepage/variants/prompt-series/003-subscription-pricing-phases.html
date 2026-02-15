@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>אטלס מסע - נוסחת תמחור שלבים</title>
+    <meta
+      name="description"
+      content="נוסחת תמחור לפי עלות יחידה, תפעול ומרווח בשלבי צמיחה שונים."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../../styles.css" />
+    <style>
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .table th,
+      .table td {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        padding: 10px;
+        text-align: right;
+      }
+      .table th {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .formula {
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="section">
+      <div class="container">
+        <div class="section__head">
+          <span class="pill">Prompt 003</span>
+          <h1>תמחור מבוסס Cost-Recovery</h1>
+          <p class="sub">קודם מחשבים עוגן עלות אמיתי, ואז בונים ממנו טווחי מחיר לפי שלבי העסק.</p>
+        </div>
+
+        <article class="card" style="padding: 16px">
+          <h2>הכלל הקריטי</h2>
+          <p class="formula">(unit_cost / recovery_months) + monthly_ops + margin = monthly_price</p>
+          <p style="margin-top: 10px">
+            כשה-unit_cost יורד בזכות סטנדרטיזציה וקנה מידה, אפשר להוריד מחיר ולהרחיב נגישות בלי לשבור
+            את הכלכלה.
+          </p>
+        </article>
+
+        <section class="section" style="padding: 24px 0 0">
+          <article class="card" style="padding: 16px">
+            <h2>דוגמת עוגן (24 חודשים)</h2>
+            <p>עלות יחידה: ₪120,000 | תפעול חודשי: ₪1,650</p>
+            <p>Break-even משוער: ₪6,650 → עיגול ₪6,900</p>
+          </article>
+        </section>
+
+        <section class="section" style="padding: 24px 0 0">
+          <article class="card" style="padding: 16px; overflow-x: auto">
+            <h2>תמחור לפי שלב</h2>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>שלב</th>
+                  <th>עלות יחידה משוערת</th>
+                  <th>Break-even משוער</th>
+                  <th>טווח חיוב מומלץ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Phase 1 (תחילת דרך)</td>
+                  <td>₪120k</td>
+                  <td>~₪6,900</td>
+                  <td>₪7,500–₪8,000</td>
+                </tr>
+                <tr>
+                  <td>Phase 2 (10–25 יחידות)</td>
+                  <td>₪100k</td>
+                  <td>~₪5,500</td>
+                  <td>~₪6,500</td>
+                </tr>
+                <tr>
+                  <td>Phase 3 (50+ יחידות)</td>
+                  <td>₪80k</td>
+                  <td>~₪4,200</td>
+                  <td>סטנדרט: ₪5,500 | Low Income: ₪3,500</td>
+                </tr>
+                <tr>
+                  <td>Phase 4 (יחידות משופצות/משולמות)</td>
+                  <td>נמוכה מאוד</td>
+                  <td>~₪1,800–₪2,200</td>
+                  <td>₪2,500 / ₪4,500 / ₪5,500 לפי מסלול</td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+        </section>
+
+        <div class="hero__cta">
+          <a class="btn btn--primary" href="005-trials-before-subscriptions.html">לסדר השקה בפועל (005)</a>
+          <a class="btn btn--ghost" href="index.html">חזרה לאינדקס</a>
+        </div>
+      </div>
+    </main>
+      <script src="sitewide-language.js"></script>
+  </body>
+</html>

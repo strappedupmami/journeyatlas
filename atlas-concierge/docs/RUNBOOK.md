@@ -38,6 +38,11 @@ curl -X POST http://localhost:8080/v1/chat \
   -d '{"text":"תכנן לי סופ\"ש חופים"}'
 ```
 
+Browser UI option (from website static files):
+- Open `/Users/avrohom/Downloads/journeyatlas/homepage/concierge-local.html`
+- Keep API base `http://localhost:8080` and API key `dev-atlas-key`
+- Use buttons for `/health`, `/v1/chat`, `/v1/plan_trip`
+
 Plan trip:
 
 ```bash

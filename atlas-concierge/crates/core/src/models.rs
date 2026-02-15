@@ -7,6 +7,9 @@ use serde_json::Value;
 pub enum Locale {
     He,
     En,
+    Ar,
+    Ru,
+    Fr,
     Unknown,
 }
 
@@ -15,6 +18,9 @@ impl Locale {
         match value.map(|v| v.trim().to_lowercase()) {
             Some(v) if v == "he" || v == "he-il" || v == "hebrew" => Self::He,
             Some(v) if v == "en" || v == "en-us" || v == "english" => Self::En,
+            Some(v) if v == "ar" || v == "ar-sa" || v == "arabic" => Self::Ar,
+            Some(v) if v == "ru" || v == "ru-ru" || v == "russian" => Self::Ru,
+            Some(v) if v == "fr" || v == "fr-fr" || v == "french" => Self::Fr,
             _ => Self::Unknown,
         }
     }
@@ -23,6 +29,9 @@ impl Locale {
         match self {
             Self::He => "he",
             Self::En => "en",
+            Self::Ar => "ar",
+            Self::Ru => "ru",
+            Self::Fr => "fr",
             Self::Unknown => "unknown",
         }
     }
@@ -166,6 +175,7 @@ pub struct ChatInput {
     pub session_id: Option<String>,
     pub text: String,
     pub locale: Option<String>,
+    pub user_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

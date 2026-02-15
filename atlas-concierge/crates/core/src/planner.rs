@@ -62,6 +62,27 @@ pub fn compose_chat_reply(
             "אפשר לייצר תוכן מובנה ומהיר: מדריך מסלול, FAQ להתנגדויות, או הודעת WhatsApp מוכנה למכירה. תגיד לי את קהל היעד ואספק טיוטה מוכנה לפרסום.".to_string(),
             vec![action("content_template", "צור תבנית מדריך", json!({ "locale": "he" }))],
         ),
+        (_, Locale::Ar) => (
+            format!(
+                "هذه استجابة عملية: نحدد الهدف، نبني خطة قانونية، ونرجع بخطوات واضحة مع بدائل. سياق مناسب: {}",
+                top_snippets.join(" | ")
+            ),
+            vec![action("next_step", "Build practical plan", json!({ "locale": "ar" }))],
+        ),
+        (_, Locale::Ru) => (
+            format!(
+                "Практический путь: уточняем цель, строим легальный план, возвращаем шаги и резервы. Контекст: {}",
+                top_snippets.join(" | ")
+            ),
+            vec![action("next_step", "Generate practical plan", json!({ "locale": "ru" }))],
+        ),
+        (_, Locale::Fr) => (
+            format!(
+                "Parcours pratique: clarifier l'objectif, construire un plan légal, renvoyer des étapes et backups. Contexte: {}",
+                top_snippets.join(" | ")
+            ),
+            vec![action("next_step", "Generate practical plan", json!({ "locale": "fr" }))],
+        ),
         (_, Locale::En) => (
             format!(
                 "Here is a practical concierge response path: clarify the goal, build a legal logistics plan, and return actionable steps with backups. Relevant context: {}",

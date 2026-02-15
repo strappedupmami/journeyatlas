@@ -3,135 +3,202 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>ארבעת הימים של ישראל - מדריך חופים | אטלס מסע</title>
-    <meta
-      name="description"
-      content="מדריך חופים מלא לים התיכון, כנרת, ים המלח וים סוף עם תכנית לינה, מים ומים אפורים חוקית ומעשית."
-    />
+    <title>מדריך חופים ארבעת הימים | אטלס מסע</title>
+    <meta name="description" content="מדריך חופים מלא: ים תיכון, כנרת, ים המלח וים סוף עם שגרת מים/אפור חוקית." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="../styles.css" />
-    <style>
-      .guide-page h1 {
-        margin-bottom: 0.4rem;
-      }
-      .guide-page .muted-line {
-        color: var(--muted);
-        max-width: 72ch;
-      }
-      .guide-meta {
-        display: grid;
-        gap: 12px;
-        margin-top: 14px;
-      }
-      .guide-meta .card {
-        padding: 14px;
-      }
-      .guide-meta h3 {
-        margin-bottom: 6px;
-      }
-      .guide-content {
-        display: grid;
-        gap: 12px;
-      }
-      .guide-content .card {
-        padding: 16px;
-      }
-      .guide-content ul {
-        margin: 0;
-      }
-      .guide-content li {
-        margin-bottom: 6px;
-      }
-      .top-nav {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      @media (min-width: 900px) {
-        .guide-meta {
-          grid-template-columns: repeat(3, 1fr);
-        }
-      }
-    </style>
   </head>
   <body>
-    <main class="guide-page section">
+    <main class="section">
       <div class="container">
-        <div class="top-nav" style="margin-bottom: 16px">
-          <a class="btn btn--ghost" href="../homepage.html#guides">חזרה לדף הבית</a>
-          <a class="btn btn--primary" href="../homepage.html#contact">קבלת תכנון חינם בוואטסאפ</a>
+        <div class="hero__cta" style="margin-bottom:14px">
+          <a class="btn btn--ghost" href="../guides.html" data-i18n="guide.back">חזרה למדריכים</a>
+          <a class="btn btn--primary" href="../contact.html" data-i18n="guide.ctaTop">קבלת תכנון חינם למזמינים</a>
         </div>
 
         <div class="section__head">
-          <span class="pill">מדריך חדש</span>
-          <h1>ארבעת הימים של ישראל - מדריך חופים מלא</h1>
-          <p class="muted-line">
-            מסלול חופים חכם שמשלב ים תיכון, כנרת, ים המלח וים סוף עם תכנית לינה, מים ומקלחות
-            חוקית ומעשית.
-          </p>
+          <span class="pill" data-i18n="guide.pill">מדריך דגל</span>
+          <h1 data-i18n="guide.title">ארבעת הימים של ישראל: ים תיכון, כנרת, ים המלח, ים סוף</h1>
+          <p class="sub" data-i18n="guide.sub">מסלול חופים רב-אזורי עם תפעול פרקטי לנהיגה, שינה, מים/אפור ומקלחות.</p>
         </div>
 
-        <section class="guide-meta">
-          <article class="card">
-            <h3>למי זה מתאים</h3>
-            <p>זוגות, חברים, צעירים אחרי צבא, משפחות קטנות.</p>
+        <div class="grid grid--3">
+          <article class="card iconCard">
+            <h3 data-i18n="guide.meta1.title">למי זה מתאים</h3>
+            <p data-i18n="guide.meta1.text">זוגות, חברים, צעירים אחרי צבא, וקבוצות קטנות.</p>
           </article>
-          <article class="card">
-            <h3>רמת נהיגה</h3>
-            <p>בינוני (מרחקים ארוכים בין אזורים).</p>
+          <article class="card iconCard">
+            <h3 data-i18n="guide.meta2.title">רמת נהיגה</h3>
+            <p data-i18n="guide.meta2.text">בינונית: מעברים ארוכים בין אזורים.</p>
           </article>
-          <article class="card">
-            <h3>משך</h3>
-            <p>6-8 ימים.</p>
+          <article class="card iconCard">
+            <h3 data-i18n="guide.meta3.title">משך</h3>
+            <p data-i18n="guide.meta3.text">6-8 ימים.</p>
           </article>
-        </section>
+        </div>
 
-        <section class="guide-content" style="margin-top: 16px">
-          <article class="card">
-            <h2>מסלול יום-יום (דוגמה)</h2>
-            <ul>
-              <li><strong>יום 1:</strong> ים תיכון - מרכז/שרון, חוף מוסדר ולינה מוסדרת.</li>
-              <li><strong>יום 2:</strong> ים תיכון - חוף כרמל, חוף שקט + חניון עם מקלחות.</li>
-              <li><strong>יום 3:</strong> כנרת - תצפית/רחצה ולינה מוסדרת סביב האגם.</li>
-              <li><strong>יום 4:</strong> כנרת + ירידה דרומה עם עצירת ביניים מתוכננת.</li>
-              <li><strong>יום 5:</strong> ים המלח בשעות נוחות + חניון לילה מסודר.</li>
-              <li><strong>יום 6:</strong> ים המלח לדרום, רענון מים ותדלוק לפני מעבר.</li>
-              <li><strong>יום 7:</strong> ים סוף (אילת), יום חוף ולינה באזור מוסדר.</li>
-              <li><strong>יום 8:</strong> חזרה צפונה עם עצירת ביניים וריקון חוקי בסיום.</li>
-            </ul>
-          </article>
+        <article class="card" style="padding:16px; margin-top:14px">
+          <h2 data-i18n="guide.daysTitle">מתווה יום-יום (דוגמה)</h2>
+          <ol class="steps">
+            <li class="steps__item"><div class="steps__text" data-i18n="guide.d1">יום 1: ים תיכון (מרכז/שרון), לינה מוסדרת קרובה לחוף.</div></li>
+            <li class="steps__item"><div class="steps__text" data-i18n="guide.d2">יום 2: הכרמל, מקלחת מוסדרת, מעבר קצר לצפון.</div></li>
+            <li class="steps__item"><div class="steps__text" data-i18n="guide.d3">יום 3-4: כנרת וסביבה, עצירות נוחות ושגרת שירות.</div></li>
+            <li class="steps__item"><div class="steps__text" data-i18n="guide.d4">יום 5-6: ים המלח עם תזמון חום חכם ונקודות שירות.</div></li>
+            <li class="steps__item"><div class="steps__text" data-i18n="guide.d5">יום 7-8: ים סוף וחזרה עם עצירת גיבוי מתוכננת.</div></li>
+          </ol>
+        </article>
 
-          <article class="card">
-            <h2>לינה + מים/אפורים + מקלחות</h2>
-            <ul>
-              <li><strong>לינה:</strong> חניוני לילה מוסדרים בלבד, עם חלופת גיבוי לכל לילה.</li>
-              <li>
-                <strong>מים ומים אפורים:</strong> מילוי מים יומי לפי אזור, ריקון רק בנקודות מורשות.
-              </li>
-              <li><strong>מקלחות:</strong> חניונים מוסדרים, מתחמי רחצה וחלופת חדר כושר לפי צורך.</li>
-              <li><strong>בטיחות תפעולית:</strong> לא נכנסים ללילה בלי תוכנית מים/אפור מעודכנת.</li>
-            </ul>
+        <div class="grid grid--2" style="margin-top:14px">
+          <article class="card iconCard">
+            <h3 data-i18n="guide.ops1.title">לינה וגיבויים</h3>
+            <p data-i18n="guide.ops1.text">לכל לילה: נקודה ראשית + נקודת גיבוי, ללא טענות לא חוקיות.</p>
           </article>
+          <article class="card iconCard">
+            <h3 data-i18n="guide.ops2.title">מים ואפורים</h3>
+            <p data-i18n="guide.ops2.text">מילוי יומי וריקון רק בנקודות מורשות לפי האזור.</p>
+          </article>
+          <article class="card iconCard">
+            <h3 data-i18n="guide.ops3.title">מקלחות</h3>
+            <p data-i18n="guide.ops3.text">קמפינגים מוסדרים + חלופות זמינות לכל מקטע מסלול.</p>
+          </article>
+          <article class="card iconCard">
+            <h3 data-i18n="guide.ops4.title">טיפים לא להיתקע</h3>
+            <p data-i18n="guide.ops4.text">לתזמן מעברים מוקדם, לא לדחות מים, ולהחזיק תוכנית ב׳ תמיד.</p>
+          </article>
+        </div>
 
-          <article class="card">
-            <h2>טיפים לא להיתקע</h2>
-            <ul>
-              <li>להחזיק 2 נקודות לינה לכל לילה (ראשית + גיבוי).</li>
-              <li>לא לדחות מילוי מים ליום הבא.</li>
-              <li>לתזמן מעברים ארוכים מוקדם ביום.</li>
-              <li>בסופי שבוע וחגים: לבדוק עומסים ולהזמין מראש.</li>
-            </ul>
-            <p class="muted" style="margin-top: 10px">
-              בכל הזמנה של אטלס מסע, תכנון טיול ולוגיסטיקה כלולים בחינם.
-            </p>
-          </article>
-        </section>
+        <div class="callout" style="margin-top:14px" data-i18n="guide.callout">
+          בכל הזמנה: תכנון טיול ועזרה לוגיסטית כלולים בחינם דרך אטלס מסע.
+        </div>
       </div>
     </main>
+
+    <script>
+      window.ATLAS_PAGE_I18N = {
+        he: {
+          meta: { title: "מדריך חופים ארבעת הימים | אטלס מסע", description: "מדריך חופים מלא: ים תיכון, כנרת, ים המלח וים סוף עם שגרת מים/אפור חוקית." },
+          guide: {
+            back: "חזרה למדריכים",
+            ctaTop: "קבלת תכנון חינם למזמינים",
+            pill: "מדריך דגל",
+            title: "ארבעת הימים של ישראל: ים תיכון, כנרת, ים המלח, ים סוף",
+            sub: "מסלול חופים רב-אזורי עם תפעול פרקטי לנהיגה, שינה, מים/אפור ומקלחות.",
+            meta1: { title: "למי זה מתאים", text: "זוגות, חברים, צעירים אחרי צבא, וקבוצות קטנות." },
+            meta2: { title: "רמת נהיגה", text: "בינונית: מעברים ארוכים בין אזורים." },
+            meta3: { title: "משך", text: "6-8 ימים." },
+            daysTitle: "מתווה יום-יום (דוגמה)",
+            d1: "יום 1: ים תיכון (מרכז/שרון), לינה מוסדרת קרובה לחוף.",
+            d2: "יום 2: הכרמל, מקלחת מוסדרת, מעבר קצר לצפון.",
+            d3: "יום 3-4: כנרת וסביבה, עצירות נוחות ושגרת שירות.",
+            d4: "יום 5-6: ים המלח עם תזמון חום חכם ונקודות שירות.",
+            d5: "יום 7-8: ים סוף וחזרה עם עצירת גיבוי מתוכננת.",
+            ops1: { title: "לינה וגיבויים", text: "לכל לילה: נקודה ראשית + נקודת גיבוי, ללא טענות לא חוקיות." },
+            ops2: { title: "מים ואפורים", text: "מילוי יומי וריקון רק בנקודות מורשות לפי האזור." },
+            ops3: { title: "מקלחות", text: "קמפינגים מוסדרים + חלופות זמינות לכל מקטע מסלול." },
+            ops4: { title: "טיפים לא להיתקע", text: "לתזמן מעברים מוקדם, לא לדחות מים, ולהחזיק תוכנית ב׳ תמיד." },
+            callout: "בכל הזמנה: תכנון טיול ועזרה לוגיסטית כלולים בחינם דרך אטלס מסע."
+          }
+        },
+        en: {
+          meta: { title: "Four Seas Beach Guide | Atlas Masa", description: "Mediterranean, Kinneret, Dead Sea, and Red Sea route with legal water/grey routines." },
+          guide: {
+            back: "Back to guides",
+            ctaTop: "Get free planning with booking",
+            pill: "Flagship guide",
+            title: "Four Seas of Israel: Mediterranean, Kinneret, Dead Sea, Red Sea",
+            sub: "Multi-zone beach route with practical operations for driving, sleep, water/grey, and showers.",
+            meta1: { title: "Who it fits", text: "Couples, friends, post-army young adults, small groups." },
+            meta2: { title: "Driving level", text: "Medium: long transitions between regions." },
+            meta3: { title: "Duration", text: "6-8 days." },
+            daysTitle: "Day-by-day outline",
+            d1: "Day 1: Mediterranean coast, legal sleep stop near the beach.",
+            d2: "Day 2: Carmel coast, legal shower stop, short north transition.",
+            d3: "Day 3-4: Kinneret region with comfortable service rhythm.",
+            d4: "Day 5-6: Dead Sea with heat-smart timing and legal service points.",
+            d5: "Day 7-8: Red Sea and return with planned fallback stop.",
+            ops1: { title: "Sleep + backups", text: "Primary plus backup sleep stop per night." },
+            ops2: { title: "Water + grey", text: "Daily refill and legal disposal only." },
+            ops3: { title: "Showers", text: "Regulated campgrounds plus alternatives per segment." },
+            ops4: { title: "Do not get stuck", text: "Move early, avoid water delays, always keep plan B." },
+            callout: "Every booking includes free travel planning and logistics help via Atlas Masa."
+          }
+        },
+        ar: {
+          meta: { title: "دليل الشواطئ الأربعة | Atlas Masa", description: "المتوسط وطبريا والميت والأحمر مع خطة مياه/رمادية قانونية." },
+          guide: {
+            back: "العودة إلى الأدلة",
+            ctaTop: "احصل على تخطيط مجاني مع الحجز",
+            pill: "الدليل الرئيسي",
+            title: "البحار الأربعة في إسرائيل",
+            sub: "مسار شواطئ متعدد المناطق مع تشغيل عملي للقيادة والمبيت والمياه/الرمادية.",
+            meta1: { title: "لمن مناسب", text: "أزواج، أصدقاء، شباب بعد الخدمة، مجموعات صغيرة." },
+            meta2: { title: "مستوى القيادة", text: "متوسط مع تنقلات أطول." },
+            meta3: { title: "المدة", text: "6-8 أيام." },
+            daysTitle: "خطة يومية",
+            d1: "اليوم 1: المتوسط مع مبيت قانوني قريب.",
+            d2: "اليوم 2: الكرمل، استحمام قانوني، انتقال قصير.",
+            d3: "اليوم 3-4: منطقة طبريا وروتين خدمة مريح.",
+            d4: "اليوم 5-6: البحر الميت مع توقيت مناسب للحرارة.",
+            d5: "اليوم 7-8: البحر الأحمر والعودة مع بديل مخطط.",
+            ops1: { title: "المبيت والبدائل", text: "نقطة أساسية وبديلة لكل ليلة." },
+            ops2: { title: "المياه والرمادية", text: "تعبئة يومية وتفريغ قانوني فقط." },
+            ops3: { title: "الاستحمام", text: "مخيمات منظمة وخيارات بديلة حسب المسار." },
+            ops4: { title: "نصائح لتجنب التعطل", text: "التحرك مبكراً وخطة بديلة دائمة." },
+            callout: "كل حجز يشمل تخطيطاً ومساعدة لوجستية مجانية عبر Atlas Masa."
+          }
+        },
+        ru: {
+          meta: { title: "Пляжный гид четырех морей | Atlas Masa", description: "Средиземное, Кинерет, Мертвое и Красное море с легальной логистикой воды." },
+          guide: {
+            back: "Назад к гидам",
+            ctaTop: "Получить бесплатный план при брони",
+            pill: "Флагман",
+            title: "Четыре моря Израиля",
+            sub: "Мультизональный маршрут с практичной логистикой движения.",
+            meta1: { title: "Для кого", text: "Пары, друзья, пост-армейская аудитория, малые группы." },
+            meta2: { title: "Уровень вождения", text: "Средний: длинные переходы." },
+            meta3: { title: "Длительность", text: "6-8 дней." },
+            daysTitle: "План по дням",
+            d1: "День 1: Средиземное море, легальная ночевка.",
+            d2: "День 2: Кармель, душ, короткий переход.",
+            d3: "День 3-4: Район Кинерета.",
+            d4: "День 5-6: Мертвое море с учетом жары.",
+            d5: "День 7-8: Красное море и возврат с резервом.",
+            ops1: { title: "Ночевки и резерв", text: "Основная и резервная точка на каждую ночь." },
+            ops2: { title: "Вода и серые воды", text: "Только легальное пополнение и слив." },
+            ops3: { title: "Душ", text: "Регулируемые кемпинги и альтернативы." },
+            ops4: { title: "Как не застрять", text: "Ранние переходы и постоянный план B." },
+            callout: "Каждое бронирование включает бесплатную планировку и логистику от Atlas Masa."
+          }
+        },
+        fr: {
+          meta: { title: "Guide plages des quatre mers | Atlas Masa", description: "Méditerranée, Kinneret, mer Morte et mer Rouge avec routine eau/eaux grises légale." },
+          guide: {
+            back: "Retour aux guides",
+            ctaTop: "Planification gratuite avec réservation",
+            pill: "Guide phare",
+            title: "Les quatre mers d'Israël",
+            sub: "Itinéraire multi-zone avec logistique pratique pour conduite, nuitées et eau/eaux grises.",
+            meta1: { title: "Public cible", text: "Couples, amis, jeunes adultes, petits groupes." },
+            meta2: { title: "Niveau conduite", text: "Moyen: transitions plus longues." },
+            meta3: { title: "Durée", text: "6-8 jours." },
+            daysTitle: "Plan jour par jour",
+            d1: "Jour 1: Méditerranée, nuitée légale proche plage.",
+            d2: "Jour 2: Carmel, douche légale, transition courte.",
+            d3: "Jour 3-4: Région Kinneret.",
+            d4: "Jour 5-6: Mer Morte avec timing chaleur.",
+            d5: "Jour 7-8: Mer Rouge et retour avec backup.",
+            ops1: { title: "Nuitées + backup", text: "Point principal et point de secours chaque nuit." },
+            ops2: { title: "Eau + eaux grises", text: "Remplissage quotidien et vidange légale uniquement." },
+            ops3: { title: "Douches", text: "Campings régulés et alternatives par segment." },
+            ops4: { title: "Éviter les blocages", text: "Départs tôt, pas de retard eau, toujours plan B." },
+            callout: "Chaque réservation inclut une aide logistique gratuite via Atlas Masa."
+          }
+        }
+      };
+    </script>
+    <script src="sitewide-language.js"></script>
   </body>
 </html>
