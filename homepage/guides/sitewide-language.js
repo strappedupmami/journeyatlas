@@ -103,24 +103,31 @@
     style.id = "atlas-lang-style";
     style.textContent = `
       .atlas-lang-switcher {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 100%;
+        padding: 8px 10px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,.14);
+        backdrop-filter: blur(12px);
+        background: rgba(7, 11, 20, .72);
+        box-shadow: 0 12px 28px rgba(0,0,0,.28);
+      }
+
+      .atlas-lang-switcher--floating {
         position: fixed;
         inset-inline-start: 14px;
         bottom: 14px;
         z-index: 9999;
-        width: min(92vw, 420px);
-        padding: 10px;
-        border-radius: 14px;
-        border: 1px solid rgba(255,255,255,.14);
-        backdrop-filter: blur(12px);
-        background: rgba(7, 11, 20, .78);
-        box-shadow: 0 18px 40px rgba(0,0,0,.45);
+        width: min(92vw, 480px);
       }
 
       .atlas-lang-head {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 800;
         color: rgba(243,246,255,.84);
-        margin-bottom: 8px;
+        white-space: nowrap;
       }
 
       .atlas-lang-row {
@@ -134,8 +141,8 @@
         background: rgba(255,255,255,.03);
         color: #f3f6ff;
         border-radius: 999px;
-        padding: 7px 10px;
-        font-size: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
         font-weight: 800;
         cursor: pointer;
       }
@@ -145,8 +152,20 @@
         border-color: rgba(124,92,255,.45);
       }
 
+      @media (max-width: 1180px) {
+        .atlas-lang-switcher:not(.atlas-lang-switcher--floating) {
+          width: 100%;
+          justify-content: space-between;
+          margin-top: 6px;
+        }
+
+        .atlas-lang-switcher:not(.atlas-lang-switcher--floating) .atlas-lang-row {
+          justify-content: flex-start;
+        }
+      }
+
       @media (max-width: 620px) {
-        .atlas-lang-switcher {
+        .atlas-lang-switcher--floating {
           bottom: 10px;
           inset-inline-start: 10px;
           width: calc(100vw - 20px);
@@ -186,8 +205,13 @@
       return;
     }
 
+    const headerMount = document.querySelector(".header .header__inner");
+    const useFloating = !headerMount;
+
     container = document.createElement("aside");
-    container.className = "atlas-lang-switcher";
+    container.className = useFloating
+      ? "atlas-lang-switcher atlas-lang-switcher--floating"
+      : "atlas-lang-switcher";
     container.setAttribute("aria-label", "Language switcher");
 
     const head = document.createElement("div");
@@ -210,7 +234,11 @@
 
     container.appendChild(head);
     container.appendChild(row);
-    document.body.appendChild(container);
+    if (headerMount) {
+      headerMount.appendChild(container);
+    } else {
+      document.body.appendChild(container);
+    }
   }
 
   function init() {
