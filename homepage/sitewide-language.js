@@ -115,6 +115,13 @@
         box-shadow: 0 12px 28px rgba(0,0,0,.28);
       }
 
+      .header .header__inner > .atlas-lang-switcher:not(.atlas-lang-switcher--floating) {
+        flex: 0 0 100%;
+        order: 3;
+        justify-content: space-between;
+        margin-top: 6px;
+      }
+
       .atlas-lang-switcher--floating {
         position: fixed;
         inset-inline-start: 14px;
