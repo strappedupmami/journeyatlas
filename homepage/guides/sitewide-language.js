@@ -130,6 +130,12 @@
         width: min(92vw, 480px);
       }
 
+      .atlas-lang-switcher--in-menu {
+        width: 100%;
+        margin-top: 8px;
+        box-shadow: none;
+      }
+
       .atlas-lang-head {
         font-size: 11px;
         font-weight: 800;
@@ -213,11 +219,22 @@
     }
 
     const headerMount = document.querySelector(".header .header__inner");
-    const useFloating = !headerMount;
+    const mobileMenuMount = document.querySelector(".nav--mobile .nav__panel");
+    const mobileMenuDetails =
+      mobileMenuMount && mobileMenuMount.parentElement && mobileMenuMount.parentElement.tagName === "DETAILS"
+        ? mobileMenuMount.parentElement
+        : null;
+    const preferMenuMount =
+      !!mobileMenuMount &&
+      !!window.matchMedia &&
+      window.matchMedia("(max-width: 980px)").matches;
+    const useFloating = !headerMount && !mobileMenuMount;
 
     container = document.createElement("aside");
     container.className = useFloating
       ? "atlas-lang-switcher atlas-lang-switcher--floating"
+      : preferMenuMount
+      ? "atlas-lang-switcher atlas-lang-switcher--in-menu"
       : "atlas-lang-switcher";
     container.setAttribute("aria-label", "Language switcher");
 
@@ -241,7 +258,17 @@
 
     container.appendChild(head);
     container.appendChild(row);
-    if (headerMount) {
+    if (preferMenuMount && mobileMenuMount) {
+      mobileMenuMount.appendChild(container);
+      if (mobileMenuDetails) {
+        mobileMenuDetails.removeAttribute("open");
+        mobileMenuMount.addEventListener("click", (event) => {
+          const target = event.target;
+          if (!target || !(target.matches && target.matches("a, .atlas-lang-btn"))) return;
+          mobileMenuDetails.removeAttribute("open");
+        });
+      }
+    } else if (headerMount) {
       headerMount.appendChild(container);
     } else {
       document.body.appendChild(container);

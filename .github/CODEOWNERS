@@ -1,0 +1,11 @@
+# Default owners
+* @strappedupmami
+
+# Rust API and infra
+/atlas-concierge/ @strappedupmami
+/scripts/ @strappedupmami
+/.github/ @strappedupmami
+
+# Public web experience
+/homepage/ @strappedupmami
+/app/ @strappedupmami

@@ -68,11 +68,12 @@
       <section class="hero">
         <div class="container hero__inner">
           <div class="hero__copy">
-            <p class="eyebrow" data-i18n="home.hero.eyebrow">חופשה בלי מלונות • המלון שלך על גלגלים</p>
-            <h1 data-i18n="home.hero.title">אטלס מסע בונה אקוסיסטם טיול ומגורים שמותאם לתנועה וספונטניות.</h1>
+            <p class="eyebrow" data-i18n="home.hero.eyebrow">AI Travel/Work OS • חופשה בלי מלונות • המלון שלך על גלגלים</p>
+            <h1 data-i18n="home.hero.title">אטלס מסע בונה אקוסיסטם AI מקיף לטיול, עבודה, חיים ומגורים בתנועה.</h1>
             <p class="lead" data-i18n="home.hero.lead">
-              אתם לא שוכרים רק רכב. אתם מקבלים יחידת חיים ניידת + שכבת שירות: לינה, מים/אפור,
-              שירותים שורפים פנימיים, שגרת מקלחות חיצונית מתוכננת, מסלול ותמיכה בוואטסאפ.
+              אתם לא שוכרים רק רכב. אתם מקבלים יחידת חיים ניידת + שכבת AI ושירות:
+              תכנון מסלול, ניהול משימות, תזכורות/אזעקות, פרופיל עומק אישי, תמיכה תפעולית,
+              וכלים לבניית עושר עם נתינה לקהילה לאורך זמן.
             </p>
             <div class="hero__cta">
               <a class="btn btn--primary" href="contact.html" data-i18n="home.hero.ctaPrimary">בדיקת זמינות</a>
@@ -87,15 +88,15 @@
 
           <aside class="hero__card card" aria-label="Quick summary" data-i18n-aria-label="home.hero.cardAria">
             <div class="hero__cardTop">
-              <span class="pill" data-i18n="home.hero.cardPill">עוזר מסע חכם כלול</span>
+              <span class="pill" data-i18n="home.hero.cardPill">AI Studio רב-פיצ'רי כלול</span>
               <span class="mini" data-i18n="home.hero.cardMini">בונים עכשיו • משיקים כשצריך</span>
             </div>
             <h2 class="hero__cardTitle" data-i18n="home.hero.cardTitle">מה מקבלים בכל חבילה?</h2>
             <ul class="checklist">
               <li data-i18n="home.hero.cardLi1">יחידת לינה ניידת + שירותים שורפים (דור 1 ללא כיור/מקלחת)</li>
-              <li data-i18n="home.hero.cardLi2">תכנון עצירות שינה + חלופות חוקיות</li>
-              <li data-i18n="home.hero.cardLi3">שגרת מים/אפור פרקטית לפי אזור</li>
-              <li data-i18n="home.hero.cardLi4">תמיכת תפעול בזמן אמת</li>
+              <li data-i18n="home.hero.cardLi2">AI Concierge + Studio + סקר עומק מותאם בזמן אמת</li>
+              <li data-i18n="home.hero.cardLi3">תזכורות/אזעקות חכמות + פיד יזום לביצוע יומי</li>
+              <li data-i18n="home.hero.cardLi4">תכנון מסלול, שגרת מים/אפור ותמיכת תפעול בזמן אמת</li>
             </ul>
             <div class="split">
               <div>
@@ -154,6 +155,35 @@
           </ul>
           <div class="hero__cta">
             <a class="btn btn--ghost" href="mobility-theory.html" data-i18n="home.mobility.cta">לקרוא את המסמך המלא</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="ai-ecosystem">
+        <div class="container">
+          <div class="section__head">
+            <h2 data-i18n="home.ai.title">מערכת AI מקיפה לניהול חיים, עבודה ותנועה</h2>
+            <p class="sub" data-i18n="home.ai.sub">
+              האתר והאפליקציה נבנים כ-Operating System אישי: פחות כאוס, יותר ביצוע, יותר בריאות, יותר התקדמות.
+            </p>
+          </div>
+          <div class="grid grid--3">
+            <article class="card iconCard">
+              <h3 data-i18n="home.ai.card1.title">Concierge הוא רק ההתחלה</h3>
+              <p data-i18n="home.ai.card1.text">מענה חכם בזמן אמת + פעולות ישימות ולא רק טקסט.</p>
+            </article>
+            <article class="card iconCard">
+              <h3 data-i18n="home.ai.card2.title">AI Studio מותאם אישית</h3>
+              <p data-i18n="home.ai.card2.text">פורמט תשובה מועדף, טון ליווי, עומק, ופלט יזום ללא פרומפט.</p>
+            </article>
+            <article class="card iconCard">
+              <h3 data-i18n="home.ai.card3.title">מומנטום לצמיחה ולנתינה</h3>
+              <p data-i18n="home.ai.card3.text">תכנון יום שמקדם עושר, בריאות, ויעדי תרומה בקצב עקבי.</p>
+            </article>
+          </div>
+          <div class="hero__cta">
+            <a class="btn btn--primary" href="concierge-local.html" data-i18n="home.ai.cta1">פתיחת Atlas AI Studio</a>
+            <a class="btn btn--ghost" href="contact.html" data-i18n="home.ai.cta2">הצטרפות לפיילוט</a>
           </div>
         </div>
       </section>
@@ -451,27 +481,36 @@
           },
           home: {
             hero: {
-              eyebrow: "חופשה בלי מלונות • המלון שלך על גלגלים",
-              title: "אטלס מסע בונה אקוסיסטם טיול ומגורים שמותאם לתנועה וספונטניות.",
-              lead: "אתם לא שוכרים רק רכב. אתם מקבלים יחידת חיים ניידת + שכבת שירות: לינה, מים/אפור, שירותים שורפים פנימיים, שגרת מקלחות חיצונית מתוכננת, מסלול ותמיכה בוואטסאפ.",
+              eyebrow: "AI Travel/Work OS • חופשה בלי מלונות • המלון שלך על גלגלים",
+              title: "אטלס מסע בונה אקוסיסטם AI מקיף לטיול, עבודה, חיים ומגורים בתנועה.",
+              lead: "אתם לא שוכרים רק רכב. אתם מקבלים יחידת חיים ניידת + שכבת AI ושירות: תכנון מסלול, ניהול משימות, תזכורות/אזעקות, פרופיל עומק אישי, תמיכה תפעולית, וכלים לבניית עושר עם נתינה לקהילה לאורך זמן.",
               ctaPrimary: "בדיקת זמינות",
-              ctaSecondary: "פתיחת מדריכים",
+              ctaSecondary: "קריאת תיאוריית הניידות",
               badgesAria: "יתרונות",
               badge1: "תכנון טיול כלול בחינם",
               badge2: "מדיניות נקייה ללא עישון",
               badge3: "לוגיסטיקה ישראלית אמיתית",
               cardAria: "סיכום מהיר",
-              cardPill: "עוזר מסע חכם כלול",
+              cardPill: "AI Studio רב-פיצ'רי כלול",
               cardMini: "בונים עכשיו • משיקים כשצריך",
               cardTitle: "מה מקבלים בכל חבילה?",
               cardLi1: "יחידת לינה ניידת + שירותים שורפים (דור 1 ללא כיור/מקלחת)",
-              cardLi2: "תכנון עצירות שינה + חלופות חוקיות",
-              cardLi3: "שגרת מים/אפור פרקטית לפי אזור",
-              cardLi4: "תמיכת תפעול בזמן אמת",
+              cardLi2: "AI Concierge + Studio + סקר עומק מותאם בזמן אמת",
+              cardLi3: "תזכורות/אזעקות חכמות + פיד יזום לביצוע יומי",
+              cardLi4: "תכנון מסלול, שגרת מים/אפור ותמיכת תפעול בזמן אמת",
               kpi1: "5-10 דק׳ יציאה",
               kpi1Label: "מהחלטה לתזוזה",
               kpi2: "0 צ׳ק-אין",
               kpi2Label: "בלי לובי ובלי ריסט יומי"
+            },
+            ai: {
+              title: "מערכת AI מקיפה לניהול חיים, עבודה ותנועה",
+              sub: "האתר והאפליקציה נבנים כ-Operating System אישי: פחות כאוס, יותר ביצוע, יותר בריאות, יותר התקדמות.",
+              card1: { title: "Concierge הוא רק ההתחלה", text: "מענה חכם בזמן אמת + פעולות ישימות ולא רק טקסט." },
+              card2: { title: "AI Studio מותאם אישית", text: "פורמט תשובה מועדף, טון ליווי, עומק, ופלט יזום ללא פרומפט." },
+              card3: { title: "מומנטום לצמיחה ולנתינה", text: "תכנון יום שמקדם עושר, בריאות, ויעדי תרומה בקצב עקבי." },
+              cta1: "פתיחת Atlas AI Studio",
+              cta2: "הצטרפות לפיילוט"
             },
             products: {
               title: "שני מוצרים ברורים",
@@ -564,27 +603,36 @@
           },
           home: {
             hero: {
-              eyebrow: "Vacation without hotels • Your hotel on wheels",
-              title: "Atlas Masa is building a movement-optimized travel and housing ecosystem.",
-              lead: "You are not renting only a van. You get a mobile living unit plus service layer: sleep spots, water/grey routines, onboard incinerating toilet, planned external shower routine, route planning, and WhatsApp support.",
+              eyebrow: "AI Travel/Work OS • Vacation without hotels • Your hotel on wheels",
+              title: "Atlas Masa is building a full AI ecosystem for travel, work, life, and movement-based housing.",
+              lead: "You are not renting only a van. You get a mobile living unit plus an AI + service layer: route planning, execution support, reminders/alarms, deep personalization, operations support, and tools for wealth building with long-term giving goals.",
               ctaPrimary: "Check availability",
-              ctaSecondary: "Open guides",
+              ctaSecondary: "Read mobility theory",
               badgesAria: "Highlights",
               badge1: "Travel planning included for free",
               badge2: "Strict clean no-smoking policy",
               badge3: "Real Israel logistics",
               cardAria: "Quick summary",
-              cardPill: "Smart Concierge Included",
+              cardPill: "Multi-feature AI Studio Included",
               cardMini: "Build now • launch when needed",
               cardTitle: "What is included in every package?",
               cardLi1: "Mobile sleep unit + onboard incinerating toilet (Gen 1 has no onboard sink/shower)",
-              cardLi2: "Legal sleep stop planning with backups",
-              cardLi3: "Practical water/grey routine by region",
-              cardLi4: "Real-time support when needed",
+              cardLi2: "AI Concierge + Studio + real-time adaptive deep survey",
+              cardLi3: "Smart reminders/alarms and proactive execution feed",
+              cardLi4: "Route planning, legal water/grey routine, and real-time support",
               kpi1: "5-10 min start",
               kpi1Label: "From decision to movement",
               kpi2: "0 check-ins",
               kpi2Label: "No lobby friction"
+            },
+            ai: {
+              title: "Full AI System for Life, Work, and Mobility",
+              sub: "Website + app are being built as a personal operating system: less chaos, more execution, better health, faster forward motion.",
+              card1: { title: "Concierge is only the beginning", text: "Real-time answers plus actionable next-step controls." },
+              card2: { title: "Personalized AI Studio", text: "Preferred response format, coaching tone, depth, and proactive outputs." },
+              card3: { title: "Momentum for growth and giving", text: "Daily planning that supports wealth building, health, and charitable goals." },
+              cta1: "Open Atlas AI Studio",
+              cta2: "Join pilot"
             },
             products: {
               title: "Two clear products",

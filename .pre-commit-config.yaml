@@ -1,0 +1,32 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+      - id: detect-private-key
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args:
+          - --exclude-files
+          - (^|/)(package-lock\.json|Cargo\.lock)$
+
+  - repo: local
+    hooks:
+      - id: verify-lockfiles
+        name: verify-lockfiles
+        entry: ./scripts/verify-lockfiles.sh presence
+        language: system
+        pass_filenames: false
+
+      - id: verify-actions-pinning
+        name: verify-actions-pinning
+        entry: ./scripts/verify-github-actions-pinning.sh
+        language: system
+        pass_filenames: false

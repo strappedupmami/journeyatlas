@@ -1,5 +1,26 @@
 # Local Concierge Quickstart
 
+## 0) One-time prerequisites
+
+Install Rust toolchain (macOS):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+rustup toolchain install stable
+rustup default stable
+cargo --version
+```
+
+Generate lockfiles once:
+
+```bash
+cd /Users/avrohom/Downloads/journeyatlas
+npm install --package-lock-only
+cd atlas-concierge
+cargo generate-lockfile
+```
+
 ## 1) Start concierge API
 From project root:
 
@@ -27,8 +48,12 @@ Then open:
 ## 3) First tests
 In the UI:
 1. Click `בדיקת שירות`
-2. Ask: `תכנן לי סופ״ש חופים עם שגרת מים/אפור`
-3. Switch to `תכנון מסלול`, choose style + days, click send
+2. Enter email in auth box and click `כניסה עם Google`
+3. (Optional) Click `רישום Passkey` then `כניסה עם Passkey`
+4. Set profile style/risk and click `שמירת פרופיל`
+5. Add a note and click `שמירת פתק` (optional: `שכתוב יוקרתי עם AI`)
+6. Ask: `תכנן לי סופ״ש חופים עם שגרת מים/אפור`
+7. Switch to `תכנון מסלול`, choose style + days, click send
 
 ## 4) If it fails
 - Make sure Rust/cargo is installed (`cargo --version`).

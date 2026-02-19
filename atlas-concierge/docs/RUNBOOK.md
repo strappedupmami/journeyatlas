@@ -39,9 +39,16 @@ curl -X POST http://localhost:8080/v1/chat \
 ```
 
 Browser UI option (from website static files):
-- Open `/Users/avrohom/Downloads/journeyatlas/homepage/concierge-local.html`
+- Serve homepage over HTTP (cookies will not work on `file://`):
+
+```bash
+cd /Users/avrohom/Downloads/journeyatlas
+./scripts/serve-homepage-local.sh
+```
+
+- Open `http://localhost:5500/concierge-local.html`
 - Keep API base `http://localhost:8080` and API key `dev-atlas-key`
-- Use buttons for `/health`, `/v1/chat`, `/v1/plan_trip`
+- Use buttons for login (Google + Passkey), profile save, `/v1/chat`, `/v1/plan_trip`
 
 Plan trip:
 
@@ -50,6 +57,22 @@ curl -X POST http://localhost:8080/v1/plan_trip \
   -H "content-type: application/json" \
   -H "x-api-key: dev-atlas-key" \
   -d '{"style":"beach","days":3,"locale":"he","constraints":[]}'
+```
+
+Legacy local cookie login example (debug only):
+
+```bash
+curl -i -c cookies.txt -X POST http://localhost:8080/v1/auth/social_login \
+  -H "content-type: application/json" \
+  -H "x-api-key: dev-atlas-key" \
+  -d '{"provider":"google","email":"demo@atlasmasa.com","name":"Demo User","locale":"he"}'
+```
+
+Read signed-in user from cookie:
+
+```bash
+curl -b cookies.txt http://localhost:8080/v1/auth/me \
+  -H "x-api-key: dev-atlas-key"
 ```
 
 ## 3) Add Knowledge Base Docs
@@ -129,6 +152,18 @@ cargo build --workspace
 - Per-IP in-memory rate limiting.
 - 64KB request size limit.
 - Structured JSON logs with request IDs.
+- Secure cookie support (`ATLAS_COOKIE_SECURE=true`) with optional shared domain (`ATLAS_SESSION_COOKIE_DOMAIN=.atlasmasa.com`).
+- Tight same-site cookie policy (`ATLAS_COOKIE_SAMESITE=strict` in production).
+- OAuth state verification + PKCE for Google sign-in (`/v1/auth/google/start`, `/v1/auth/google/callback`).
+- Passkey (WebAuthn) endpoints:
+  - `POST /v1/auth/passkey/register/start`
+  - `POST /v1/auth/passkey/register/finish`
+  - `POST /v1/auth/passkey/login/start`
+  - `POST /v1/auth/passkey/login/finish`
+- Long-term memory import endpoint:
+  - `POST /v1/memory/import`
+- Stripe checkout webhook endpoint with signature validation:
+  - `POST /v1/billing/stripe_webhook`
 
 ## 7) Persistence Modes
 - Default: in-memory store (fast local development).
@@ -140,3 +175,22 @@ cargo run -p atlas-api
 ```
 
 Session memory uses TTL (24h default) and supports purge via agent method.
+
+## 8) Production Provider Setup (api.atlasmasa.com)
+1. Google OAuth:
+   - Create OAuth Web app in Google Cloud Console.
+   - Authorized redirect URI: `https://api.atlasmasa.com/v1/auth/google/callback`
+   - Authorized JS origin: `https://atlasmasa.com`
+   - Fill `ATLAS_GOOGLE_CLIENT_ID`, `ATLAS_GOOGLE_CLIENT_SECRET`, `ATLAS_GOOGLE_REDIRECT_URI`.
+2. Passkeys/WebAuthn:
+   - Set `ATLAS_WEBAUTHN_RP_ID=atlasmasa.com`
+   - Set `ATLAS_WEBAUTHN_ORIGIN=https://atlasmasa.com`
+   - Use HTTPS only (`ATLAS_COOKIE_SECURE=true`).
+3. Stripe monthly subscription (Apple Pay capable):
+   - Create monthly recurring price in Stripe and copy `price_...` to `ATLAS_STRIPE_MONTHLY_PRICE_ID`.
+   - Set webhook to `https://api.atlasmasa.com/v1/billing/stripe_webhook`.
+   - Configure `ATLAS_STRIPE_SECRET_KEY` + `ATLAS_STRIPE_WEBHOOK_SECRET`.
+   - In Stripe dashboard, verify domain for Apple Pay.
+4. OpenAI premium runtime:
+   - Set `ATLAS_OPENAI_API_KEY`.
+   - Keep `ATLAS_OPENAI_MODEL=gpt-5.2` and `ATLAS_OPENAI_REASONING_EFFORT=high` (or adjust to available production model).

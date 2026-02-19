@@ -1,0 +1,81 @@
+name: security-scan
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: security-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast-and-secrets:
+    name: sast-and-secrets
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install Python scanners
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install detect-secrets==1.5.0 semgrep==1.84.0
+
+      - name: Secret scan (detect-secrets)
+        run: |
+          detect-secrets scan --all-files --force-use-all-plugins > .secrets.ci.baseline
+          python3 - <<'PY'
+          import json, sys
+          data = json.load(open(".secrets.ci.baseline", "r", encoding="utf-8"))
+          findings = data.get("results", {})
+          total = sum(len(v) for v in findings.values())
+          if total > 0:
+              print(f"detect-secrets found {total} potential secret(s).")
+              for path, entries in findings.items():
+                  print(f"{path}: {len(entries)}")
+              sys.exit(1)
+          print("detect-secrets found no secrets.")
+          PY
+
+      - name: SAST scan (Semgrep)
+        run: |
+          semgrep \
+            --config p/security-audit \
+            --config p/rust \
+            --config p/owasp-top-ten \
+            --error \
+            --metrics=off \
+            --exclude .next \
+            --exclude node_modules \
+            .
+
+      - name: npm audit (high severity and above)
+        run: |
+          npm ci --ignore-scripts --fund=false
+          npm audit --omit=dev --audit-level=high
+
+      - name: Install Rust toolchain + cargo-audit
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          cargo install cargo-audit --locked
+
+      - name: cargo audit
+        working-directory: atlas-concierge
+        run: cargo audit --deny warnings

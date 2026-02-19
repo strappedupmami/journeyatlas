@@ -3,115 +3,314 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>עוזר מסע חכם | אטלס מסע</title>
-    <meta name="description" content="צ'אט מסלולים ולוגיסטיקה של אטלס מסע עם שמירת פרופיל משתמש." />
+    <title>Atlas Masa AI Studio | אטלס מסע</title>
+    <meta
+      name="description"
+      content="מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת ופיד יזום."
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
     <style>
-      .panel { padding: 18px; }
-      .subtle { color: var(--muted); }
-      .segment { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      body {
+        padding-bottom: 28px;
+      }
+
+      .concierge-app {
+        display: grid;
+        gap: 14px;
+      }
+
+      .concierge-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
+      .panel h2,
+      .panel h3 {
+        margin-bottom: 10px;
+      }
+
+      .subtle {
+        color: var(--muted);
+      }
+
+      .segment {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
       .chip {
-        border: 1px solid rgba(255,255,255,.14);
-        background: rgba(255,255,255,.04);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.04);
         color: var(--ink);
         border-radius: 999px;
         padding: 8px 12px;
         font-weight: 800;
         cursor: pointer;
       }
+
       .chip[aria-pressed="true"] {
-        background: linear-gradient(135deg, rgba(124,92,255,.55), rgba(46,230,166,.22));
-        border-color: rgba(124,92,255,.34);
+        background: linear-gradient(135deg, rgba(124, 92, 255, 0.58), rgba(46, 230, 166, 0.24));
+        border-color: rgba(124, 92, 255, 0.35);
       }
-      .field { display: grid; gap: 8px; margin-top: 10px; }
-      .field label { font-weight: 800; }
-      .field input, .field textarea, .field select {
+
+      .field {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .field label {
+        font-weight: 800;
+      }
+
+      .field input,
+      .field textarea,
+      .field select {
         width: 100%;
         padding: 12px;
         border-radius: 14px;
-        border: 1px solid rgba(255,255,255,.14);
-        background: rgba(0,0,0,.24);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.24);
         color: var(--ink);
       }
-      .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+      .field textarea {
+        min-height: 120px;
+      }
+
+      .actions {
+        margin-top: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
       .output {
-        background: rgba(0,0,0,.3);
-        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.14);
         border-radius: 14px;
         padding: 14px;
-        min-height: 160px;
+        min-height: 190px;
+        white-space: pre-wrap;
       }
-      .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+      .tag-row {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
       .tag {
-        border: 1px solid rgba(255,255,255,.14);
+        border: 1px solid rgba(255, 255, 255, 0.14);
         border-radius: 999px;
-        padding: 4px 9px;
+        padding: 4px 8px;
         font-size: 12px;
         color: var(--muted);
       }
-      .days-stepper { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; }
-      .days-stepper button {
-        width: 36px; height: 36px; border-radius: 10px;
-        border: 1px solid rgba(255,255,255,.14);
-        background: rgba(255,255,255,.05);
-        color: var(--ink);
-        font-size: 20px; font-weight: 800; cursor: pointer;
+
+      .stack {
+        display: grid;
+        gap: 10px;
       }
-      .days-badge {
-        min-width: 72px; text-align: center;
-        border: 1px solid rgba(255,255,255,.14);
-        border-radius: 10px; padding: 7px 10px; font-weight: 800;
-      }
-      .account-box {
-        margin-top: 12px; padding: 12px;
+
+      .tile {
+        border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 14px;
-        border: 1px solid rgba(255,255,255,.14);
-        background: rgba(255,255,255,.03);
+        background: rgba(255, 255, 255, 0.04);
+        padding: 12px;
       }
-      .hidden { display: none; }
-      details.advanced { margin-top: 12px; }
-      details.advanced summary { cursor: pointer; color: var(--muted); font-weight: 700; }
+
+      .tile h4 {
+        margin: 0 0 8px;
+      }
+
+      .tile p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .pill-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .muted-line {
+        color: var(--muted2);
+        font-size: 12px;
+      }
+
+      .survey-card {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 12px;
+        margin-top: 10px;
+      }
+
+      .survey-progress {
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+
+      .survey-progress > span {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: linear-gradient(135deg, rgba(124, 92, 255, 0.65), rgba(46, 230, 166, 0.45));
+      }
+
+      .feature-block {
+        display: none;
+      }
+
+      .feature-block.active {
+        display: block;
+      }
+
+      .action-list {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .action-list .btn {
+        font-size: 13px;
+        padding: 9px 11px;
+      }
+
+      .status-ok {
+        color: #77ffc5;
+      }
+
+      .status-warn {
+        color: #ffd28f;
+      }
+
+      .voice-state {
+        font-size: 12px;
+        color: var(--muted2);
+      }
+
+      .debug {
+        margin-top: 12px;
+      }
+
       .raw {
-        margin-top: 10px; white-space: pre-wrap;
+        margin-top: 8px;
+        white-space: pre-wrap;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        font-size: 12px; line-height: 1.5;
-        background: rgba(0,0,0,.32);
-        border: 1px solid rgba(255,255,255,.14);
-        border-radius: 10px; padding: 10px;
+        font-size: 12px;
+        line-height: 1.5;
+        background: rgba(0, 0, 0, 0.32);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        padding: 10px;
+        max-height: 220px;
+        overflow: auto;
+      }
+
+      @media (min-width: 1040px) {
+        .concierge-grid {
+          grid-template-columns: 1.1fr 0.9fr;
+        }
       }
     </style>
   </head>
   <body>
+    <header class="header">
+      <div class="container header__inner">
+        <a class="brand" href="homepage.html" aria-label="Atlas Masa home">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
+              <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+              <path d="M14 46h36" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+              <path d="M32 10v12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+              <path d="M26 22h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+            </svg>
+          </span>
+          <span class="brand__text">
+            <span class="brand__name">אטלס מסע</span>
+            <span class="brand__tag">AI Studio</span>
+          </span>
+        </a>
+        <nav class="nav nav--desktop" aria-label="Primary navigation">
+          <a href="homepage.html">דף הבית</a>
+          <a href="pricing.html">חבילות</a>
+          <a href="mobility-theory.html">תיאוריה</a>
+          <a href="contact.html">צור קשר</a>
+        </nav>
+        <details class="nav nav--mobile">
+          <summary aria-label="פתח תפריט">תפריט</summary>
+          <div class="nav__panel" role="navigation" aria-label="Mobile navigation">
+            <a href="homepage.html">דף הבית</a>
+            <a href="pricing.html">חבילות</a>
+            <a href="mobility-theory.html">תיאוריה</a>
+            <a href="contact.html">צור קשר</a>
+          </div>
+        </details>
+      </div>
+    </header>
     <main class="section">
-      <div class="container">
+      <div class="container concierge-app">
         <div class="section__head">
-          <span class="pill" data-i18n="concierge.pill">אטלס מסע</span>
-          <h1 data-i18n="concierge.title">עוזר מסע חכם</h1>
-          <p class="sub" data-i18n="concierge.sub">צ'אט מסלול, תפעול ופרופיל לקוח מותאם אישית.</p>
+          <span class="pill" data-i18n="studio.pill">Atlas Masa AI</span>
+          <h1 data-i18n="studio.title">סטודיו AI לניהול חיים, עבודה ותנועה</h1>
+          <p class="sub" data-i18n="studio.sub">
+            הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח,
+            ומספקת פיד יזום כדי לקדם אותך ביום-יום.
+          </p>
         </div>
 
-        <section class="grid grid--2">
+        <section class="concierge-grid">
           <article class="card panel">
-            <h2 data-i18n="concierge.modeTitle">מה תרצו עכשיו?</h2>
-            <div class="segment" id="mode-segment">
-              <button class="chip" data-mode="chat" aria-pressed="true" type="button" data-i18n="concierge.modeChat">שאלה כללית</button>
-              <button class="chip" data-mode="trip" aria-pressed="false" type="button" data-i18n="concierge.modeTrip">תכנון מסלול</button>
-              <button class="chip" data-mode="health" aria-pressed="false" type="button" data-i18n="concierge.modeHealth">בדיקת שירות</button>
+            <h2 data-i18n="studio.featureTitle">איזה פיצ׳ר מפעילים עכשיו?</h2>
+            <div class="segment" id="feature-segment">
+              <button class="chip" data-feature="concierge" aria-pressed="true" type="button" data-i18n="studio.feature.concierge">קונסיירז׳</button>
+              <button class="chip" data-feature="studio" aria-pressed="false" type="button" data-i18n="studio.feature.studio">סטודיו תשובות</button>
+              <button class="chip" data-feature="survey" aria-pressed="false" type="button" data-i18n="studio.feature.survey">סקר עומק מותאם</button>
+              <button class="chip" data-feature="feed" aria-pressed="false" type="button" data-i18n="studio.feature.feed">פיד יזום</button>
             </div>
 
-            <p class="subtle" id="active-locale-label" data-i18n="concierge.localeHint">שפת שירות: עברית (נשלטת ברמת האתר)</p>
+            <div class="survey-card" style="margin-top:12px">
+              <p id="service-status" class="muted-line" data-i18n="studio.statusChecking">בודקים חיבור לשירות...</p>
+              <p id="voice-status" class="voice-state" data-i18n="studio.voiceReady">מצב קולי: מוכן</p>
+              <p id="active-locale-label" class="muted-line" data-i18n="studio.locale">שפת שירות: עברית</p>
+            </div>
 
-            <div class="account-box">
-              <p class="subtle" id="user-status" data-i18n="concierge.auth.statusGuest">לא מחוברים כרגע. חיבור שומר פרופיל לצורך התאמה אישית.</p>
-              <div class="segment">
-                <button class="chip" type="button" id="google-signin" data-i18n="concierge.auth.google">Sign in with Google</button>
-                <button class="chip hidden" type="button" id="signout-btn" data-i18n="concierge.auth.signout">התנתקות</button>
+            <div class="survey-card" style="margin-top:10px">
+              <h3 data-i18n="studio.authTitle">חשבון משתמש והתאמה אישית</h3>
+              <p id="user-status" class="subtle" data-i18n="studio.authGuest">לא מחוברים. מומלץ להתחבר כדי לשמור זיכרון ארוך-טווח.</p>
+              <div class="field">
+                <label for="passkey-email" data-i18n="studio.passkeyEmail">אימייל להתחברות עם Google/Passkey</label>
+                <input id="passkey-email" type="email" placeholder="name@atlasmasa.com" />
+              </div>
+              <div class="actions">
+                <button class="btn btn--ghost" id="google-signin" type="button" data-i18n="studio.authGoogle">כניסה עם Google</button>
+                <button class="btn btn--ghost" id="passkey-signin" type="button" data-i18n="studio.authPasskey">כניסה עם Passkey</button>
+                <button class="btn btn--ghost" id="passkey-enroll" type="button" data-i18n="studio.authPasskeyEnroll">רישום Passkey</button>
+                <button class="btn btn--primary" id="subscribe-monthly" type="button" data-i18n="studio.subscribeMonthly">מנוי חודשי (Apple Pay)</button>
+                <button class="btn btn--ghost" id="signout-btn" type="button" data-i18n="studio.authSignout" style="display:none">התנתקות</button>
               </div>
               <div class="field">
-                <label for="profile-style" data-i18n="concierge.auth.prefStyle">העדפת סגנון מסע</label>
+                <label for="profile-style" data-i18n="studio.prefStyle">העדפת סגנון מסע</label>
                 <select id="profile-style">
                   <option value="mixed">mixed</option>
                   <option value="beach">beach</option>
@@ -120,7 +319,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="risk-pref" data-i18n="concierge.auth.prefRisk">העדפת סיכון</label>
+                <label for="risk-pref" data-i18n="studio.prefRisk">העדפת סיכון</label>
                 <select id="risk-pref">
                   <option value="low">low</option>
                   <option value="medium" selected>medium</option>
@@ -128,44 +327,190 @@
                 </select>
               </div>
               <div class="actions">
-                <button class="btn btn--ghost" type="button" id="save-profile-btn" data-i18n="concierge.auth.save">שמירת פרופיל</button>
+                <button class="btn btn--ghost" id="save-profile-btn" type="button" data-i18n="studio.saveProfile">שמירת פרופיל</button>
               </div>
             </div>
 
-            <div class="field" id="suggestions-field">
-              <label data-i18n="concierge.suggestionsTitle">הצעות פרומפט מהירות</label>
-              <div class="segment" id="suggestions-segment"></div>
-            </div>
-
-            <div class="field" id="chat-field">
-              <label for="message" data-i18n="concierge.questionLabel">מה בא לכם לדעת?</label>
-              <textarea id="message" rows="4" data-i18n-placeholder="concierge.questionPh" placeholder="לדוגמה: תכנן לי סופ״ש חופים"></textarea>
-            </div>
-
-            <div class="field hidden" id="trip-fields">
-              <label data-i18n="concierge.styleLabel">סגנון מסלול</label>
-              <div class="segment" id="style-segment">
-                <button class="chip" data-style="beach" aria-pressed="true" type="button" data-i18n="concierge.styleBeach">חוף</button>
-                <button class="chip" data-style="north" aria-pressed="false" type="button" data-i18n="concierge.styleNorth">צפון</button>
-                <button class="chip" data-style="desert" aria-pressed="false" type="button" data-i18n="concierge.styleDesert">מדבר</button>
-                <button class="chip" data-style="mixed" aria-pressed="false" type="button" data-i18n="concierge.styleMixed">מעורב</button>
+            <section class="feature-block active" id="feature-concierge">
+              <div class="field">
+                <label data-i18n="studio.modeLabel">מצב קונסיירז׳</label>
+                <div class="segment" id="mode-segment">
+                  <button class="chip" data-mode="chat" aria-pressed="true" type="button" data-i18n="studio.mode.chat">שאלה כללית</button>
+                  <button class="chip" data-mode="trip" aria-pressed="false" type="button" data-i18n="studio.mode.trip">תכנון מסלול</button>
+                  <button class="chip" data-mode="health" aria-pressed="false" type="button" data-i18n="studio.mode.health">בדיקת מערכת</button>
+                </div>
               </div>
 
-              <label style="margin-top:8px" data-i18n="concierge.daysLabel">משך</label>
-              <div class="days-stepper">
-                <button type="button" id="days-minus" aria-label="minus">-</button>
-                <div class="days-badge" id="days-value">3 ימים</div>
-                <button type="button" id="days-plus" aria-label="plus">+</button>
+              <div class="field">
+                <label data-i18n="studio.suggestions">הצעות פרומפט</label>
+                <div class="segment" id="suggestions-segment"></div>
               </div>
-            </div>
 
-            <div class="actions">
-              <button class="btn btn--primary" id="send-btn" type="button" data-i18n="concierge.send">שלחו</button>
-              <a class="btn btn--ghost" href="homepage.html" data-i18n="concierge.back">חזרה לדף הבית</a>
-            </div>
+              <div class="field" id="trip-fields" style="display:none">
+                <label data-i18n="studio.tripStyle">סגנון מסלול</label>
+                <div class="segment" id="style-segment">
+                  <button class="chip" data-style="beach" aria-pressed="true" type="button">beach</button>
+                  <button class="chip" data-style="north" aria-pressed="false" type="button">north</button>
+                  <button class="chip" data-style="desert" aria-pressed="false" type="button">desert</button>
+                  <button class="chip" data-style="mixed" aria-pressed="false" type="button">mixed</button>
+                </div>
+              </div>
 
-            <details class="advanced hidden debug-only">
-              <summary data-i18n="concierge.advanced">הגדרות מתקדמות</summary>
+              <div class="field">
+                <label for="message" data-i18n="studio.promptLabel">מה תרצה לשאול או לקדם עכשיו?</label>
+                <textarea id="message" data-i18n-placeholder="studio.promptPh" placeholder="לדוגמה: תן לי תוכנית עבודה ומסלול יומי שידחוף ביצוע"></textarea>
+              </div>
+
+              <div class="actions">
+                <button class="btn btn--primary" id="send-btn" type="button" data-i18n="studio.send">שלח</button>
+                <button class="btn btn--ghost" id="voice-btn" type="button" data-i18n="studio.voiceInput">קלט קולי</button>
+                <button class="btn btn--ghost" id="speak-btn" type="button" data-i18n="studio.speak">הקראה</button>
+                <a class="btn btn--ghost" href="homepage.html" data-i18n="studio.back">חזרה לדף הבית</a>
+              </div>
+            </section>
+
+            <section class="feature-block" id="feature-studio">
+              <div class="field">
+                <label for="preferred-format" data-i18n="studio.format">פורמט תשובה מועדף (סטודיו)</label>
+                <select id="preferred-format">
+                  <option value="structured_plan">Structured Plan</option>
+                  <option value="checklist">Checklist</option>
+                  <option value="step_by_step">Step by Step</option>
+                  <option value="timeline">Timeline</option>
+                  <option value="concise">Concise</option>
+                  <option value="notebook_style">Notebook-style</option>
+                  <option value="json">JSON</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="response-depth" data-i18n="studio.depth">עומק תשובה</label>
+                <select id="response-depth">
+                  <option value="quick">quick</option>
+                  <option value="balanced">balanced</option>
+                  <option value="deep">deep</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="response-tone" data-i18n="studio.tone">סגנון ליווי</label>
+                <select id="response-tone">
+                  <option value="coach">coach</option>
+                  <option value="direct">direct</option>
+                  <option value="calm">calm</option>
+                  <option value="strategic">strategic</option>
+                  <option value="executive" selected>executive</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="proactive-mode" data-i18n="studio.proactiveMode">פלט יזום ללא פרומפט</label>
+                <select id="proactive-mode">
+                  <option value="enabled">enabled</option>
+                  <option value="focus_only">focus_only</option>
+                  <option value="disabled">disabled</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="reminders-app" data-i18n="studio.remindersApp">אפליקציית תזכורות מועדפת</label>
+                <select id="reminders-app">
+                  <option value="google_calendar">Google Calendar</option>
+                  <option value="apple_reminders">Apple Reminders</option>
+                  <option value="shortcuts">Apple Shortcuts</option>
+                  <option value="todoist">Todoist</option>
+                  <option value="notion">Notion</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="alarms-app" data-i18n="studio.alarmsApp">אפליקציית אזעקות מועדפת</label>
+                <select id="alarms-app">
+                  <option value="apple_clock">Apple Clock</option>
+                  <option value="google_clock">Google Clock</option>
+                  <option value="shortcuts">Apple Shortcuts</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="voice-mode" data-i18n="studio.voiceMode">מצב שיחה קולית</label>
+                <select id="voice-mode">
+                  <option value="enabled">enabled</option>
+                  <option value="disabled">disabled</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="note-title" data-i18n="studio.noteTitle">כותרת פתק</label>
+                <input id="note-title" placeholder="Mission note" />
+              </div>
+              <div class="field">
+                <label for="note-content" data-i18n="studio.noteContent">תוכן פתק</label>
+                <textarea id="note-content" data-i18n-placeholder="studio.noteContentPh" placeholder="מה צריך לקרות היום, בחודש הקרוב, ובתמונה הגדולה?"></textarea>
+              </div>
+              <div class="actions">
+                <button class="btn btn--ghost" id="save-note-btn" type="button" data-i18n="studio.saveNote">שמירת פתק</button>
+                <button class="btn btn--ghost" id="rewrite-note-btn" type="button" data-i18n="studio.rewriteNote">שכתוב יוקרתי עם AI</button>
+                <button class="btn btn--ghost" id="load-notes-btn" type="button" data-i18n="studio.loadNotes">טעינת פתקים</button>
+              </div>
+              <div class="field">
+                <label for="memory-import-json" data-i18n="studio.memoryImportLabel">ייבוא זיכרון JSON (Notebooks/Threads)</label>
+                <textarea
+                  id="memory-import-json"
+                  data-i18n-placeholder="studio.memoryImportPh"
+                  placeholder='{"items":[{"title":"Trip pattern","content":"...","tags":["north"],"source":"notebooklm"}]}'
+                ></textarea>
+              </div>
+              <div class="actions">
+                <button class="btn btn--ghost" id="import-memory-btn" type="button" data-i18n="studio.importMemory">ייבוא לזיכרון ארוך-טווח</button>
+              </div>
+
+              <div class="actions">
+                <button class="btn btn--primary" id="save-studio-btn" type="button" data-i18n="studio.saveStudio">שמירת הגדרות סטודיו</button>
+                <button class="btn btn--ghost" id="load-studio-btn" type="button" data-i18n="studio.loadStudio">טעינת הגדרות</button>
+              </div>
+            </section>
+
+            <section class="feature-block" id="feature-survey">
+              <p class="subtle" data-i18n="studio.surveySub">
+                סקר עומק מותאם בזמן אמת. כל תשובה משנה את השאלה הבאה ואת המלצות המערכת.
+              </p>
+              <div class="survey-progress" aria-hidden="true"><span id="survey-progress-bar"></span></div>
+              <p class="muted-line" id="survey-progress-text">0%</p>
+
+              <div class="field" id="survey-question-field">
+                <label id="survey-question">טוען שאלה...</label>
+                <p id="survey-description" class="muted-line"></p>
+                <div class="segment" id="survey-choices"></div>
+                <input id="survey-free-answer" style="display:none" />
+              </div>
+
+              <div class="actions">
+                <button class="btn btn--ghost" id="survey-next-btn" type="button" data-i18n="studio.surveyNext">המשך</button>
+                <button class="btn btn--ghost" id="survey-voice-btn" type="button" data-i18n="studio.surveyVoice">תשובה קולית</button>
+              </div>
+
+              <div class="field">
+                <label data-i18n="studio.feedbackLabel">פידבק לצוות (מנותב ליָשה כברירת מחדל)</label>
+                <textarea id="feedback-message" data-i18n-placeholder="studio.feedbackPh" placeholder="מה חסר לך כדי לתפקד טוב יותר ביום-יום?"></textarea>
+              </div>
+              <div class="actions">
+                <button class="btn btn--ghost" id="send-feedback-btn" type="button" data-i18n="studio.sendFeedback">שליחת פידבק</button>
+              </div>
+            </section>
+
+            <section class="feature-block" id="feature-feed">
+              <p class="subtle" data-i18n="studio.feedSub">
+                פיד יזום שמניע ביצוע: משימות יומיות, תזכורות, אזעקות ועדכוני חברה.
+              </p>
+              <div class="actions">
+                <button class="btn btn--primary" id="refresh-feed-btn" type="button" data-i18n="studio.refreshFeed">רענון פיד</button>
+              </div>
+              <div class="stack" id="feed-list"></div>
+            </section>
+
+            <details class="debug" id="debug-controls" style="display:none">
+              <summary>Debug</summary>
               <div class="field">
                 <label for="api-base">API Base</label>
                 <input id="api-base" value="" />
@@ -174,20 +519,27 @@
                 <label for="api-key">API Key</label>
                 <input id="api-key" value="dev-atlas-key" />
               </div>
+              <div class="raw" id="debug-raw">-</div>
             </details>
           </article>
 
           <article class="card panel">
-            <h2 data-i18n="concierge.outputTitle">תוצאה</h2>
-            <div class="output" id="output-box">
-              <h3 data-i18n="concierge.readyTitle">מוכן לעזור</h3>
-              <p class="subtle" data-i18n="concierge.readySub">בחרו מצב ולחצו על הצעת פרומפט להתחלה מהירה.</p>
+            <h2 data-i18n="studio.outputTitle">פלט מערכת</h2>
+            <div class="output" id="output-box" data-i18n="studio.outputReady">
+              המערכת מוכנה. התחילו עם שאלה, סקר, או פיד יזום.
             </div>
             <div class="tag-row" id="tag-row"></div>
-            <details class="advanced hidden debug-only">
-              <summary data-i18n="concierge.debug">נתונים טכניים</summary>
-              <div class="raw" id="raw-json">-</div>
-            </details>
+            <div class="action-list" id="action-list"></div>
+
+            <div class="survey-card" style="margin-top:12px">
+              <h3 data-i18n="studio.autoTitle">מה המערכת עושה אוטומטית?</h3>
+              <div class="pill-line">
+                <span class="tag" data-i18n="studio.auto1">תשובות מותאמות לפרופיל</span>
+                <span class="tag" data-i18n="studio.auto2">פיד יזום לפי עומס יומי</span>
+                <span class="tag" data-i18n="studio.auto3">הצעות תזכורת ואזעקה</span>
+                <span class="tag" data-i18n="studio.auto4">איסוף פידבק ורוטינג לצוות</span>
+              </div>
+            </div>
           </article>
         </section>
       </div>
@@ -196,123 +548,268 @@
     <script>
       window.ATLAS_PAGE_I18N = {
         he: {
-          meta: { title: "עוזר מסע חכם | אטלס מסע", description: "צ'אט מסלולים ולוגיסטיקה של אטלס מסע עם שמירת פרופיל משתמש." },
-          concierge: {
-            pill: "אטלס מסע",
-            title: "עוזר מסע חכם",
-            sub: "צ'אט מסלול, תפעול ופרופיל לקוח מותאם אישית.",
-            modeTitle: "מה תרצו עכשיו?",
-            modeChat: "שאלה כללית",
-            modeTrip: "תכנון מסלול",
-            modeHealth: "בדיקת שירות",
-            localeHint: "שפת שירות: עברית (נשלטת ברמת האתר)",
-            suggestionsTitle: "הצעות פרומפט מהירות",
-            questionLabel: "מה בא לכם לדעת?",
-            questionPh: "לדוגמה: תכנן לי סופ״ש חופים עם שגרת מים/אפור",
-            styleLabel: "סגנון מסלול",
-            styleBeach: "חוף",
-            styleNorth: "צפון",
-            styleDesert: "מדבר",
-            styleMixed: "מעורב",
-            daysLabel: "משך",
-            send: "שלחו",
+          meta: {
+            title: "Atlas Masa AI Studio | אטלס מסע",
+            description:
+              "מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת ופיד יזום.",
+          },
+          studio: {
+            pill: "Atlas Masa AI",
+            title: "סטודיו AI לניהול חיים, עבודה ותנועה",
+            sub: "הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח, ומספקת פיד יזום כדי לקדם אותך ביום-יום.",
+            featureTitle: "איזה פיצ׳ר מפעילים עכשיו?",
+            feature: {
+              concierge: "קונסיירז׳",
+              studio: "סטודיו תשובות",
+              survey: "סקר עומק מותאם",
+              feed: "פיד יזום",
+            },
+            statusChecking: "בודקים חיבור לשירות...",
+            voiceReady: "מצב קולי: מוכן",
+            locale: "שפת שירות",
+            authTitle: "חשבון משתמש והתאמה אישית",
+            authGuest: "לא מחוברים. מומלץ להתחבר כדי לשמור זיכרון ארוך-טווח.",
+            passkeyEmail: "אימייל להתחברות עם Google/Passkey",
+            authGoogle: "כניסה עם Google",
+            authPasskey: "כניסה עם Passkey",
+            authPasskeyEnroll: "רישום Passkey",
+            subscribeMonthly: "מנוי חודשי (Apple Pay)",
+            authSignout: "התנתקות",
+            prefStyle: "העדפת סגנון מסע",
+            prefRisk: "העדפת סיכון",
+            saveProfile: "שמירת פרופיל",
+            modeLabel: "מצב קונסיירז׳",
+            mode: {
+              chat: "שאלה כללית",
+              trip: "תכנון מסלול",
+              health: "בדיקת מערכת",
+            },
+            suggestions: "הצעות פרומפט",
+            tripStyle: "סגנון מסלול",
+            promptLabel: "מה תרצה לשאול או לקדם עכשיו?",
+            promptPh: "לדוגמה: תן לי תוכנית עבודה ומסלול יומי שידחוף ביצוע",
+            send: "שלח",
+            voiceInput: "קלט קולי",
+            speak: "הקראה",
             back: "חזרה לדף הבית",
-            outputTitle: "תוצאה",
-            readyTitle: "מוכן לעזור",
-            readySub: "בחרו מצב ולחצו על הצעת פרומפט להתחלה מהירה.",
-            advanced: "הגדרות מתקדמות",
-            debug: "נתונים טכניים",
-            auth: {
-              statusGuest: "לא מחוברים כרגע. חיבור שומר פרופיל לצורך התאמה אישית.",
-              google: "כניסה עם Google",
-              signout: "התנתקות",
-              prefStyle: "העדפת סגנון מסע",
-              prefRisk: "העדפת סיכון",
-              save: "שמירת פרופיל"
-            }
-          }
+            format: "פורמט תשובה מועדף (סטודיו)",
+            depth: "עומק תשובה",
+            tone: "סגנון ליווי",
+            proactiveMode: "פלט יזום ללא פרומפט",
+            remindersApp: "אפליקציית תזכורות מועדפת",
+            alarmsApp: "אפליקציית אזעקות מועדפת",
+            voiceMode: "מצב שיחה קולית",
+            noteTitle: "כותרת פתק",
+            noteContent: "תוכן פתק",
+            noteContentPh: "מה צריך לקרות היום, בחודש הקרוב, ובתמונה הגדולה?",
+            saveNote: "שמירת פתק",
+            rewriteNote: "שכתוב יוקרתי עם AI",
+            loadNotes: "טעינת פתקים",
+            memoryImportLabel: "ייבוא זיכרון JSON (Notebooks/Threads)",
+            memoryImportPh: "הדביקו JSON עם items כדי להאכיל את זיכרון המערכת לטווח ארוך.",
+            importMemory: "ייבוא לזיכרון ארוך-טווח",
+            saveStudio: "שמירת הגדרות סטודיו",
+            loadStudio: "טעינת הגדרות",
+            surveySub: "סקר עומק מותאם בזמן אמת. כל תשובה משנה את השאלה הבאה ואת המלצות המערכת.",
+            surveyNext: "המשך",
+            surveyVoice: "תשובה קולית",
+            feedbackLabel: "פידבק לצוות (מנותב ליָשה כברירת מחדל)",
+            feedbackPh: "מה חסר לך כדי לתפקד טוב יותר ביום-יום?",
+            sendFeedback: "שליחת פידבק",
+            feedSub: "פיד יזום שמניע ביצוע: משימות יומיות, תזכורות, אזעקות ועדכוני חברה.",
+            refreshFeed: "רענון פיד",
+            outputTitle: "פלט מערכת",
+            outputReady: "המערכת מוכנה. התחילו עם שאלה, סקר, או פיד יזום.",
+            autoTitle: "מה המערכת עושה אוטומטית?",
+            auto1: "תשובות מותאמות לפרופיל",
+            auto2: "פיד יזום לפי עומס יומי",
+            auto3: "הצעות תזכורת ואזעקה",
+            auto4: "איסוף פידבק ורוטינג לצוות",
+          },
         },
-        en: { meta: { title: "Smart Concierge | Atlas Masa", description: "Route and operations chat with user profile memory." }, concierge: { pill: "Atlas Masa", title: "Smart Concierge", sub: "Route chat, operations help, and tailored user profile.", modeTitle: "What do you need now?", modeChat: "General question", modeTrip: "Plan a trip", modeHealth: "Service health", localeHint: "Service language follows site language", suggestionsTitle: "Prompt suggestions", questionLabel: "What do you want to ask?", questionPh: "Example: plan me a beach weekend with legal water/grey routine", styleLabel: "Trip style", styleBeach: "Beach", styleNorth: "North", styleDesert: "Desert", styleMixed: "Mixed", daysLabel: "Days", send: "Send", back: "Back to home", outputTitle: "Output", readyTitle: "Ready", readySub: "Pick a mode and click a suggestion to start fast.", advanced: "Advanced settings", debug: "Debug payload", auth: { statusGuest: "Not signed in. Sign in to save profile and tailor responses.", google: "Sign in with Google", signout: "Sign out", prefStyle: "Trip style preference", prefRisk: "Risk preference", save: "Save profile" } } },
-        ar: { meta: { title: "المساعد الذكي | Atlas Masa", description: "دردشة مسارات ولوجستيات مع حفظ ملف المستخدم." }, concierge: { pill: "Atlas Masa", title: "المساعد الذكي", sub: "دردشة مسار وتشغيل مع ملف مستخدم مخصص.", modeTitle: "ماذا تريد الآن؟", modeChat: "سؤال عام", modeTrip: "تخطيط مسار", modeHealth: "فحص الخدمة", localeHint: "لغة الخدمة تتبع لغة الموقع", suggestionsTitle: "اقتراحات برومبت", questionLabel: "ماذا تريد أن تعرف؟", questionPh: "مثال: خطط لي عطلة شاطئية مع خطة مياه قانونية", styleLabel: "نمط المسار", styleBeach: "شاطئ", styleNorth: "شمال", styleDesert: "صحراء", styleMixed: "مختلط", daysLabel: "الأيام", send: "إرسال", back: "العودة للرئيسية", outputTitle: "النتيجة", readyTitle: "جاهز", readySub: "اختر وضعاً ثم اقتراحاً للبدء بسرعة.", advanced: "إعدادات متقدمة", debug: "بيانات تقنية", auth: { statusGuest: "غير مسجل الدخول. الدخول يحفظ الملف للتخصيص.", google: "تسجيل مع Google", signout: "تسجيل خروج", prefStyle: "تفضيل نمط الرحلة", prefRisk: "تفضيل المخاطرة", save: "حفظ الملف" } } },
-        ru: { meta: { title: "Умный консьерж | Atlas Masa", description: "Чат маршрутов и логистики с хранением профиля." }, concierge: { pill: "Atlas Masa", title: "Умный консьерж", sub: "Маршруты, операционка и персональный профиль.", modeTitle: "Что нужно сейчас?", modeChat: "Общий вопрос", modeTrip: "План поездки", modeHealth: "Проверка сервиса", localeHint: "Язык сервиса берется с сайта", suggestionsTitle: "Подсказки промптов", questionLabel: "Что вы хотите узнать?", questionPh: "Пример: спланируй пляжный уикенд с легальной логистикой воды", styleLabel: "Стиль маршрута", styleBeach: "Пляж", styleNorth: "Север", styleDesert: "Пустыня", styleMixed: "Смешанный", daysLabel: "Дни", send: "Отправить", back: "Назад на главную", outputTitle: "Результат", readyTitle: "Готов", readySub: "Выберите режим и подсказку для быстрого старта.", advanced: "Расширенные настройки", debug: "Технические данные", auth: { statusGuest: "Вы не вошли. Вход сохраняет профиль для персонализации.", google: "Войти через Google", signout: "Выйти", prefStyle: "Предпочтительный стиль", prefRisk: "Предпочтение риска", save: "Сохранить профиль" } } },
-        fr: { meta: { title: "Concierge intelligent | Atlas Masa", description: "Chat itinéraire/logistique avec mémoire profil utilisateur." }, concierge: { pill: "Atlas Masa", title: "Concierge intelligent", sub: "Chat itinéraire, opérations et profil personnalisé.", modeTitle: "Que voulez-vous maintenant ?", modeChat: "Question générale", modeTrip: "Planifier un trajet", modeHealth: "État du service", localeHint: "La langue suit celle du site", suggestionsTitle: "Suggestions de prompt", questionLabel: "Que voulez-vous demander ?", questionPh: "Exemple : planifie un week-end plage avec routine eau légale", styleLabel: "Style de trajet", styleBeach: "Plage", styleNorth: "Nord", styleDesert: "Désert", styleMixed: "Mixte", daysLabel: "Jours", send: "Envoyer", back: "Retour accueil", outputTitle: "Résultat", readyTitle: "Prêt", readySub: "Choisissez un mode puis une suggestion.", advanced: "Paramètres avancés", debug: "Données techniques", auth: { statusGuest: "Non connecté. Connectez-vous pour sauvegarder votre profil.", google: "Connexion Google", signout: "Se déconnecter", prefStyle: "Préférence de style", prefRisk: "Préférence de risque", save: "Enregistrer profil" } } }
+        en: {
+          meta: {
+            title: "Atlas Masa AI Studio",
+            description:
+              "Personal AI for movement, work, and life: concierge, response studio, adaptive survey, and proactive feed.",
+          },
+          studio: {
+            pill: "Atlas Masa AI",
+            title: "AI Studio for Life, Work, and Mobility",
+            sub: "Concierge is only one feature. This system builds long-term memory, proactive outputs, and daily execution support.",
+            featureTitle: "Which feature do you want now?",
+            feature: {
+              concierge: "Concierge",
+              studio: "Response Studio",
+              survey: "Adaptive Deep Survey",
+              feed: "Proactive Feed",
+            },
+            statusChecking: "Checking service connection...",
+            voiceReady: "Voice: ready",
+            locale: "Service language",
+            authTitle: "User account and personalization",
+            authGuest: "Not signed in. Sign in to unlock long-term memory.",
+            passkeyEmail: "Email for Google/Passkey sign-in",
+            authGoogle: "Sign in with Google",
+            authPasskey: "Sign in with Passkey",
+            authPasskeyEnroll: "Enroll Passkey",
+            subscribeMonthly: "Monthly subscription (Apple Pay)",
+            authSignout: "Sign out",
+            prefStyle: "Trip style preference",
+            prefRisk: "Risk preference",
+            saveProfile: "Save profile",
+            modeLabel: "Concierge mode",
+            mode: { chat: "General question", trip: "Plan trip", health: "System health" },
+            suggestions: "Prompt suggestions",
+            tripStyle: "Trip style",
+            promptLabel: "What do you want to ask or move forward now?",
+            promptPh: "Example: give me an execution plan and daily route rhythm",
+            send: "Send",
+            voiceInput: "Voice input",
+            speak: "Speak output",
+            back: "Back to homepage",
+            format: "Preferred response format",
+            depth: "Response depth",
+            tone: "Coaching tone",
+            proactiveMode: "Unprompted proactive output",
+            remindersApp: "Preferred reminders app",
+            alarmsApp: "Preferred alarms app",
+            voiceMode: "Voice conversation mode",
+            noteTitle: "Note title",
+            noteContent: "Note content",
+            noteContentPh: "What must happen today, mid-term, and in the big picture?",
+            saveNote: "Save note",
+            rewriteNote: "Rewrite with AI",
+            loadNotes: "Load notes",
+            memoryImportLabel: "Import memory JSON (Notebooks/Threads)",
+            memoryImportPh: "Paste JSON with items to feed long-term system memory.",
+            importMemory: "Import into long-term memory",
+            saveStudio: "Save studio settings",
+            loadStudio: "Load settings",
+            surveySub: "Adaptive deep survey in real-time. Every answer changes what comes next.",
+            surveyNext: "Next",
+            surveyVoice: "Voice answer",
+            feedbackLabel: "Feedback to team (routed to Yasha by default)",
+            feedbackPh: "What are you missing to function better daily?",
+            sendFeedback: "Send feedback",
+            feedSub: "Proactive feed for execution: daily actions, reminders, alarms, and company updates.",
+            refreshFeed: "Refresh feed",
+            outputTitle: "System output",
+            outputReady: "System is ready. Start with a prompt, survey, or proactive feed.",
+            autoTitle: "What runs automatically?",
+            auto1: "Profile-tailored responses",
+            auto2: "Proactive feed by daily pressure",
+            auto3: "Reminder/alarm suggestions",
+            auto4: "Feedback collection and team routing",
+          },
+        },
       };
     </script>
     <script src="sitewide-language.js"></script>
     <script>
       const state = {
-        mode: "chat",
         locale: "he",
+        feature: "concierge",
+        mode: "chat",
+        user: null,
         style: "beach",
-        days: 3,
-        user: null
+        survey: {
+          question: null,
+          selected: null,
+          progress: { percent: 0, answered: 0, total: 0 },
+        },
+        studio: {
+          preferred_format: "structured_plan",
+          response_depth: "deep",
+          response_tone: "executive",
+          proactive_mode: "enabled",
+          reminders_app: "google_calendar",
+          alarms_app: "apple_clock",
+          voice_mode: "enabled",
+        },
+        proactiveItems: [],
+        notes: [],
+        activeNoteId: null,
+        lastOutput: "",
+        listening: false,
       };
 
+      const featureSegment = document.getElementById("feature-segment");
       const modeSegment = document.getElementById("mode-segment");
       const styleSegment = document.getElementById("style-segment");
-      const chatField = document.getElementById("chat-field");
+      const suggestionsSegment = document.getElementById("suggestions-segment");
       const tripFields = document.getElementById("trip-fields");
       const messageEl = document.getElementById("message");
       const sendBtn = document.getElementById("send-btn");
+      const voiceBtn = document.getElementById("voice-btn");
+      const speakBtn = document.getElementById("speak-btn");
       const outputBox = document.getElementById("output-box");
-      const rawJson = document.getElementById("raw-json");
       const tagRow = document.getElementById("tag-row");
-      const daysValue = document.getElementById("days-value");
+      const actionList = document.getElementById("action-list");
+      const serviceStatus = document.getElementById("service-status");
       const activeLocaleLabel = document.getElementById("active-locale-label");
-      const suggestionsSegment = document.getElementById("suggestions-segment");
+      const voiceStatus = document.getElementById("voice-status");
       const userStatus = document.getElementById("user-status");
       const googleSigninBtn = document.getElementById("google-signin");
+      const passkeySigninBtn = document.getElementById("passkey-signin");
+      const passkeyEnrollBtn = document.getElementById("passkey-enroll");
+      const subscribeMonthlyBtn = document.getElementById("subscribe-monthly");
+      const passkeyEmailInput = document.getElementById("passkey-email");
       const signoutBtn = document.getElementById("signout-btn");
       const saveProfileBtn = document.getElementById("save-profile-btn");
       const profileStyle = document.getElementById("profile-style");
       const riskPref = document.getElementById("risk-pref");
+      const surveyQuestion = document.getElementById("survey-question");
+      const surveyDescription = document.getElementById("survey-description");
+      const surveyChoices = document.getElementById("survey-choices");
+      const surveyProgressBar = document.getElementById("survey-progress-bar");
+      const surveyProgressText = document.getElementById("survey-progress-text");
+      const surveyNextBtn = document.getElementById("survey-next-btn");
+      const surveyVoiceBtn = document.getElementById("survey-voice-btn");
+      const feedbackMessage = document.getElementById("feedback-message");
+      const sendFeedbackBtn = document.getElementById("send-feedback-btn");
+      const refreshFeedBtn = document.getElementById("refresh-feed-btn");
+      const feedList = document.getElementById("feed-list");
+      const saveStudioBtn = document.getElementById("save-studio-btn");
+      const loadStudioBtn = document.getElementById("load-studio-btn");
+      const preferredFormat = document.getElementById("preferred-format");
+      const responseDepth = document.getElementById("response-depth");
+      const responseTone = document.getElementById("response-tone");
+      const proactiveMode = document.getElementById("proactive-mode");
+      const remindersApp = document.getElementById("reminders-app");
+      const alarmsApp = document.getElementById("alarms-app");
+      const voiceMode = document.getElementById("voice-mode");
+      const noteTitle = document.getElementById("note-title");
+      const noteContent = document.getElementById("note-content");
+      const saveNoteBtn = document.getElementById("save-note-btn");
+      const rewriteNoteBtn = document.getElementById("rewrite-note-btn");
+      const loadNotesBtn = document.getElementById("load-notes-btn");
+      const memoryImportJson = document.getElementById("memory-import-json");
+      const importMemoryBtn = document.getElementById("import-memory-btn");
       const apiBaseInput = document.getElementById("api-base");
-
-      const debugMode = new URLSearchParams(window.location.search).get("debug") === "1";
+      const apiKeyInput = document.getElementById("api-key");
+      const debugRaw = document.getElementById("debug-raw");
 
       const QUICK_PROMPTS = {
         chat: {
           he: [
-            "מה כולל מסע חווייתי לעומת מנוי מסע?",
-            "תסביר לי למה חופשה בלי מלונות עובדת יותר טוב",
-            "מה אתם כוללים בחינם בתכנון טיול?"
+            "תן לי תוכנית ביצוע ליום עמוס עם תזכורות ואזהרות מראש.",
+            "איך אני מתקדם כלכלית ועדיין שומר על בריאות ושקט?",
+            "בנה לי שגרת עבודה בתנועה בלי להישרף.",
           ],
           en: [
-            "What is included in Masa Experience vs Membership?",
-            "Why is vacation without hotels better for movement?",
-            "What free travel help is included?"
+            "Build me a high-pressure execution plan with reminders and risk alerts.",
+            "How do I grow financially while protecting health and focus?",
+            "Design a movement-first workday routine without burnout.",
           ],
-          ar: [
-            "ما الفرق بين Masa Experience وMasa Membership؟",
-            "لماذا عطلة بدون فنادق أفضل للحركة؟",
-            "ما المساعدة المجانية المضمنة؟"
-          ],
-          ru: [
-            "Что входит в Masa Experience и Membership?",
-            "Почему отпуск без отелей лучше для мобильности?",
-            "Какая бесплатная помощь включена?"
-          ],
-          fr: [
-            "Que contient Masa Experience vs Membership ?",
-            "Pourquoi les vacances sans hôtels sont meilleures ?",
-            "Quelle aide gratuite est incluse ?"
-          ]
         },
         trip: {
-          he: ["חוף", "צפון", "מדבר"],
-          en: ["beach", "north", "desert"],
-          ar: ["شاطئ", "شمال", "صحراء"],
-          ru: ["пляж", "север", "пустыня"],
-          fr: ["plage", "nord", "désert"]
+          he: ["סופ״ש חופים", "צפון ירוק", "מסלול מדברי חכם"],
+          en: ["beach weekend", "north green", "smart desert route"],
         },
-        health: {
-          he: ["בדיקת בריאות שירות"],
-          en: ["Check service health"],
-          ar: ["فحص الخدمة"],
-          ru: ["Проверить сервис"],
-          fr: ["Vérifier le service"]
-        }
       };
+
+      let recognition = null;
 
       function getByPath(objectValue, path) {
         if (!objectValue || !path) return undefined;
@@ -324,8 +821,8 @@
 
       function t(path) {
         const all = window.ATLAS_PAGE_I18N || {};
-        const value = getByPath(all[state.locale] || all.he || {}, path);
-        if (value !== undefined && value !== null) return value;
+        const current = getByPath(all[state.locale] || all.he || {}, path);
+        if (current !== undefined && current !== null) return current;
         const fallback = getByPath(all.he || {}, path);
         return fallback !== undefined ? fallback : path;
       }
@@ -337,135 +834,212 @@
         return document.documentElement.getAttribute("lang") || "he";
       }
 
+      function inferApiBase() {
+        const host = window.location.hostname;
+        if (host === "localhost" || host === "127.0.0.1") return "http://localhost:8080";
+        if (host === "atlasmasa.com" || host === "www.atlasmasa.com") return "https://api.atlasmasa.com";
+        return `${window.location.protocol}//${host}:8080`;
+      }
+
       function setPressed(container, key, value) {
-        container.querySelectorAll(".chip").forEach((button) => {
+        container.querySelectorAll(`button[data-${key}]`).forEach((button) => {
           button.setAttribute("aria-pressed", button.dataset[key] === value ? "true" : "false");
         });
       }
 
-      function updateDays() {
-        const dayText = state.locale === "he" || state.locale === "ar" ? "ימים" : "days";
-        daysValue.textContent = `${state.days} ${dayText}`;
+      function renderLocaleLabel() {
+        activeLocaleLabel.textContent = `${t("studio.locale")}: ${state.locale}`;
       }
 
-      function renderLocaleLabel() {
-        const labels = { he: "עברית", en: "English", ar: "العربية", ru: "Русский", fr: "Français" };
-        activeLocaleLabel.textContent = `${t("concierge.localeHint")} (${labels[state.locale] || state.locale})`;
+      function renderFeature() {
+        setPressed(featureSegment, "feature", state.feature);
+        document.querySelectorAll(".feature-block").forEach((block) => {
+          block.classList.remove("active");
+        });
+        const target = document.getElementById(`feature-${state.feature}`);
+        if (target) target.classList.add("active");
       }
 
       function renderMode() {
         setPressed(modeSegment, "mode", state.mode);
-        chatField.classList.toggle("hidden", state.mode === "health");
-        tripFields.classList.toggle("hidden", state.mode !== "trip");
-
-        if (state.mode === "chat") sendBtn.textContent = t("concierge.modeChat");
-        if (state.mode === "trip") sendBtn.textContent = t("concierge.modeTrip");
-        if (state.mode === "health") sendBtn.textContent = t("concierge.modeHealth");
-
+        tripFields.style.display = state.mode === "trip" ? "block" : "none";
         renderPromptSuggestions();
       }
 
       function renderPromptSuggestions() {
-        const byMode = QUICK_PROMPTS[state.mode] || QUICK_PROMPTS.chat;
-        const prompts = byMode[state.locale] || byMode.he || [];
+        const mode = state.mode === "trip" ? "trip" : "chat";
+        const prompts = (QUICK_PROMPTS[mode] && (QUICK_PROMPTS[mode][state.locale] || QUICK_PROMPTS[mode].he)) || [];
         suggestionsSegment.innerHTML = "";
 
-        prompts.forEach((prompt, index) => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "chip";
-          button.textContent = prompt;
-          button.dataset.index = String(index);
-          button.addEventListener("click", () => {
+        prompts.forEach((prompt, idx) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "chip";
+          btn.textContent = prompt;
+          btn.addEventListener("click", () => {
             if (state.mode === "trip") {
-              const style = index === 0 ? "beach" : index === 1 ? "north" : "desert";
-              state.style = style;
-              setPressed(styleSegment, "style", style);
-              state.days = style === "beach" ? 3 : style === "north" ? 4 : 5;
-              updateDays();
-            } else if (state.mode === "health") {
-              sendBtn.click();
+              state.style = idx === 0 ? "beach" : idx === 1 ? "north" : "desert";
+              setPressed(styleSegment, "style", state.style);
             } else {
               messageEl.value = prompt;
             }
           });
-          suggestionsSegment.appendChild(button);
+          suggestionsSegment.appendChild(btn);
         });
       }
 
-      function renderOutput(title, text, tags = [], raw = null) {
-        outputBox.innerHTML = `<h3>${title}</h3><p>${text}</p>`;
-        tagRow.innerHTML = tags.map((tag) => `<span class="tag">${tag}</span>`).join("");
-        rawJson.textContent = raw ? JSON.stringify(raw, null, 2) : "-";
-      }
-
-      function renderConnectionHelp(errorText) {
-        const base = document.getElementById("api-base").value.trim();
-        const isFileProtocol = window.location.protocol === "file:";
-        const isLocalHost =
-          window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-        const isPublicSite = !isLocalHost && !isFileProtocol;
-
-        const msg = isFileProtocol
-          ? "אתם פותחים את הדף כ-file://. כדי שהקונסיירז יעבוד, פתחו אותו דרך שרת מקומי ב-http://localhost:5500."
-          : isPublicSite && base.includes("localhost")
-          ? "העמוד מחובר כרגע ל-API מקומי (localhost), ולכן לא יכול לעבוד מהטלפון/מהאתר הציבורי."
-          : `לא הצלחנו להתחבר ל-API ב-${base}.`;
-
-        renderOutput(
-          "חיבור API נכשל",
-          `${msg} שגיאה טכנית: ${errorText}`,
-          ["network", "local-api", "action-needed"],
-          {
-            next_steps: [
-              "cd /Users/avrohom/Downloads/journeyatlas",
-              "./scripts/start-concierge-local.sh",
-              "./scripts/serve-homepage-local.sh",
-              "open http://localhost:5500/concierge-local.html",
-              "For production: deploy Rust API and set API base to https://api.atlasmasa.com"
-            ]
-          }
-        );
-      }
-
-      function inferApiBase() {
-        const host = window.location.hostname;
-        if (host === "localhost" || host === "127.0.0.1") {
-          return "http://localhost:8080";
+      function renderOutput(text, tags = [], raw = null) {
+        state.lastOutput = text || "";
+        outputBox.textContent = text;
+        tagRow.innerHTML = tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
+        if (debugRaw) {
+          debugRaw.textContent = raw ? JSON.stringify(raw, null, 2) : "-";
         }
-        if (host === "atlasmasa.com" || host === "www.atlasmasa.com") {
-          return "https://api.atlasmasa.com";
-        }
-        return `${window.location.protocol}//${host}:8080`;
       }
 
-      function renderUserState() {
+      function renderActions(actions = []) {
+        actionList.innerHTML = "";
+        actions.forEach((action) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn btn--ghost";
+          btn.textContent = action.label || action.action_type;
+          btn.addEventListener("click", () => handleSuggestedAction(action));
+          actionList.appendChild(btn);
+        });
+      }
+
+      function renderFeed(items = []) {
+        state.proactiveItems = items;
+        feedList.innerHTML = "";
+
+        if (!items.length) {
+          const empty = document.createElement("div");
+          empty.className = "tile";
+          empty.innerHTML = `<h4>אין כרגע פריטים יזומים</h4><p>רעננו פיד או השלימו סקר עומק.</p>`;
+          feedList.appendChild(empty);
+          return;
+        }
+
+        items.forEach((item) => {
+          const tile = document.createElement("article");
+          tile.className = "tile";
+          const actions = (item.actions || [])
+            .map(
+              (a, idx) =>
+                `<button class="btn btn--ghost" data-feed-action="${idx}" data-feed-id="${escapeHtml(item.id)}">${escapeHtml(a.label || a.action_type)}</button>`
+            )
+            .join(" ");
+          tile.innerHTML = `
+            <h4>${escapeHtml(item.title || "Feed item")}</h4>
+            <p>${escapeHtml(item.summary || "")}</p>
+            <p class="muted-line">${escapeHtml(item.why_now || "")}</p>
+            <div class="actions">${actions}</div>
+          `;
+          tile.querySelectorAll("button[data-feed-action]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const index = Number(btn.getAttribute("data-feed-action") || "0");
+              const action = (item.actions || [])[index];
+              if (action) handleSuggestedAction(action);
+            });
+          });
+          feedList.appendChild(tile);
+        });
+      }
+
+      function renderSurvey(payload) {
+        if (!payload) return;
+        state.survey.question = payload.question || null;
+        state.survey.progress = payload.progress || { percent: 0, answered: 0, total: 0 };
+        state.survey.selected = null;
+
+        const progress = state.survey.progress;
+        surveyProgressText.textContent = `${progress.percent || 0}% • ${progress.answered || 0}/${progress.total || 0}`;
+        surveyProgressBar.style.width = `${progress.percent || 0}%`;
+
+        if (!payload.question) {
+          surveyQuestion.textContent = state.locale === "he" ? "הסקר הושלם" : "Survey completed";
+          surveyDescription.textContent = state.locale === "he" ? "מעולה. המערכת משתמשת בזה להתאמה עמוקה." : "Great. This now powers deep personalization.";
+          surveyChoices.innerHTML = "";
+          return;
+        }
+
+        surveyQuestion.textContent = payload.question.title || "";
+        surveyDescription.textContent = payload.question.description || "";
+        surveyChoices.innerHTML = "";
+
+        (payload.question.choices || []).forEach((choice) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "chip";
+          btn.textContent = choice.label || choice.value;
+          btn.setAttribute("aria-pressed", "false");
+          btn.addEventListener("click", () => {
+            state.survey.selected = choice.value;
+            surveyChoices.querySelectorAll(".chip").forEach((chip) => chip.setAttribute("aria-pressed", "false"));
+            btn.setAttribute("aria-pressed", "true");
+          });
+          surveyChoices.appendChild(btn);
+        });
+      }
+
+      function syncStudioControls() {
+        preferredFormat.value = state.studio.preferred_format;
+        responseDepth.value = state.studio.response_depth;
+        responseTone.value = state.studio.response_tone;
+        proactiveMode.value = state.studio.proactive_mode;
+        remindersApp.value = state.studio.reminders_app;
+        alarmsApp.value = state.studio.alarms_app;
+        voiceMode.value = state.studio.voice_mode;
+      }
+
+      function collectStudioControls() {
+        state.studio.preferred_format = preferredFormat.value;
+        state.studio.response_depth = responseDepth.value;
+        state.studio.response_tone = responseTone.value;
+        state.studio.proactive_mode = proactiveMode.value;
+        state.studio.reminders_app = remindersApp.value;
+        state.studio.alarms_app = alarmsApp.value;
+        state.studio.voice_mode = voiceMode.value;
+      }
+
+      function updateUserState() {
         if (!state.user) {
-          userStatus.textContent = t("concierge.auth.statusGuest");
-          signoutBtn.classList.add("hidden");
+          userStatus.textContent = t("studio.authGuest");
+          signoutBtn.style.display = "none";
           return;
         }
 
         userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}`;
-        signoutBtn.classList.remove("hidden");
-
+        signoutBtn.style.display = "inline-flex";
+        if (passkeyEmailInput && state.user.email) {
+          passkeyEmailInput.value = state.user.email;
+        }
         if (state.user.trip_style) profileStyle.value = state.user.trip_style;
         if (state.user.risk_preference) riskPref.value = state.user.risk_preference;
       }
 
-      async function request(path, body, includeKey = true) {
-        const base = document.getElementById("api-base").value.trim();
-        const key = document.getElementById("api-key").value.trim();
+      function escapeHtml(input) {
+        return String(input || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
 
+      async function request(path, method = "GET", body = null, includeKey = true) {
         const headers = {};
-        if (body) headers["content-type"] = "application/json";
+        const base = (apiBaseInput && apiBaseInput.value.trim()) || inferApiBase();
+        const key = (apiKeyInput && apiKeyInput.value.trim()) || "dev-atlas-key";
         if (includeKey) headers["x-api-key"] = key;
+        if (body) headers["content-type"] = "application/json";
 
         const response = await fetch(base + path, {
-          method: body ? "POST" : "GET",
+          method,
           headers,
           body: body ? JSON.stringify(body) : undefined,
-          credentials: "include"
+          credentials: "include",
         });
 
         const text = await response.text();
@@ -479,35 +1053,264 @@
         return { ok: response.ok, status: response.status, payload };
       }
 
-      async function socialLogin(provider) {
-        const email = window.prompt("Email:");
-        if (!email) return;
-        const name = window.prompt("Name:") || "";
-
+      async function runHealthCheck() {
         try {
-          const result = await request("/v1/auth/social_login", {
-            provider,
-            email,
-            name,
-            locale: state.locale
-          });
-
-          if (!result.ok) {
-            renderOutput("Auth failed", `status ${result.status}`, ["auth", "error"], result.payload);
-            return;
+          const result = await request("/health", "GET", null, false);
+          if (result.ok) {
+            serviceStatus.textContent = state.locale === "he" ? "השירות פעיל" : "Service is online";
+            serviceStatus.className = "status-ok";
+          } else {
+            serviceStatus.textContent = `${state.locale === "he" ? "בעיה בחיבור" : "Connection issue"}: ${result.status}`;
+            serviceStatus.className = "status-warn";
           }
-
-          state.user = result.payload.user;
-          renderUserState();
-          renderOutput("התחברות הצליחה", `${state.user.name || state.user.email}`, ["auth", provider], result.payload);
         } catch (error) {
-          renderConnectionHelp(error && error.message ? error.message : "Load failed");
+          serviceStatus.textContent = `${state.locale === "he" ? "שגיאת רשת" : "Network error"}: ${error.message}`;
+          serviceStatus.className = "status-warn";
         }
       }
 
-      async function saveUserProfile() {
+      function getIdentityEmail() {
+        return (passkeyEmailInput && passkeyEmailInput.value ? passkeyEmailInput.value : "").trim().toLowerCase();
+      }
+
+      function fromBase64Url(value) {
+        const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+        const padding = normalized.length % 4 ? "=".repeat(4 - (normalized.length % 4)) : "";
+        const binary = atob(normalized + padding);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+      }
+
+      function toBase64Url(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = "";
+        bytes.forEach((byte) => {
+          binary += String.fromCharCode(byte);
+        });
+        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      }
+
+      function prepareRegistrationOptions(options) {
+        const normalized = Object.assign({}, options);
+        if (typeof options.challenge === "string") {
+          normalized.challenge = fromBase64Url(options.challenge);
+        }
+        normalized.user = Object.assign({}, options.user, {
+          id: typeof options.user.id === "string" ? fromBase64Url(options.user.id) : options.user.id,
+        });
+        if (Array.isArray(options.excludeCredentials)) {
+          normalized.excludeCredentials = options.excludeCredentials.map((credential) =>
+            Object.assign({}, credential, {
+              id: typeof credential.id === "string" ? fromBase64Url(credential.id) : credential.id,
+            })
+          );
+        }
+        return normalized;
+      }
+
+      function prepareAuthenticationOptions(options) {
+        const normalized = Object.assign({}, options);
+        if (typeof options.challenge === "string") {
+          normalized.challenge = fromBase64Url(options.challenge);
+        }
+        if (Array.isArray(options.allowCredentials)) {
+          normalized.allowCredentials = options.allowCredentials.map((credential) =>
+            Object.assign({}, credential, {
+              id: typeof credential.id === "string" ? fromBase64Url(credential.id) : credential.id,
+            })
+          );
+        }
+        return normalized;
+      }
+
+      function serializeRegistrationCredential(credential) {
+        return {
+          id: credential.id,
+          rawId: toBase64Url(credential.rawId),
+          type: credential.type,
+          response: {
+            clientDataJSON: toBase64Url(credential.response.clientDataJSON),
+            attestationObject: toBase64Url(credential.response.attestationObject),
+            transports:
+              typeof credential.response.getTransports === "function"
+                ? credential.response.getTransports()
+                : [],
+          },
+          clientExtensionResults: credential.getClientExtensionResults(),
+        };
+      }
+
+      function serializeAuthenticationCredential(credential) {
+        return {
+          id: credential.id,
+          rawId: toBase64Url(credential.rawId),
+          type: credential.type,
+          response: {
+            clientDataJSON: toBase64Url(credential.response.clientDataJSON),
+            authenticatorData: toBase64Url(credential.response.authenticatorData),
+            signature: toBase64Url(credential.response.signature),
+            userHandle: credential.response.userHandle
+              ? toBase64Url(credential.response.userHandle)
+              : null,
+          },
+          clientExtensionResults: credential.getClientExtensionResults(),
+        };
+      }
+
+      async function startGoogleOAuth() {
+        try {
+          const path = `${window.location.pathname}`;
+          const result = await request(
+            `/v1/auth/google/start?return_to=${encodeURIComponent(path)}`,
+            "GET",
+            null,
+            true
+          );
+          if (!result.ok || !result.payload.authorize_url) {
+            renderOutput(`OAuth failed (${result.status})`, ["auth", "oauth", "error"], result.payload);
+            return;
+          }
+          window.location.href = result.payload.authorize_url;
+        } catch (error) {
+          renderOutput(`${state.locale === "he" ? "שגיאת OAuth" : "OAuth error"}: ${error.message}`, ["auth", "oauth", "network"]);
+        }
+      }
+
+      async function signInWithPasskey() {
+        const email = getIdentityEmail();
+        if (!email) {
+          renderOutput(state.locale === "he" ? "יש להזין אימייל להתחברות עם Passkey" : "Enter email for passkey sign-in", ["auth", "passkey"]);
+          return;
+        }
+        if (!window.PublicKeyCredential) {
+          renderOutput(state.locale === "he" ? "הדפדפן לא תומך Passkeys" : "Browser does not support passkeys", ["auth", "passkey"]);
+          return;
+        }
+
+        const start = await request("/v1/auth/passkey/login/start", "POST", { email });
+        if (!start.ok || !start.payload.options || !start.payload.request_id) {
+          renderOutput(`Passkey login start failed (${start.status})`, ["auth", "passkey", "error"], start.payload);
+          return;
+        }
+
+        const publicKey = prepareAuthenticationOptions(start.payload.options);
+        let credential;
+        try {
+          credential = await navigator.credentials.get({ publicKey });
+        } catch (error) {
+          renderOutput(`${state.locale === "he" ? "אימות Passkey בוטל" : "Passkey auth cancelled"}: ${error.message}`, ["auth", "passkey"]);
+          return;
+        }
+        if (!credential) return;
+
+        const finish = await request("/v1/auth/passkey/login/finish", "POST", {
+          request_id: start.payload.request_id,
+          credential: serializeAuthenticationCredential(credential),
+        });
+        if (!finish.ok) {
+          renderOutput(`Passkey login failed (${finish.status})`, ["auth", "passkey", "error"], finish.payload);
+          return;
+        }
+
+        state.user = finish.payload.user || null;
+        updateUserState();
+        renderOutput(state.locale === "he" ? "התחברות Passkey הצליחה" : "Passkey sign-in complete", ["auth", "passkey"], finish.payload);
+        await loadStudioPreferences();
+        await loadNotes();
+        await loadProactiveFeed();
+      }
+
+      async function enrollPasskey() {
+        const email = getIdentityEmail();
+        if (!email) {
+          renderOutput(state.locale === "he" ? "יש להזין אימייל לרישום Passkey" : "Enter email to enroll a passkey", ["auth", "passkey"]);
+          return;
+        }
+        if (!window.PublicKeyCredential) {
+          renderOutput(state.locale === "he" ? "הדפדפן לא תומך Passkeys" : "Browser does not support passkeys", ["auth", "passkey"]);
+          return;
+        }
+
+        const displayName = state.user && state.user.name ? state.user.name : email;
+        const start = await request("/v1/auth/passkey/register/start", "POST", {
+          email,
+          display_name: displayName,
+          locale: state.locale,
+        });
+        if (!start.ok || !start.payload.options || !start.payload.request_id) {
+          renderOutput(`Passkey registration start failed (${start.status})`, ["auth", "passkey", "error"], start.payload);
+          return;
+        }
+
+        const publicKey = prepareRegistrationOptions(start.payload.options);
+        let credential;
+        try {
+          credential = await navigator.credentials.create({ publicKey });
+        } catch (error) {
+          renderOutput(`${state.locale === "he" ? "רישום Passkey בוטל" : "Passkey registration cancelled"}: ${error.message}`, ["auth", "passkey"]);
+          return;
+        }
+        if (!credential) return;
+
+        const finish = await request("/v1/auth/passkey/register/finish", "POST", {
+          request_id: start.payload.request_id,
+          credential: serializeRegistrationCredential(credential),
+        });
+        if (!finish.ok) {
+          renderOutput(`Passkey registration failed (${finish.status})`, ["auth", "passkey", "error"], finish.payload);
+          return;
+        }
+
+        renderOutput(state.locale === "he" ? "Passkey נרשם בהצלחה" : "Passkey enrolled successfully", ["auth", "passkey"], finish.payload);
+      }
+
+      async function subscribeMonthly() {
         if (!state.user) {
-          renderOutput("יש להתחבר קודם", "התחברו עם Google ואז שמרו פרופיל.", ["profile", "missing-user"]);
+          renderOutput(state.locale === "he" ? "התחבר קודם כדי להפעיל מנוי" : "Sign in first to start subscription", ["billing"]);
+          return;
+        }
+        const result = await request("/v1/billing/create_checkout_session", "POST", {});
+        if (!result.ok || !result.payload.checkout_url) {
+          renderOutput(`Billing failed (${result.status})`, ["billing", "error"], result.payload);
+          return;
+        }
+        window.location.href = result.payload.checkout_url;
+      }
+
+      async function restoreSession() {
+        try {
+          const result = await request("/v1/auth/me");
+          if (result.ok && result.payload.user) {
+            state.user = result.payload.user;
+            if (passkeyEmailInput) {
+              passkeyEmailInput.value = state.user.email || passkeyEmailInput.value;
+            }
+          } else {
+            state.user = null;
+          }
+          updateUserState();
+        } catch {
+          state.user = null;
+          updateUserState();
+        }
+      }
+
+      async function logout() {
+        try {
+          await request("/v1/auth/logout", "POST", {});
+        } catch (_) {}
+        state.user = null;
+        state.notes = [];
+        state.activeNoteId = null;
+        if (noteTitle) noteTitle.value = "";
+        if (noteContent) noteContent.value = "";
+        updateUserState();
+      }
+
+      async function saveProfile() {
+        if (!state.user) {
+          renderOutput(state.locale === "he" ? "צריך להתחבר קודם" : "Sign in first", ["profile"]);
           return;
         }
 
@@ -515,194 +1318,554 @@
           trip_style: profileStyle.value,
           risk_preference: riskPref.value,
           memory_opt_in: true,
-          locale: state.locale
+          locale: state.locale,
         };
 
+        const result = await request("/v1/profile/upsert", "POST", payload);
+        if (!result.ok) {
+          renderOutput(`${state.locale === "he" ? "שמירה נכשלה" : "Save failed"} (${result.status})`, ["profile", "error"], result.payload);
+          return;
+        }
+
+        state.user = result.payload.user || state.user;
+        updateUserState();
+        renderOutput(state.locale === "he" ? "הפרופיל נשמר" : "Profile saved", ["profile", payload.trip_style, payload.risk_preference], result.payload);
+      }
+
+      async function loadStudioPreferences() {
         try {
-          const result = await request("/v1/profile/upsert", payload);
-          if (!result.ok) {
-            renderOutput("שמירת פרופיל נכשלה", `status ${result.status}`, ["profile", "error"], result.payload);
+          const result = await request("/v1/studio/preferences");
+          if (!result.ok || !result.payload.preferences) {
+            syncStudioControls();
             return;
           }
+          state.studio = Object.assign({}, state.studio, result.payload.preferences);
+          syncStudioControls();
+        } catch {
+          syncStudioControls();
+        }
+      }
 
-          if (result.payload && result.payload.user) {
-            state.user = result.payload.user;
-          } else {
-            state.user = Object.assign({}, state.user, payload);
-          }
-          renderUserState();
-          renderOutput("הפרופיל נשמר", "מעתה התשובות יותאמו לפי העדפות המשתמש.", ["profile", payload.trip_style, payload.risk_preference], result.payload);
+      async function saveStudioPreferences() {
+        collectStudioControls();
+        const result = await request("/v1/studio/preferences", "POST", state.studio);
+        if (!result.ok) {
+          renderOutput(`${state.locale === "he" ? "שמירת סטודיו נכשלה" : "Studio save failed"} (${result.status})`, ["studio", "error"], result.payload);
+          return;
+        }
+
+        state.studio = Object.assign({}, state.studio, result.payload.preferences || {});
+        syncStudioControls();
+        renderOutput(state.locale === "he" ? "הגדרות סטודיו נשמרו" : "Studio settings saved", ["studio", state.studio.preferred_format]);
+      }
+
+      async function loadNotes() {
+        if (!state.user) return;
+        const result = await request("/v1/notes");
+        if (!result.ok) return;
+        state.notes = Array.isArray(result.payload.notes) ? result.payload.notes : [];
+        if (state.notes.length) {
+          const current = state.notes[0];
+          state.activeNoteId = current.note_id;
+          noteTitle.value = current.title || "";
+          noteContent.value = current.content || "";
+        }
+      }
+
+      async function saveNote() {
+        if (!state.user) {
+          renderOutput(state.locale === "he" ? "צריך להתחבר כדי לשמור פתקים" : "Sign in to save notes", ["notes"]);
+          return;
+        }
+        const title = noteTitle.value.trim();
+        const content = noteContent.value.trim();
+        if (!title || !content) {
+          renderOutput(state.locale === "he" ? "יש להזין כותרת ותוכן" : "Title and content are required", ["notes"]);
+          return;
+        }
+
+        const result = await request("/v1/notes/upsert", "POST", {
+          note_id: state.activeNoteId,
+          title,
+          content,
+          tags: ["execution", "life-os"],
+        });
+        if (!result.ok) {
+          renderOutput(`${state.locale === "he" ? "שמירת פתק נכשלה" : "Note save failed"} (${result.status})`, ["notes", "error"], result.payload);
+          return;
+        }
+
+        state.activeNoteId = result.payload.note && result.payload.note.note_id ? result.payload.note.note_id : state.activeNoteId;
+        await loadNotes();
+        renderOutput(state.locale === "he" ? "הפתק נשמר והתווסף לזיכרון האישי" : "Note saved to long-term profile memory", ["notes", "saved"], result.payload);
+      }
+
+      async function rewriteActiveNote() {
+        if (!state.user || !state.activeNoteId) {
+          renderOutput(state.locale === "he" ? "אין פתק פעיל לשכתוב" : "No active note to rewrite", ["notes"]);
+          return;
+        }
+        const result = await request("/v1/notes/rewrite", "POST", {
+          note_id: state.activeNoteId,
+          instruction:
+            "Rewrite this note in high-class executive language, with clear daily actions, mid-term milestones, and strategic long-term direction.",
+        });
+        if (!result.ok) {
+          renderOutput(`${state.locale === "he" ? "שכתוב פתק נכשל" : "Note rewrite failed"} (${result.status})`, ["notes", "error"], result.payload);
+          return;
+        }
+        if (result.payload.note) {
+          noteTitle.value = result.payload.note.title || noteTitle.value;
+          noteContent.value = result.payload.note.content || noteContent.value;
+          state.activeNoteId = result.payload.note.note_id || state.activeNoteId;
+        }
+        await loadNotes();
+        renderOutput(state.locale === "he" ? "הפתק שוכתב בשפה ניהולית גבוהה" : "Note rewritten in high-level executive language", ["notes", "rewrite"], result.payload);
+      }
+
+      async function importMemoryBatch() {
+        if (!state.user) {
+          renderOutput(state.locale === "he" ? "צריך להתחבר כדי לייבא זיכרון" : "Sign in to import memory", ["memory"]);
+          return;
+        }
+        const raw = (memoryImportJson && memoryImportJson.value ? memoryImportJson.value : "").trim();
+        if (!raw) {
+          renderOutput(state.locale === "he" ? "הדביקו JSON לייבוא" : "Paste JSON to import", ["memory"]);
+          return;
+        }
+
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
         } catch (error) {
-          renderConnectionHelp(error && error.message ? error.message : "Load failed");
+          renderOutput(`${state.locale === "he" ? "JSON לא תקין" : "Invalid JSON"}: ${error.message}`, ["memory", "error"]);
+          return;
+        }
+
+        const items = Array.isArray(parsed) ? parsed : parsed.items;
+        if (!Array.isArray(items) || !items.length) {
+          renderOutput(state.locale === "he" ? "המערכת מצפה לשדה items[]" : "Expected an items[] array", ["memory", "error"]);
+          return;
+        }
+
+        const result = await request("/v1/memory/import", "POST", { items });
+        if (!result.ok) {
+          renderOutput(`${state.locale === "he" ? "ייבוא זיכרון נכשל" : "Memory import failed"} (${result.status})`, ["memory", "error"], result.payload);
+          return;
+        }
+
+        await loadNotes();
+        await loadProactiveFeed();
+        renderOutput(
+          state.locale === "he"
+            ? `ייבוא הושלם: ${result.payload.imported || 0} פריטים נשמרו.`
+            : `Import complete: ${result.payload.imported || 0} items stored.`,
+          ["memory", "import"],
+          result.payload
+        );
+      }
+
+      async function loadSurveyNext() {
+        const result = await request("/v1/survey/next");
+        if (!result.ok) {
+          surveyQuestion.textContent = state.locale === "he" ? "לא הצלחנו לטעון סקר" : "Could not load survey";
+          return;
+        }
+        renderSurvey(result.payload);
+      }
+
+      async function submitSurveyAnswer(answerOverride = null) {
+        if (!state.survey.question || !state.survey.question.id) return;
+        const answer = answerOverride || state.survey.selected;
+        if (!answer) {
+          renderOutput(state.locale === "he" ? "בחרו תשובה בסקר" : "Select a survey answer", ["survey"]);
+          return;
+        }
+
+        const result = await request(
+          "/v1/survey/answer",
+          "POST",
+          {
+            question_id: state.survey.question.id,
+            answer,
+          }
+        );
+
+        if (!result.ok) {
+          renderOutput(`${state.locale === "he" ? "שליחת תשובה נכשלה" : "Survey submit failed"} (${result.status})`, ["survey", "error"], result.payload);
+          return;
+        }
+
+        renderSurvey(result.payload);
+        const hints = result.payload.profile_hints || [];
+        if (hints.length) {
+          renderOutput(state.locale === "he" ? "עודכן פרופיל ההתאמה האישית" : "Personalization profile updated", ["survey", "adaptive"], { hints });
         }
       }
 
-      async function restoreSessionUser() {
-        try {
-          const result = await request("/v1/auth/me");
-          if (!result.ok) {
-            state.user = null;
-            renderUserState();
-            return;
-          }
+      async function submitFeedback() {
+        const message = feedbackMessage.value.trim();
+        if (!message) return;
 
-          state.user = result.payload.user || null;
-          renderUserState();
-        } catch (_) {
-          state.user = null;
-          renderUserState();
+        const result = await request(
+          "/v1/feedback/submit",
+          "POST",
+          {
+            category: "product",
+            message,
+            severity: "normal",
+            tags: ["mobile", "daily-function"],
+            target_employee: "yasha",
+            source: "concierge-studio",
+          }
+        );
+
+        if (!result.ok) {
+          renderOutput(`${state.locale === "he" ? "פידבק לא נשלח" : "Feedback failed"} (${result.status})`, ["feedback", "error"], result.payload);
+          return;
         }
+
+        feedbackMessage.value = "";
+        renderOutput(state.locale === "he" ? "הפידבק נשלח לצוות" : "Feedback sent to team", ["feedback", "yasha"], result.payload);
       }
 
-      async function runStartupHealthCheck() {
-        try {
-          const result = await request("/health", null, false);
-          if (result.ok) {
-            renderOutput(
-              "השירות המקומי פעיל",
-              "אפשר להתחיל בצ'אט, לבנות מסלול, ולשמור פרופיל משתמש.",
-              ["health", "ready"],
-              result.payload
-            );
-            return;
-          }
-
-          renderOutput(
-            "השירות המקומי לא זמין",
-            `סטטוס ${result.status}. הפעילו API ואז רעננו.`,
-            ["health", "offline"],
-            result.payload
-          );
-        } catch (error) {
-          renderConnectionHelp(error && error.message ? error.message : "Load failed");
+      async function loadProactiveFeed() {
+        const result = await request("/v1/feed/proactive");
+        if (!result.ok) {
+          renderFeed([]);
+          return;
         }
+        const items = result.payload.items || [];
+        renderFeed(items);
       }
 
-      modeSegment.addEventListener("click", (event) => {
-        const button = event.target.closest("button[data-mode]");
-        if (!button) return;
-        state.mode = button.dataset.mode;
-        renderMode();
-      });
+      async function sendChat() {
+        const text = messageEl.value.trim();
+        if (state.mode !== "health" && !text && state.mode !== "trip") {
+          renderOutput(state.locale === "he" ? "כתבו שאלה או בחרו הצעה" : "Type a prompt or choose a suggestion", ["input"]);
+          return;
+        }
 
-      styleSegment.addEventListener("click", (event) => {
-        const button = event.target.closest("button[data-style]");
-        if (!button) return;
-        state.style = button.dataset.style;
-        setPressed(styleSegment, "style", state.style);
-      });
+        if (state.mode === "health") {
+          await runHealthCheck();
+          renderOutput(state.locale === "he" ? "בדיקת מערכת בוצעה" : "System check complete", ["health"]);
+          return;
+        }
 
-      document.getElementById("days-minus").addEventListener("click", () => {
-        state.days = Math.max(1, state.days - 1);
-        updateDays();
-      });
-
-      document.getElementById("days-plus").addEventListener("click", () => {
-        state.days = Math.min(10, state.days + 1);
-        updateDays();
-      });
-
-      googleSigninBtn.addEventListener("click", () => socialLogin("google"));
-      signoutBtn.addEventListener("click", async () => {
+        sendBtn.disabled = true;
         try {
-          await request("/v1/auth/logout", {});
-        } catch (_) {}
-        state.user = null;
-        renderUserState();
-        renderOutput("התנתקתם", "אפשר להמשיך כאורח או להתחבר מחדש.", ["auth", "signed-out"]);
-      });
-      saveProfileBtn.addEventListener("click", saveUserProfile);
-
-      sendBtn.addEventListener("click", async () => {
-        try {
-          sendBtn.disabled = true;
-
-          if (state.mode === "health") {
-            const result = await request("/health", null, false);
-            renderOutput(
-              result.ok ? "השירות פעיל" : "יש בעיה בגישה לשירות",
-              result.ok ? "המערכת זמינה." : `סטטוס ${result.status}`,
-              ["health", `status:${result.status}`],
-              result.payload
-            );
-            return;
-          }
-
           if (state.mode === "trip") {
-            const result = await request("/v1/plan_trip", {
-              style: state.style,
-              days: state.days,
-              locale: state.locale,
-              constraints: []
-            });
+            const trip = await request(
+              "/v1/plan_trip",
+              "POST",
+              {
+                style: state.style,
+                days: 3,
+                locale: state.locale,
+                constraints: [],
+              }
+            );
 
-            if (!result.ok) {
-              renderOutput("יצירת מסלול נכשלה", `status ${result.status}`, ["plan_trip", "error"], result.payload);
+            if (!trip.ok) {
+              renderOutput(`${state.locale === "he" ? "יצירת מסלול נכשלה" : "Trip plan failed"} (${trip.status})`, ["trip", "error"], trip.payload);
               return;
             }
 
-            const summary = result.payload.summary || "נוצרה תוכנית מסלול.";
-            renderOutput("התוכנית מוכנה", summary, ["plan_trip", state.style, `${state.days}d`], result.payload);
+            const summary = trip.payload.summary || (state.locale === "he" ? "נוצר מסלול" : "Trip generated");
+            renderOutput(summary, ["trip", state.style], trip.payload);
+            renderActions([
+              {
+                action_type: "create_reminder",
+                label: state.locale === "he" ? "תזכורת ליציאה למסלול" : "Reminder for trip departure",
+                payload: {
+                  title: "Atlas Masa trip departure",
+                  details: summary,
+                  due_at_utc: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+                  reminders_app: state.studio.reminders_app,
+                },
+              },
+            ]);
             return;
           }
 
-          const text = messageEl.value.trim();
-          if (!text) {
-            renderOutput("חסר תוכן", "בחרו הצעה מהירה או כתבו שאלה קצרה.", ["input"]);
-            return;
-          }
-
-          const result = await request("/v1/chat", {
-            text,
-            locale: state.locale
-          });
+          collectStudioControls();
+          const result = await request(
+            "/v1/chat",
+            "POST",
+            {
+              text,
+              locale: state.locale,
+              preferred_format: state.studio.preferred_format,
+              response_depth: state.studio.response_depth,
+              response_tone: state.studio.response_tone,
+              include_proactive: state.studio.proactive_mode !== "disabled",
+            }
+          );
 
           if (!result.ok) {
-            renderOutput("לא הצלחנו לענות כרגע", `status ${result.status}`, ["chat", "error"], result.payload);
+            renderOutput(`${state.locale === "he" ? "לא הצלחנו לענות" : "Could not answer"} (${result.status})`, ["chat", "error"], result.payload);
             return;
           }
 
-          renderOutput(
-            "התשובה שלכם",
-            result.payload.reply_text || "התקבלה תשובה.",
-            ["chat", state.locale, result.payload.intent || "unknown"],
-            result.payload
-          );
-        } catch (error) {
-          renderConnectionHelp(error && error.message ? error.message : "Load failed");
+          const payload = result.payload || {};
+          renderOutput(payload.reply_text || "", ["chat", payload.intent || "unknown", state.studio.preferred_format], payload);
+          renderActions(payload.suggested_actions || []);
+          if (payload.json_payload && payload.json_payload.proactive_feed) {
+            renderFeed(payload.json_payload.proactive_feed);
+          }
         } finally {
           sendBtn.disabled = false;
         }
-      });
+      }
 
-      state.locale = getSiteLocale();
-      if (apiBaseInput) {
-        const existing = apiBaseInput.value.trim();
-        if (!existing || (existing === "http://localhost:8080" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1")) {
-          apiBaseInput.value = inferApiBase();
+      async function handleSuggestedAction(action) {
+        if (!action || !action.action_type) return;
+
+        const payload = action.payload || {};
+        if (action.action_type === "create_reminder") {
+          const result = await request("/v1/actions/reminder", "POST", {
+            title: payload.title || "Atlas Masa reminder",
+            details: payload.details || "",
+            due_at_utc: payload.due_at_utc,
+            reminders_app: payload.reminders_app || state.studio.reminders_app,
+          });
+
+          if (!result.ok) {
+            renderOutput(`${state.locale === "he" ? "יצירת תזכורת נכשלה" : "Reminder action failed"} (${result.status})`, ["reminder", "error"], result.payload);
+            return;
+          }
+
+          const reminder = result.payload;
+          if (reminder.app === "google_calendar") {
+            window.open(reminder.google_calendar_url, "_blank", "noopener");
+          } else if (reminder.app === "shortcuts") {
+            window.location.href = reminder.shortcuts_url;
+          }
+
+          downloadTextFile(reminder.ics_content, reminder.ics_filename || "atlas-reminder.ics", "text/calendar");
+          renderOutput(state.locale === "he" ? "נוצרה תזכורת + קובץ יומן" : "Reminder generated + calendar file", ["reminder", reminder.app], reminder);
+          return;
+        }
+
+        if (action.action_type === "create_alarm") {
+          const result = await request("/v1/actions/alarm", "POST", {
+            label: payload.label || "Atlas focus",
+            time_local: payload.time_local || "08:30",
+            days: payload.days || ["Sun", "Mon", "Tue", "Wed", "Thu"],
+            alarms_app: payload.alarms_app || state.studio.alarms_app,
+          });
+
+          if (!result.ok) {
+            renderOutput(`${state.locale === "he" ? "יצירת אזעקה נכשלה" : "Alarm action failed"} (${result.status})`, ["alarm", "error"], result.payload);
+            return;
+          }
+
+          const alarm = result.payload;
+          if (alarm.app === "shortcuts") {
+            window.location.href = alarm.shortcuts_url;
+          } else {
+            window.location.href = alarm.clock_url;
+          }
+          renderOutput(state.locale === "he" ? "נפתחה הגדרת אזעקה" : "Alarm setup opened", ["alarm", alarm.app], alarm);
+          return;
+        }
+
+        if (action.action_type === "open_company_status") {
+          const result = await request("/v1/company/status");
+          if (!result.ok) {
+            renderOutput(`${state.locale === "he" ? "טעינת סטטוס נכשלה" : "Company status failed"} (${result.status})`, ["company", "error"], result.payload);
+            return;
+          }
+          renderOutput(result.payload.message || "", ["company", "status"], result.payload);
+          return;
+        }
+
+        if (action.payload && action.payload.text) {
+          messageEl.value = action.payload.text;
         }
       }
-      renderUserState();
-      renderLocaleLabel();
-      updateDays();
-      renderMode();
-      setPressed(styleSegment, "style", state.style);
 
-      window.addEventListener("atlas:language-change", (event) => {
-        state.locale = event && event.detail && event.detail.code ? event.detail.code : "he";
-        renderLocaleLabel();
-        updateDays();
-        renderPromptSuggestions();
-      });
+      function downloadTextFile(content, filename, mime) {
+        const blob = new Blob([content], { type: mime || "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
 
-      if (debugMode) {
-        document.querySelectorAll(".debug-only").forEach((element) => {
-          element.classList.remove("hidden");
+      function initVoice() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          voiceStatus.textContent = state.locale === "he" ? "מצב קולי: לא נתמך בדפדפן" : "Voice: browser unsupported";
+          return;
+        }
+
+        recognition = new SpeechRecognition();
+        recognition.lang = state.locale === "he" ? "he-IL" : "en-US";
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+          state.listening = true;
+          voiceStatus.textContent = state.locale === "he" ? "מקשיב..." : "Listening...";
+        };
+
+        recognition.onend = () => {
+          state.listening = false;
+          voiceStatus.textContent = state.locale === "he" ? "מצב קולי: מוכן" : "Voice: ready";
+        };
+
+        recognition.onerror = (event) => {
+          voiceStatus.textContent = `${state.locale === "he" ? "שגיאת קול" : "Voice error"}: ${event.error}`;
+        };
+
+        recognition.onresult = (event) => {
+          const transcript = event.results && event.results[0] && event.results[0][0] ? event.results[0][0].transcript : "";
+          if (!transcript) return;
+
+          if (state.feature === "survey" && state.survey.question) {
+            submitSurveyAnswer(transcript.trim());
+          } else {
+            messageEl.value = transcript.trim();
+          }
+        };
+      }
+
+      function toggleVoiceInput() {
+        if (!recognition) {
+          renderOutput(state.locale === "he" ? "הדפדפן לא תומך קלט קולי" : "Browser does not support voice input", ["voice"]);
+          return;
+        }
+        if (state.listening) {
+          recognition.stop();
+        } else {
+          recognition.lang = state.locale === "he" ? "he-IL" : "en-US";
+          recognition.start();
+        }
+      }
+
+      function speakOutput() {
+        if (!window.speechSynthesis || !state.lastOutput) return;
+        if (state.studio.voice_mode === "disabled") return;
+        const utterance = new SpeechSynthesisUtterance(state.lastOutput);
+        utterance.lang = state.locale === "he" ? "he-IL" : "en-US";
+        utterance.rate = 1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function setupEvents() {
+        featureSegment.addEventListener("click", (event) => {
+          const button = event.target.closest("button[data-feature]");
+          if (!button) return;
+          state.feature = button.dataset.feature;
+          renderFeature();
+        });
+
+        modeSegment.addEventListener("click", (event) => {
+          const button = event.target.closest("button[data-mode]");
+          if (!button) return;
+          state.mode = button.dataset.mode;
+          renderMode();
+        });
+
+        styleSegment.addEventListener("click", (event) => {
+          const button = event.target.closest("button[data-style]");
+          if (!button) return;
+          state.style = button.dataset.style;
+          setPressed(styleSegment, "style", state.style);
+        });
+
+        googleSigninBtn.addEventListener("click", startGoogleOAuth);
+        passkeySigninBtn.addEventListener("click", signInWithPasskey);
+        passkeyEnrollBtn.addEventListener("click", enrollPasskey);
+        subscribeMonthlyBtn.addEventListener("click", subscribeMonthly);
+        signoutBtn.addEventListener("click", logout);
+        saveProfileBtn.addEventListener("click", saveProfile);
+        sendBtn.addEventListener("click", sendChat);
+        voiceBtn.addEventListener("click", toggleVoiceInput);
+        speakBtn.addEventListener("click", speakOutput);
+        saveStudioBtn.addEventListener("click", saveStudioPreferences);
+        loadStudioBtn.addEventListener("click", loadStudioPreferences);
+        saveNoteBtn.addEventListener("click", saveNote);
+        rewriteNoteBtn.addEventListener("click", rewriteActiveNote);
+        loadNotesBtn.addEventListener("click", loadNotes);
+        importMemoryBtn.addEventListener("click", importMemoryBatch);
+        surveyNextBtn.addEventListener("click", () => submitSurveyAnswer());
+        surveyVoiceBtn.addEventListener("click", toggleVoiceInput);
+        sendFeedbackBtn.addEventListener("click", submitFeedback);
+        refreshFeedBtn.addEventListener("click", loadProactiveFeed);
+
+        window.addEventListener("atlas:language-change", (event) => {
+          state.locale = (event && event.detail && event.detail.code) || "he";
+          renderLocaleLabel();
+          renderPromptSuggestions();
+          if (recognition) recognition.lang = state.locale === "he" ? "he-IL" : "en-US";
         });
       }
 
-      restoreSessionUser();
-      runStartupHealthCheck();
+      function setupDebugMode() {
+        const debug = new URLSearchParams(window.location.search).get("debug") === "1";
+        if (!debug) return;
+        const details = document.getElementById("debug-controls");
+        if (details) details.style.display = "block";
+      }
+
+      function handleStatusFromQuery() {
+        const params = new URLSearchParams(window.location.search);
+        const auth = params.get("auth");
+        const reason = params.get("reason");
+        const billing = params.get("billing");
+
+        if (auth === "success") {
+          renderOutput(state.locale === "he" ? "Google OAuth הושלם בהצלחה." : "Google OAuth completed successfully.", ["auth", "google", "oauth"]);
+        } else if (auth === "error") {
+          renderOutput(`${state.locale === "he" ? "שגיאת OAuth" : "OAuth error"}: ${reason || "unknown"}`, ["auth", "oauth", "error"]);
+        }
+
+        if (billing === "success") {
+          renderOutput(state.locale === "he" ? "המנוי החודשי הופעל בהצלחה." : "Monthly subscription activated successfully.", ["billing", "active"]);
+        } else if (billing === "cancel") {
+          renderOutput(state.locale === "he" ? "תהליך התשלום בוטל." : "Checkout was canceled.", ["billing", "canceled"]);
+        }
+      }
+
+      async function bootstrap() {
+        state.locale = getSiteLocale();
+        renderLocaleLabel();
+        setupDebugMode();
+        handleStatusFromQuery();
+        if (apiBaseInput) {
+          apiBaseInput.value = inferApiBase();
+        }
+
+        setupEvents();
+        renderFeature();
+        renderMode();
+        setPressed(styleSegment, "style", state.style);
+        syncStudioControls();
+        initVoice();
+
+        await runHealthCheck();
+        await restoreSession();
+        await loadStudioPreferences();
+        await loadNotes();
+        await loadSurveyNext();
+        await loadProactiveFeed();
+
+        // Unprompted proactive refresh loop (mobile-safe cadence).
+        setInterval(() => {
+          if (state.studio.proactive_mode !== "disabled") {
+            loadProactiveFeed();
+          }
+        }, 120000);
+      }
+
+      bootstrap();
     </script>
   </body>
 </html>

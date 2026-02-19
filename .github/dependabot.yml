@@ -1,0 +1,51 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/atlas-concierge"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Jerusalem"
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
+    commit-message:
+      prefix: "deps(rust)"
+      include: "scope"
+    groups:
+      rust-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+      rust-patch:
+        applies-to: "version-updates"
+        update-types:
+          - "patch"
+          - "minor"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:20"
+      timezone: "Asia/Jerusalem"
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
+    commit-message:
+      prefix: "deps(web)"
+      include: "scope"
+    groups:
+      npm-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+      npm-patch:
+        applies-to: "version-updates"
+        update-types:
+          - "patch"
+          - "minor"
+        patterns:
+          - "*"
