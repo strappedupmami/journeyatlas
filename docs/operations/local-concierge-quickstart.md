@@ -34,7 +34,7 @@ Expected:
 
 ## 2) Open UI
 Open directly:
-- `/Users/avrohom/Downloads/journeyatlas/apps/website/homepage/concierge-local.html`
+- `/Users/avrohom/Downloads/journeyatlas/website/concierge-local.html`
 
 Recommended (avoids Safari `Load failed` issues from `file://`):
 

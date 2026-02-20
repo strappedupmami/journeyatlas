@@ -22,4 +22,4 @@ Need a travel/housing ecosystem optimized for movement and spontaneity.
 
 ## Applied on site
 - Added variant page:
-  - `apps/website/homepage/variants/prompt-series/010-movement-first-ecosystem.html`
+  - `website/variants/prompt-series/010-movement-first-ecosystem.html`

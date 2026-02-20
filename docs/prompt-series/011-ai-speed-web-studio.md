@@ -18,4 +18,4 @@ Potential to build and maintain high-level websites for Israeli and English-spea
 
 ## Applied on site
 - Added variant page:
-  - `apps/website/homepage/variants/prompt-series/011-ai-speed-web-studio.html`
+  - `website/variants/prompt-series/011-ai-speed-web-studio.html`

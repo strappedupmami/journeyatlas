@@ -17,4 +17,4 @@
 - Founder-story longform video pipeline for future trust content.
 
 ## Applied to variants
-- `apps/website/homepage/variants/prompt-series/008-hebrew-build-now-launch-later.html`
+- `website/variants/prompt-series/008-hebrew-build-now-launch-later.html`
