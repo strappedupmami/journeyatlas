@@ -13,7 +13,7 @@ use atlas_ml::AtlasMlStack;
 use atlas_observability::AppMetrics;
 use atlas_retrieval::HybridRetriever;
 use atlas_storage::Store;
-use axum::extract::{Json, Path as AxumPath, Query, State};
+use axum::extract::{Form, Json, Path as AxumPath, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect, Response};
@@ -649,7 +649,10 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/v1/auth/google/start", get(auth_google_start))
         .route("/v1/auth/google/callback", get(auth_google_callback))
         .route("/v1/auth/apple/start", get(auth_apple_start))
-        .route("/v1/auth/apple/callback", get(auth_apple_callback))
+        .route(
+            "/v1/auth/apple/callback",
+            get(auth_apple_callback_get).post(auth_apple_callback_post),
+        )
         .route(
             "/v1/auth/passkey/register/start",
             post(auth_passkey_register_start),
@@ -1049,7 +1052,7 @@ async fn auth_apple_start(
     );
 
     let authorize_url = format!(
-        "https://appleid.apple.com/auth/authorize?client_id={}&redirect_uri={}&response_type=code&response_mode=query&scope={}&state={}&nonce={}",
+        "https://appleid.apple.com/auth/authorize?client_id={}&redirect_uri={}&response_type=code&response_mode=form_post&scope={}&state={}&nonce={}",
         pct_encode(config.client_id.as_str()),
         pct_encode(config.redirect_uri.as_str()),
         pct_encode("name email"),
@@ -1066,10 +1069,21 @@ async fn auth_apple_start(
         .into_response()
 }
 
-async fn auth_apple_callback(
+async fn auth_apple_callback_get(
     State(state): State<ApiState>,
     Query(query): Query<AppleOAuthCallbackQuery>,
 ) -> impl IntoResponse {
+    auth_apple_callback_inner(state, query).await
+}
+
+async fn auth_apple_callback_post(
+    State(state): State<ApiState>,
+    Form(form): Form<AppleOAuthCallbackQuery>,
+) -> impl IntoResponse {
+    auth_apple_callback_inner(state, form).await
+}
+
+async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQuery) -> Response {
     let Some(config) = state.apple_oauth.as_ref() else {
         return Redirect::to("/").into_response();
     };
