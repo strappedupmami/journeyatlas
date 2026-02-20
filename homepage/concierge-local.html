@@ -962,18 +962,20 @@
         const fromQuery = params.get("api_base");
         const fromWindow =
           typeof window.ATLAS_API_BASE === "string" ? window.ATLAS_API_BASE : "";
+        const host = window.location.hostname;
+        const isProdDomain = host === "atlasmasa.com" || host === "www.atlasmasa.com";
         const candidates = [
           apiBaseInput && apiBaseInput.value ? apiBaseInput.value : "",
           fromQuery,
           fromWindow,
+          isProdDomain ? "https://api.atlasmasa.com" : "",
           inferApiBase(),
         ]
           .map(normalizeApiBase)
           .filter(Boolean);
 
-        const host = window.location.hostname;
         if (host === "atlasmasa.com" || host === "www.atlasmasa.com") {
-          candidates.push("https://api.atlasmasa.com");
+          candidates.push(window.location.origin);
         }
 
         return [...new Set(candidates)];
@@ -2094,8 +2096,10 @@
               ? "השרת לא זמין כרגע. הופעל מצב סקר מקומי עד שחיבור ה-API יחזור."
               : "API is currently unavailable. Local survey mode is active until connectivity returns.";
           renderOutput(
-            `${state.locale === "he" ? "טעינת סקר מהשרת נכשלה" : "Survey API load failed"} (${result.status || "network"})`,
-            ["survey", "fallback", "local-mode"],
+            state.locale === "he"
+              ? "עברנו אוטומטית לסקר מקומי עד שחיבור השרת יחזור."
+              : "Switched automatically to local survey mode until API connectivity returns.",
+            ["survey", "adaptive", "local-mode"],
             result.payload
           );
           return;
