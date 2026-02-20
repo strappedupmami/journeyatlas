@@ -245,6 +245,8 @@ struct SurveyStateRecord {
     user_id: String,
     answers: HashMap<String, String>,
     completed: bool,
+    started_at: Option<String>,
+    completed_at: Option<String>,
     updated_at: String,
 }
 
@@ -284,6 +286,7 @@ struct SurveyAnswerRequest {
     user_id: Option<String>,
     question_id: String,
     answer: String,
+    locale: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -300,6 +303,9 @@ struct ProactiveFeedItem {
 struct ProactiveFeedResponse {
     generated_at: String,
     items: Vec<ProactiveFeedItem>,
+    feed_ready: bool,
+    gate_reason: Option<String>,
+    required_minutes: u32,
     company_status: CompanyStatusRecord,
 }
 
@@ -315,6 +321,7 @@ struct CompanyStatusRecord {
 #[derive(Debug, Clone, Deserialize)]
 struct UserLookupQuery {
     user_id: Option<String>,
+    locale: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2805,12 +2812,7 @@ async fn survey_next(
     Query(query): Query<UserLookupQuery>,
 ) -> impl IntoResponse {
     let user_id = resolve_user_id_or_guest(&state, &headers, query.user_id.clone());
-    let user_locale = state
-        .users
-        .read()
-        .get(&user_id)
-        .map(|user| user.locale.clone())
-        .unwrap_or_else(|| "he".to_string());
+    let user_locale = resolve_request_locale(&state, &user_id, query.locale.as_deref());
 
     let survey_state = state
         .survey_states
@@ -2821,6 +2823,8 @@ async fn survey_next(
             user_id: user_id.clone(),
             answers: HashMap::new(),
             completed: false,
+            started_at: None,
+            completed_at: None,
             updated_at: chrono::Utc::now().to_rfc3339(),
         });
 
@@ -2865,29 +2869,38 @@ async fn survey_answer(
     }
 
     let user_id = resolve_user_id_or_guest(&state, &headers, input.user_id.clone());
-    let user_locale = state
-        .users
-        .read()
-        .get(&user_id)
-        .map(|user| user.locale.clone())
-        .unwrap_or_else(|| "he".to_string());
+    let user_locale = resolve_request_locale(&state, &user_id, input.locale.as_deref());
 
     let persisted_user = {
         let mut states = state.survey_states.write();
+        let now = chrono::Utc::now();
         let entry = states
             .entry(user_id.clone())
             .or_insert_with(|| SurveyStateRecord {
                 user_id: user_id.clone(),
                 answers: HashMap::new(),
                 completed: false,
-                updated_at: chrono::Utc::now().to_rfc3339(),
+                started_at: None,
+                completed_at: None,
+                updated_at: now.to_rfc3339(),
             });
+        if entry.started_at.is_none() {
+            entry.started_at = Some(now.to_rfc3339());
+        }
         entry.answers.insert(
             input.question_id.trim().to_string(),
             input.answer.trim().to_string(),
         );
         entry.completed = next_survey_question(&user_locale, &entry.answers).is_none();
-        entry.updated_at = chrono::Utc::now().to_rfc3339();
+        entry.completed_at = if entry.completed {
+            entry
+                .completed_at
+                .clone()
+                .or_else(|| Some(now.to_rfc3339()))
+        } else {
+            None
+        };
+        entry.updated_at = now.to_rfc3339();
         entry.user_id.clone()
     };
     let _ = persist_survey_state_if_configured(&state, persisted_user.as_str()).await;
@@ -2923,6 +2936,8 @@ async fn survey_answer(
                 user_id: user_id.clone(),
                 answers: HashMap::new(),
                 completed: false,
+                started_at: None,
+                completed_at: None,
                 updated_at: chrono::Utc::now().to_rfc3339(),
             });
 
@@ -2954,7 +2969,10 @@ async fn feed_proactive(
     headers: HeaderMap,
     Query(query): Query<UserLookupQuery>,
 ) -> impl IntoResponse {
+    const MIN_SURVEY_MINUTES: u32 = 20;
+
     let user_id = resolve_user_id_or_guest(&state, &headers, query.user_id.clone());
+    let request_locale = resolve_request_locale(&state, &user_id, query.locale.as_deref());
     let user = state
         .users
         .read()
@@ -2965,7 +2983,7 @@ async fn feed_proactive(
             provider: "guest".to_string(),
             email: "guest@atlasmasa.local".to_string(),
             name: "Guest".to_string(),
-            locale: "he".to_string(),
+            locale: request_locale.clone(),
             trip_style: Some("mixed".to_string()),
             risk_preference: Some("medium".to_string()),
             memory_opt_in: true,
@@ -2973,6 +2991,8 @@ async fn feed_proactive(
             created_at: chrono::Utc::now().to_rfc3339(),
             updated_at: chrono::Utc::now().to_rfc3339(),
         });
+    let mut effective_user = user;
+    effective_user.locale = request_locale.clone();
 
     let studio_pref = state
         .studio_preferences
@@ -2987,19 +3007,48 @@ async fn feed_proactive(
         .get(&user_id)
         .cloned()
         .unwrap_or_default();
-    let items = build_proactive_feed(
-        &state.company_status,
-        &user,
-        Some(&studio_pref),
-        survey_state.as_ref(),
-        Some(note_items.as_slice()),
-    );
+    let elapsed_minutes = survey_state
+        .as_ref()
+        .and_then(survey_elapsed_minutes)
+        .unwrap_or(0);
+    let survey_complete = survey_state
+        .as_ref()
+        .map(|value| value.completed)
+        .unwrap_or(false);
+    let feed_ready = survey_complete && elapsed_minutes >= MIN_SURVEY_MINUTES;
+    let gate_reason = if feed_ready {
+        None
+    } else if request_locale.starts_with("he") {
+        Some(format!(
+            "זרם הביצוע ייפתח אחרי השלמת סקר העומק ולאחר לפחות {} דקות תהליך.",
+            MIN_SURVEY_MINUTES
+        ))
+    } else {
+        Some(format!(
+            "Execution Stream unlocks after completing the adaptive deep survey and at least {} minutes of survey process.",
+            MIN_SURVEY_MINUTES
+        ))
+    };
+    let items = if feed_ready {
+        build_proactive_feed(
+            &state.company_status,
+            &effective_user,
+            Some(&studio_pref),
+            survey_state.as_ref(),
+            Some(note_items.as_slice()),
+        )
+    } else {
+        Vec::new()
+    };
 
     (
         StatusCode::OK,
         Json(ProactiveFeedResponse {
             generated_at: chrono::Utc::now().to_rfc3339(),
             items,
+            feed_ready,
+            gate_reason,
+            required_minutes: MIN_SURVEY_MINUTES,
             company_status: state.company_status.clone(),
         }),
     )
@@ -3047,7 +3096,7 @@ async fn feedback_submit(
         tags: input.tags.unwrap_or_default(),
         target_employee: input
             .target_employee
-            .unwrap_or_else(|| "yasha".to_string())
+            .unwrap_or_else(|| "product_team".to_string())
             .trim()
             .to_lowercase(),
         source: input
@@ -3441,6 +3490,39 @@ fn resolve_user_id_or_guest(
     resolve_user_id(state, headers, explicit_user_id).unwrap_or_else(|| "guest".to_string())
 }
 
+fn resolve_request_locale(state: &ApiState, user_id: &str, requested: Option<&str>) -> String {
+    let requested = requested.unwrap_or_default().trim().to_lowercase();
+    if matches!(requested.as_str(), "he" | "en" | "ar" | "ru" | "fr") {
+        return requested;
+    }
+    state
+        .users
+        .read()
+        .get(user_id)
+        .map(|user| {
+            sanitize_enum_value(user.locale.as_str(), &["he", "en", "ar", "ru", "fr"], "en")
+        })
+        .unwrap_or_else(|| "en".to_string())
+}
+
+fn survey_elapsed_minutes(state: &SurveyStateRecord) -> Option<u32> {
+    let start = state
+        .started_at
+        .as_deref()
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())?;
+    let end = state
+        .completed_at
+        .as_deref()
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .unwrap_or_else(|| chrono::Utc::now().into());
+    let duration = end.signed_duration_since(start);
+    if duration.num_minutes() < 0 {
+        Some(0)
+    } else {
+        Some(duration.num_minutes() as u32)
+    }
+}
+
 fn default_studio_preferences(user_id: &str) -> StudioPreferencesRecord {
     StudioPreferencesRecord {
         user_id: user_id.to_string(),
@@ -3676,7 +3758,7 @@ fn format_by_mode(
 }
 
 fn build_proactive_feed(
-    company_status: &CompanyStatusRecord,
+    _company_status: &CompanyStatusRecord,
     user: &UserRecord,
     prefs: Option<&StudioPreferencesRecord>,
     survey: Option<&SurveyStateRecord>,
@@ -3686,10 +3768,6 @@ fn build_proactive_feed(
         .trip_style
         .clone()
         .unwrap_or_else(|| "mixed".to_string());
-    let risk = user
-        .risk_preference
-        .clone()
-        .unwrap_or_else(|| "medium".to_string());
     let reminder_app = prefs
         .map(|value| value.reminders_app.clone())
         .unwrap_or_else(|| "google_calendar".to_string());
@@ -3697,82 +3775,56 @@ fn build_proactive_feed(
         .map(|value| value.alarms_app.clone())
         .unwrap_or_else(|| "apple_clock".to_string());
 
-    let mut items = vec![
-        ProactiveFeedItem {
-            id: "daily_momentum".to_string(),
-            title: if user.locale == "he" {
-                "תכנית מומנטום יומית".to_string()
-            } else {
-                "Daily momentum plan".to_string()
-            },
-            summary: if user.locale == "he" {
-                "להגדיר יעד יומי, להפעיל תזכורת, ולבצע בלוק פוקוס ראשון תוך 30 דקות.".to_string()
-            } else {
-                "Define one daily target, trigger a reminder, and execute first focus block in 30 minutes."
-                    .to_string()
-            },
-            why_now: if user.locale == "he" {
-                format!("העדפות פעילות: סגנון {}, רמת סיכון {}.", style, risk)
-            } else {
-                format!("Your profile suggests style={} and risk={}.", style, risk)
-            },
-            priority: "high".to_string(),
-            actions: vec![
-                atlas_core::SuggestedAction {
-                    action_type: "create_reminder".to_string(),
-                    label: if user.locale == "he" {
-                        "תזכורת לביצוע".to_string()
-                    } else {
-                        "Execution reminder".to_string()
-                    },
-                    payload: serde_json::json!({
-                        "title": "Atlas Masa daily momentum",
-                        "details": "Execute first strategic action now",
-                        "due_at_utc": (chrono::Utc::now() + chrono::Duration::minutes(20)).to_rfc3339(),
-                        "reminders_app": reminder_app
-                    }),
-                },
-                atlas_core::SuggestedAction {
-                    action_type: "create_alarm".to_string(),
-                    label: if user.locale == "he" {
-                        "אזעקת פוקוס".to_string()
-                    } else {
-                        "Focus alarm".to_string()
-                    },
-                    payload: serde_json::json!({
-                        "label": "Atlas focus sprint",
-                        "time_local": "09:00",
-                        "days": ["Sun","Mon","Tue","Wed","Thu"],
-                        "alarms_app": alarm_app
-                    }),
-                },
-            ],
+    let mut items = vec![ProactiveFeedItem {
+        id: "daily_momentum".to_string(),
+        title: if user.locale == "he" {
+            "תכנית מומנטום יומית".to_string()
+        } else {
+            "Daily momentum plan".to_string()
         },
-        ProactiveFeedItem {
-            id: "company_update".to_string(),
-            title: if user.locale == "he" {
-                "עדכון מערכת אטלס מסע".to_string()
-            } else {
-                "Atlas Masa system update".to_string()
-            },
-            summary: company_status.message.clone(),
-            why_now: if user.locale == "he" {
-                "המערכת שולחת עדכונים יזומים כדי שתדעו לאן החברה מתקדמת.".to_string()
-            } else {
-                "Proactive updates keep users aligned with product progress.".to_string()
-            },
-            priority: "medium".to_string(),
-            actions: vec![atlas_core::SuggestedAction {
-                action_type: "open_company_status".to_string(),
+        summary: if user.locale == "he" {
+            "להגדיר יעד יומי, להפעיל תזכורת, ולבצע בלוק פוקוס ראשון תוך 30 דקות.".to_string()
+        } else {
+            "Define one daily target, trigger a reminder, and execute first focus block in 30 minutes."
+                .to_string()
+        },
+        why_now: if user.locale == "he" {
+            format!("העדפות פעילות: סגנון {}.", style)
+        } else {
+            format!("Your profile suggests style={}.", style)
+        },
+        priority: "high".to_string(),
+        actions: vec![
+            atlas_core::SuggestedAction {
+                action_type: "create_reminder".to_string(),
                 label: if user.locale == "he" {
-                    "פתיחת סטטוס מלא".to_string()
+                    "תזכורת לביצוע".to_string()
                 } else {
-                    "Open full status".to_string()
+                    "Execution reminder".to_string()
                 },
-                payload: serde_json::json!({ "endpoint": "/v1/company/status" }),
-            }],
-        },
-    ];
+                payload: serde_json::json!({
+                    "title": "Atlas Masa daily momentum",
+                    "details": "Execute first strategic action now",
+                    "due_at_utc": (chrono::Utc::now() + chrono::Duration::minutes(20)).to_rfc3339(),
+                    "reminders_app": reminder_app
+                }),
+            },
+            atlas_core::SuggestedAction {
+                action_type: "create_alarm".to_string(),
+                label: if user.locale == "he" {
+                    "אזעקת פוקוס".to_string()
+                } else {
+                    "Focus alarm".to_string()
+                },
+                payload: serde_json::json!({
+                    "label": "Atlas focus sprint",
+                    "time_local": "09:00",
+                    "days": ["Sun","Mon","Tue","Wed","Thu"],
+                    "alarms_app": alarm_app
+                }),
+            },
+        ],
+    }];
 
     if let Some(survey_state) = survey {
         if survey_state

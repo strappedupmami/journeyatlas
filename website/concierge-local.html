@@ -6,7 +6,7 @@
     <title>Atlas Masa AI Studio | אטלס מסע</title>
     <meta
       name="description"
-      content="מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת ופיד יזום."
+      content="מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת וזרם ביצוע."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -301,7 +301,7 @@
           <button class="ai-quickbar__item" type="button" data-launch="survey" data-i18n="studio.quick.survey">סקר עומק</button>
           <button class="ai-quickbar__item" type="button" data-launch="notes" data-i18n="studio.quick.notes">לכידת פתקים</button>
           <button class="ai-quickbar__item" type="button" data-launch="memory" data-i18n="studio.quick.memory">ייבוא זיכרון</button>
-          <button class="ai-quickbar__item" type="button" data-launch="feed" data-i18n="studio.quick.feed">פיד יזום</button>
+          <button class="ai-quickbar__item" type="button" data-launch="feed" data-i18n="studio.quick.feed">זרם ביצוע</button>
           <button class="ai-quickbar__item" type="button" data-launch="login" data-i18n="studio.quick.login">התחברות</button>
           <button class="ai-quickbar__item" type="button" data-launch="signup" data-i18n="studio.quick.signup">הרשמה</button>
         </div>
@@ -314,7 +314,7 @@
           <h1 data-i18n="studio.title">סטודיו AI לניהול חיים, עבודה ותנועה</h1>
           <p class="sub" data-i18n="studio.sub">
             הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח,
-            ומספקת פיד יזום כדי לקדם אותך ביום-יום.
+            ומספקת זרם ביצוע כדי לקדם אותך ביום-יום.
           </p>
         </div>
 
@@ -325,7 +325,7 @@
               <button class="chip" data-feature="concierge" aria-pressed="true" type="button" data-i18n="studio.feature.concierge">קונסיירז׳</button>
               <button class="chip" data-feature="studio" aria-pressed="false" type="button" data-i18n="studio.feature.studio">סטודיו תשובות</button>
               <button class="chip" data-feature="survey" aria-pressed="false" type="button" data-i18n="studio.feature.survey">סקר עומק מותאם</button>
-              <button class="chip" data-feature="feed" aria-pressed="false" type="button" data-i18n="studio.feature.feed">פיד יזום</button>
+              <button class="chip" data-feature="feed" aria-pressed="false" type="button" data-i18n="studio.feature.feed">זרם ביצוע</button>
             </div>
 
             <div class="survey-card" style="margin-top:12px">
@@ -510,21 +510,17 @@
                 <button class="btn btn--ghost" id="survey-voice-btn" type="button" data-i18n="studio.surveyVoice">תשובה קולית</button>
               </div>
 
-              <div class="field">
-                <label data-i18n="studio.feedbackLabel">פידבק לצוות (מנותב ליָשה כברירת מחדל)</label>
-                <textarea id="feedback-message" data-i18n-placeholder="studio.feedbackPh" placeholder="מה חסר לך כדי לתפקד טוב יותר ביום-יום?"></textarea>
-              </div>
-              <div class="actions">
-                <button class="btn btn--ghost" id="send-feedback-btn" type="button" data-i18n="studio.sendFeedback">שליחת פידבק</button>
-              </div>
+              <p class="muted-line" data-i18n="studio.feedbackHint">
+                אם המערכת מזהה חיכוך משמעותי, היא תציע לשלוח דו״ח אנונימי ומפורט לצוות המוצר.
+              </p>
             </section>
 
             <section class="feature-block" id="feature-feed">
               <p class="subtle" data-i18n="studio.feedSub">
-                פיד יזום שמניע ביצוע: משימות יומיות, תזכורות, אזעקות ועדכוני חברה.
+                זרם ביצוע מותאם נפתח רק לאחר השלמת סקר עומק מלא (20+ דקות) כדי לייצר תכנית איכותית.
               </p>
               <div class="actions">
-                <button class="btn btn--primary" id="refresh-feed-btn" type="button" data-i18n="studio.refreshFeed">רענון פיד</button>
+                <button class="btn btn--primary" id="refresh-feed-btn" type="button" data-i18n="studio.refreshFeed">רענון זרם</button>
               </div>
               <div class="stack" id="feed-list"></div>
             </section>
@@ -546,7 +542,7 @@
           <article class="card panel">
             <h2 data-i18n="studio.outputTitle">פלט מערכת</h2>
             <div class="output" id="output-box" data-i18n="studio.outputReady">
-              המערכת מוכנה. התחילו עם שאלה, סקר, או פיד יזום.
+              המערכת מוכנה. התחילו עם שאלה או סקר עומק.
             </div>
             <div class="tag-row" id="tag-row"></div>
             <div class="action-list" id="action-list"></div>
@@ -555,9 +551,9 @@
               <h3 data-i18n="studio.autoTitle">מה המערכת עושה אוטומטית?</h3>
               <div class="pill-line">
                 <span class="tag" data-i18n="studio.auto1">תשובות מותאמות לפרופיל</span>
-                <span class="tag" data-i18n="studio.auto2">פיד יזום לפי עומס יומי</span>
+                <span class="tag" data-i18n="studio.auto2">זרם ביצוע לפי עומס יומי</span>
                 <span class="tag" data-i18n="studio.auto3">הצעות תזכורת ואזעקה</span>
-                <span class="tag" data-i18n="studio.auto4">איסוף פידבק ורוטינג לצוות</span>
+                <span class="tag" data-i18n="studio.auto4">דיווח אנונימי חכם לצוות לפי צורך</span>
               </div>
             </div>
           </article>
@@ -571,7 +567,7 @@
           meta: {
             title: "Atlas Masa AI Studio | אטלס מסע",
             description:
-              "מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת ופיד יזום.",
+              "מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת וזרם ביצוע.",
           },
           studio: {
             nav: {
@@ -584,13 +580,13 @@
             },
             pill: "Atlas Masa AI",
             title: "סטודיו AI לניהול חיים, עבודה ותנועה",
-            sub: "הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח, ומספקת פיד יזום כדי לקדם אותך ביום-יום.",
+            sub: "הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח, ומספקת זרם ביצוע כדי לקדם אותך ביום-יום.",
             featureTitle: "איזה פיצ׳ר מפעילים עכשיו?",
             feature: {
               concierge: "קונסיירז׳",
               studio: "סטודיו תשובות",
               survey: "סקר עומק מותאם",
-              feed: "פיד יזום",
+              feed: "זרם ביצוע",
             },
             quickAria: "התחלה מהירה לפיצ׳רי AI",
             quickLabel: "התחלה מהירה עם AI:",
@@ -601,7 +597,7 @@
               survey: "סקר עומק",
               notes: "לכידת פתקים",
               memory: "ייבוא זיכרון",
-              feed: "פיד יזום",
+              feed: "זרם ביצוע",
               login: "התחברות",
               signup: "הרשמה",
             },
@@ -658,25 +654,23 @@
             surveySub: "סקר עומק מותאם בזמן אמת. כל תשובה משנה את השאלה הבאה ואת המלצות המערכת.",
             surveyNext: "המשך",
             surveyVoice: "תשובה קולית",
-            feedbackLabel: "פידבק לצוות (מנותב ליָשה כברירת מחדל)",
-            feedbackPh: "מה חסר לך כדי לתפקד טוב יותר ביום-יום?",
-            sendFeedback: "שליחת פידבק",
-            feedSub: "פיד יזום שמניע ביצוע: משימות יומיות, תזכורות, אזעקות ועדכוני חברה.",
-            refreshFeed: "רענון פיד",
+            feedbackHint: "אם המערכת מזהה חיכוך משמעותי, היא תציע לשלוח דו״ח אנונימי ומפורט לצוות המוצר.",
+            feedSub: "זרם ביצוע מותאם נפתח רק לאחר השלמת סקר עומק מלא (20+ דקות) כדי לייצר תכנית איכותית.",
+            refreshFeed: "רענון זרם",
             outputTitle: "פלט מערכת",
-            outputReady: "המערכת מוכנה. התחילו עם שאלה, סקר, או פיד יזום.",
+            outputReady: "המערכת מוכנה. התחילו עם שאלה או סקר עומק.",
             autoTitle: "מה המערכת עושה אוטומטית?",
             auto1: "תשובות מותאמות לפרופיל",
-            auto2: "פיד יזום לפי עומס יומי",
+            auto2: "זרם ביצוע לפי עומס יומי",
             auto3: "הצעות תזכורת ואזעקה",
-            auto4: "איסוף פידבק ורוטינג לצוות",
+            auto4: "דיווח אנונימי חכם לצוות לפי צורך",
           },
         },
         en: {
           meta: {
             title: "Atlas Masa AI Studio",
             description:
-              "Personal AI for movement, work, and life: concierge, response studio, adaptive survey, and proactive feed.",
+              "Personal AI for movement, work, and life: concierge, response studio, adaptive survey, and execution stream.",
           },
           studio: {
             nav: {
@@ -695,7 +689,7 @@
               concierge: "Concierge",
               studio: "Response Studio",
               survey: "Adaptive Deep Survey",
-              feed: "Proactive Feed",
+              feed: "Execution Stream",
             },
             quickAria: "Quick launch AI features",
             quickLabel: "AI quick start:",
@@ -706,7 +700,7 @@
               survey: "Deep survey",
               notes: "Notes capture",
               memory: "Memory import",
-              feed: "Proactive feed",
+              feed: "Execution stream",
               login: "Log in",
               signup: "Sign up",
             },
@@ -759,18 +753,16 @@
             surveySub: "Adaptive deep survey in real-time. Every answer changes what comes next.",
             surveyNext: "Next",
             surveyVoice: "Voice answer",
-            feedbackLabel: "Feedback to team (routed to Yasha by default)",
-            feedbackPh: "What are you missing to function better daily?",
-            sendFeedback: "Send feedback",
-            feedSub: "Proactive feed for execution: daily actions, reminders, alarms, and company updates.",
-            refreshFeed: "Refresh feed",
+            feedbackHint: "When the system detects significant friction, it can offer to send a detailed anonymized report to the product team.",
+            feedSub: "Execution Stream unlocks only after completing the adaptive deep survey (20+ minutes) for higher-quality guidance.",
+            refreshFeed: "Refresh stream",
             outputTitle: "System output",
-            outputReady: "System is ready. Start with a prompt, survey, or proactive feed.",
+            outputReady: "System is ready. Start with a prompt or deep survey.",
             autoTitle: "What runs automatically?",
             auto1: "Profile-tailored responses",
-            auto2: "Proactive feed by daily pressure",
+            auto2: "Execution stream by daily pressure",
             auto3: "Reminder/alarm suggestions",
-            auto4: "Feedback collection and team routing",
+            auto4: "Smart anonymized product reporting",
           },
         },
       };
@@ -815,6 +807,7 @@
         notes: [],
         activeNoteId: null,
         lastOutput: "",
+        lastMomentumGateReason: "",
         listening: false,
       };
 
@@ -849,8 +842,6 @@
       const surveyProgressText = document.getElementById("survey-progress-text");
       const surveyNextBtn = document.getElementById("survey-next-btn");
       const surveyVoiceBtn = document.getElementById("survey-voice-btn");
-      const feedbackMessage = document.getElementById("feedback-message");
-      const sendFeedbackBtn = document.getElementById("send-feedback-btn");
       const refreshFeedBtn = document.getElementById("refresh-feed-btn");
       const feedList = document.getElementById("feed-list");
       const saveStudioBtn = document.getElementById("save-studio-btn");
@@ -1001,6 +992,27 @@
         button.title = enabled ? "" : reason;
       }
 
+      function setMomentumEnabled(enabled, reason) {
+        const title = enabled ? "" : reason || "";
+        document
+          .querySelectorAll('button[data-feature="feed"], button[data-launch="feed"], #refresh-feed-btn')
+          .forEach((button) => {
+            button.disabled = !enabled;
+            button.style.display = enabled ? "" : "none";
+            button.style.opacity = enabled ? "1" : "0.56";
+            button.style.cursor = enabled ? "pointer" : "not-allowed";
+            button.title = title;
+          });
+        const feedSection = document.getElementById("feature-feed");
+        if (feedSection) {
+          feedSection.style.display = enabled ? "" : "none";
+        }
+        if (!enabled && state.feature === "feed") {
+          state.feature = "survey";
+          renderFeature();
+        }
+      }
+
       function applyCapabilityGates() {
         const caps = state.capabilities || {};
         const authUnavailableMessage =
@@ -1100,7 +1112,11 @@
         if (!items.length) {
           const empty = document.createElement("div");
           empty.className = "tile";
-          empty.innerHTML = `<h4>אין כרגע פריטים יזומים</h4><p>רעננו פיד או השלימו סקר עומק.</p>`;
+          if (state.locale === "he") {
+            empty.innerHTML = `<h4>זרם הביצוע עדיין נעול</h4><p>השלימו סקר עומק מלא (20+ דקות) כדי לפתוח אותו.</p>`;
+          } else {
+            empty.innerHTML = `<h4>Execution Stream is locked</h4><p>Complete a full adaptive deep survey (20+ minutes) to unlock it.</p>`;
+          }
           feedList.appendChild(empty);
           return;
         }
@@ -1272,7 +1288,7 @@
         if (preset === "feed") {
           state.feature = "feed";
           renderFeature();
-          loadProactiveFeed();
+          loadProactiveFeed(false);
           if (shouldFocus) refreshFeedBtn.focus();
         }
       }
@@ -1317,32 +1333,38 @@
         return NEGATIVE_SIGNAL_PATTERNS.some((pattern) => normalized.includes(pattern));
       }
 
-      async function maybeOfferAutoReport(sourceText, sourceTag, severity = "high") {
-        if (!state.user) return;
-        if (!detectNegativeSignal(sourceText)) return;
+      function anonymizeReportText(text) {
+        return String(text || "")
+          .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email-redacted]")
+          .replace(/\+?\d[\d\s().-]{7,}\d/g, "[phone-redacted]")
+          .slice(0, 1500);
+      }
+
+      async function maybeOfferAutoReport(sourceText, sourceTag, severity = "high", force = false) {
+        if (!force && !detectNegativeSignal(sourceText)) return;
 
         const promptText =
           state.locale === "he"
-            ? "זיהינו סימן לתסכול. לשלוח דיווח קצר לצוות (ליָשה) כדי לשפר את המוצר?"
-            : "We detected possible frustration. Send a short report to the team (Yasha) to improve the product?";
+            ? "זיהינו חיכוך אפשרי. לשלוח דו״ח אנונימי ומפורט לצוות המוצר כדי לשפר את המערכת?"
+            : "We detected potential friction. Send a detailed anonymized report to the product team to improve the system?";
         if (!window.confirm(promptText)) return;
 
-        const message = String(sourceText || "").trim().slice(0, 1200);
+        const message = anonymizeReportText(sourceText);
         const result = await request("/v1/feedback/submit", "POST", {
           category: "ux",
           severity,
-          message,
-          tags: ["auto-detected-negative", sourceTag],
-          target_employee: "yasha",
+          message: `ANONYMIZED_PRODUCT_REPORT\nsignal=${sourceTag}\nlocale=${state.locale}\nfeature=${state.feature}\nmode=${state.mode}\nsummary=${message}`,
+          tags: ["auto-anonymized-report", sourceTag, `locale-${state.locale}`, `feature-${state.feature}`],
+          target_employee: "product_team",
           source: "concierge-auto-detect",
         });
 
         if (result.ok) {
           renderOutput(
             state.locale === "he"
-              ? "דיווח נשלח לצוות לטיפול מהיר."
-              : "Report sent to the team for rapid follow-up.",
-            ["feedback", "auto-report", "yasha"],
+              ? "דו״ח אנונימי נשלח לצוות המוצר."
+              : "An anonymized report was sent to the product team.",
+            ["feedback", "auto-report", "anonymized"],
             result.payload
           );
         }
@@ -2066,8 +2088,8 @@
             id: "trip_style",
             title: he ? "מה סגנון המסע המועדף עליך?" : "What is your preferred trip style?",
             description: he
-              ? "הבחירה הזו תשמש את המערכת להתאמות מסלול ופיד יזום."
-              : "This choice is used for route personalization and proactive feed tuning.",
+              ? "הבחירה הזו תשמש את המערכת להתאמות מסלול וזרם ביצוע."
+              : "This choice is used for route personalization and execution stream tuning.",
             kind: "choice",
             choices: [
               { value: "mixed", label: he ? "משולב" : "Mixed" },
@@ -2114,10 +2136,22 @@
       }
 
       async function loadSurveyNext() {
-        const result = await request("/v1/survey/next");
+        const result = await request(`/v1/survey/next?locale=${encodeURIComponent(state.locale)}`);
         if (!result.ok) {
+          await maybeOfferAutoReport(
+            `survey_api_fallback status=${result.status} message=${(result.payload && result.payload.message) || "unknown"}`,
+            "survey-api-fallback",
+            "normal",
+            true
+          );
           const payload = buildLocalSurveyPayload();
           renderSurvey(payload);
+          setMomentumEnabled(
+            false,
+            state.locale === "he"
+              ? "זרם ביצוע נפתח לאחר השלמת סקר עומק מלא."
+              : "Execution Stream unlocks after a full adaptive deep survey."
+          );
           surveyDescription.textContent =
             state.locale === "he"
               ? "השרת לא זמין כרגע. הופעל מצב סקר מקומי עד שחיבור ה-API יחזור."
@@ -2165,6 +2199,7 @@
           {
             question_id: state.survey.question.id,
             answer,
+            locale: state.locale,
           }
         );
 
@@ -2178,40 +2213,39 @@
         if (hints.length) {
           renderOutput(state.locale === "he" ? "עודכן פרופיל ההתאמה האישית" : "Personalization profile updated", ["survey", "adaptive"], { hints });
         }
-      }
-
-      async function submitFeedback() {
-        const message = feedbackMessage.value.trim();
-        if (!message) return;
-
-        const result = await request(
-          "/v1/feedback/submit",
-          "POST",
-          {
-            category: "product",
-            message,
-            severity: "normal",
-            tags: ["mobile", "daily-function"],
-            target_employee: "yasha",
-            source: "concierge-studio",
-          }
-        );
-
-        if (!result.ok) {
-          renderOutput(`${state.locale === "he" ? "פידבק לא נשלח" : "Feedback failed"} (${result.status})`, ["feedback", "error"], result.payload);
-          return;
+        if (!result.payload.question) {
+          await loadProactiveFeed(false);
         }
-
-        feedbackMessage.value = "";
-        renderOutput(state.locale === "he" ? "הפידבק נשלח לצוות" : "Feedback sent to team", ["feedback", "yasha"], result.payload);
       }
 
-      async function loadProactiveFeed() {
-        const result = await request("/v1/feed/proactive");
+      async function loadProactiveFeed(silent = false) {
+        const result = await request(`/v1/feed/proactive?locale=${encodeURIComponent(state.locale)}`);
         if (!result.ok) {
+          setMomentumEnabled(false, state.locale === "he" ? "זרם ביצוע אינו זמין כרגע." : "Execution Stream is currently unavailable.");
+          if (!silent) {
+            await maybeOfferAutoReport(
+              `execution_stream_unavailable status=${result.status} message=${(result.payload && result.payload.message) || "unknown"}`,
+              "execution-stream-unavailable",
+              "normal",
+              true
+            );
+          }
           renderFeed([]);
           return;
         }
+        if (result.payload && result.payload.feed_ready === false) {
+          setMomentumEnabled(false, result.payload.gate_reason || "");
+          renderFeed([]);
+          if (!silent && result.payload.gate_reason) {
+            if (state.lastMomentumGateReason !== result.payload.gate_reason) {
+              renderOutput(result.payload.gate_reason, ["execution-stream", "locked"], result.payload);
+            }
+            state.lastMomentumGateReason = result.payload.gate_reason;
+          }
+          return;
+        }
+        setMomentumEnabled(true, "");
+        state.lastMomentumGateReason = "";
         const items = result.payload.items || [];
         renderFeed(items);
       }
@@ -2494,15 +2528,21 @@
         importMemoryBtn.addEventListener("click", importMemoryBatch);
         surveyNextBtn.addEventListener("click", () => submitSurveyAnswer());
         surveyVoiceBtn.addEventListener("click", toggleVoiceInput);
-        sendFeedbackBtn.addEventListener("click", submitFeedback);
-        refreshFeedBtn.addEventListener("click", loadProactiveFeed);
+        refreshFeedBtn.addEventListener("click", () => loadProactiveFeed(false));
 
         window.addEventListener("atlas:language-change", (event) => {
           state.locale = (event && event.detail && event.detail.code) || "he";
           renderLocaleLabel();
           applyCapabilityGates();
           renderPromptSuggestions();
+          if (state.lastMomentumGateReason) {
+            setMomentumEnabled(false, state.lastMomentumGateReason);
+          }
           if (recognition) recognition.lang = state.locale === "he" ? "he-IL" : "en-US";
+          if (state.feature === "survey") {
+            loadSurveyNext();
+          }
+          loadProactiveFeed(true);
         });
       }
 
@@ -2565,6 +2605,7 @@
         setPressed(styleSegment, "style", state.style);
         syncStudioControls();
         applyCapabilityGates();
+        setMomentumEnabled(false, state.locale === "he" ? "נפתח לאחר סקר עומק מלא." : "Unlocks after full deep survey.");
         initVoice();
 
         await runHealthCheck();
@@ -2572,12 +2613,12 @@
         await loadStudioPreferences();
         await loadNotes();
         await loadSurveyNext();
-        await loadProactiveFeed();
+        await loadProactiveFeed(true);
 
         // Unprompted proactive refresh loop (mobile-safe cadence).
         setInterval(() => {
           if (state.studio.proactive_mode !== "disabled") {
-            loadProactiveFeed();
+            loadProactiveFeed(true);
           }
         }, 120000);
       }
