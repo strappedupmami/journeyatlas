@@ -427,6 +427,32 @@ html[lang="ar"] .hero__cinemaBrand{
   text-transform:uppercase;
 }
 
+.hero__cinemaAction{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin-top:6px;
+  padding:10px 14px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.2);
+  color:#f3f6ff;
+  text-decoration:none;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  background:linear-gradient(135deg, rgba(124,92,255,.5), rgba(46,230,166,.28));
+  box-shadow:0 12px 26px rgba(0,0,0,.32);
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+
+.hero__cinemaAction:hover{
+  transform:translateY(-1px);
+  box-shadow:0 16px 30px rgba(0,0,0,.36);
+  border-color:rgba(255,255,255,.38);
+}
+
 .hero__cinemaFooter{
   font-size:13px;
   letter-spacing:.16em;
