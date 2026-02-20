@@ -2,5 +2,15 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": "echo \"Deploy static homepage directory\"",
-  "outputDirectory": "homepage"
+  "outputDirectory": "homepage",
+  "rewrites": [
+    {
+      "source": "/health",
+      "destination": "https://api.atlasmasa.com/health"
+    },
+    {
+      "source": "/v1/:path*",
+      "destination": "https://api.atlasmasa.com/v1/:path*"
+    }
+  ]
 }

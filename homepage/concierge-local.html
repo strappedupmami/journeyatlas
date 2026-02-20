@@ -928,8 +928,34 @@
       function inferApiBase() {
         const host = window.location.hostname;
         if (host === "localhost" || host === "127.0.0.1") return "http://localhost:8080";
-        if (host === "atlasmasa.com" || host === "www.atlasmasa.com") return "https://api.atlasmasa.com";
+        if (host === "atlasmasa.com" || host === "www.atlasmasa.com") return window.location.origin;
         return `${window.location.protocol}//${host}:8080`;
+      }
+
+      function normalizeApiBase(value) {
+        return String(value || "").trim().replace(/\/+$/, "");
+      }
+
+      function getApiBaseCandidates() {
+        const params = new URLSearchParams(window.location.search);
+        const fromQuery = params.get("api_base");
+        const fromWindow =
+          typeof window.ATLAS_API_BASE === "string" ? window.ATLAS_API_BASE : "";
+        const candidates = [
+          apiBaseInput && apiBaseInput.value ? apiBaseInput.value : "",
+          fromQuery,
+          fromWindow,
+          inferApiBase(),
+        ]
+          .map(normalizeApiBase)
+          .filter(Boolean);
+
+        const host = window.location.hostname;
+        if (host === "atlasmasa.com" || host === "www.atlasmasa.com") {
+          candidates.push("https://api.atlasmasa.com");
+        }
+
+        return [...new Set(candidates)];
       }
 
       function setPressed(container, key, value) {
@@ -1259,27 +1285,49 @@
 
       async function request(path, method = "GET", body = null, includeKey = true) {
         const headers = {};
-        const base = (apiBaseInput && apiBaseInput.value.trim()) || inferApiBase();
         const key = (apiKeyInput && apiKeyInput.value.trim()) || "dev-atlas-key";
         if (includeKey) headers["x-api-key"] = key;
         if (body) headers["content-type"] = "application/json";
+        const bases = getApiBaseCandidates();
+        const networkErrors = [];
 
-        const response = await fetch(base + path, {
-          method,
-          headers,
-          body: body ? JSON.stringify(body) : undefined,
-          credentials: "include",
-        });
+        for (const base of bases) {
+          try {
+            const response = await fetch(base + path, {
+              method,
+              headers,
+              body: body ? JSON.stringify(body) : undefined,
+              credentials: "include",
+            });
 
-        const text = await response.text();
-        let payload;
-        try {
-          payload = JSON.parse(text);
-        } catch {
-          payload = { raw: text };
+            const text = await response.text();
+            let payload;
+            try {
+              payload = JSON.parse(text);
+            } catch {
+              payload = { raw: text };
+            }
+
+            return { ok: response.ok, status: response.status, payload, base };
+          } catch (error) {
+            networkErrors.push({
+              base,
+              message: error && error.message ? error.message : String(error),
+            });
+          }
         }
 
-        return { ok: response.ok, status: response.status, payload };
+        return {
+          ok: false,
+          status: 0,
+          payload: {
+            error: "network_error",
+            message: "All API base candidates failed",
+            candidates: bases,
+            failures: networkErrors,
+          },
+          base: null,
+        };
       }
 
       async function runHealthCheck() {
@@ -1288,6 +1336,12 @@
           if (result.ok) {
             serviceStatus.textContent = state.locale === "he" ? "השירות פעיל" : "Service is online";
             serviceStatus.className = "status-ok";
+          } else if (result.status === 0) {
+            serviceStatus.textContent =
+              state.locale === "he"
+                ? "שגיאת רשת: אין חיבור ל-API כרגע"
+                : "Network error: API is currently unreachable";
+            serviceStatus.className = "status-warn";
           } else {
             serviceStatus.textContent = `${state.locale === "he" ? "בעיה בחיבור" : "Connection issue"}: ${result.status}`;
             serviceStatus.className = "status-warn";
@@ -1396,6 +1450,16 @@
             null,
             true
           );
+          if (result.status === 0) {
+            renderOutput(
+              state.locale === "he"
+                ? "שגיאת רשת: לא הצלחנו להגיע לשירות ההתחברות."
+                : "Network error: could not reach auth service.",
+              ["auth", "oauth", "network"],
+              result.payload
+            );
+            return;
+          }
           if (!result.ok || !result.payload.authorize_url) {
             renderOutput(`OAuth failed (${result.status})`, ["auth", "oauth", "error"], result.payload);
             return;
@@ -1418,6 +1482,16 @@
         }
 
         const start = await request("/v1/auth/passkey/login/start", "POST", { email });
+        if (start.status === 0) {
+          renderOutput(
+            state.locale === "he"
+              ? "שגיאת רשת: שירות Passkey לא נגיש כרגע."
+              : "Network error: Passkey service is unreachable right now.",
+            ["auth", "passkey", "network"],
+            start.payload
+          );
+          return;
+        }
         if (!start.ok || !start.payload.options || !start.payload.request_id) {
           renderOutput(`Passkey login start failed (${start.status})`, ["auth", "passkey", "error"], start.payload);
           return;
@@ -1467,6 +1541,16 @@
           display_name: displayName,
           locale: state.locale,
         });
+        if (start.status === 0) {
+          renderOutput(
+            state.locale === "he"
+              ? "שגיאת רשת: שירות רישום Passkey לא נגיש כרגע."
+              : "Network error: Passkey enrollment service is unreachable right now.",
+            ["auth", "passkey", "network"],
+            start.payload
+          );
+          return;
+        }
         if (!start.ok || !start.payload.options || !start.payload.request_id) {
           renderOutput(`Passkey registration start failed (${start.status})`, ["auth", "passkey", "error"], start.payload);
           return;
