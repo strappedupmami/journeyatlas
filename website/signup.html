@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#0b1220" />
+    <title>Atlas Masa | Sign Up</title>
+    <meta
+      name="description"
+      content="Create your Atlas Masa account with secure passwordless sign in via Apple or Google."
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .signup-shell {
+        position: relative;
+        padding: clamp(40px, 7vw, 90px) 0 80px;
+      }
+      .signup-shell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(520px 340px at 18% 18%, rgba(83, 116, 176, 0.18), transparent 65%),
+          radial-gradient(640px 420px at 84% 82%, rgba(204, 214, 232, 0.12), transparent 68%);
+        pointer-events: none;
+      }
+      .signup-wrap {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 1fr;
+        place-items: center;
+      }
+      .signup-card {
+        width: min(560px, 100%);
+        border-radius: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: linear-gradient(
+          165deg,
+          rgba(255, 255, 255, 0.08),
+          rgba(255, 255, 255, 0.04)
+        );
+        box-shadow: 0 22px 70px rgba(3, 9, 24, 0.52);
+        padding: clamp(24px, 4vw, 34px);
+      }
+      .signup-kicker {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.05);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        padding: 6px 10px;
+        color: rgba(243, 246, 255, 0.82);
+        margin-bottom: 14px;
+      }
+      .signup-title {
+        margin-bottom: 10px;
+      }
+      .signup-subtitle {
+        color: rgba(243, 246, 255, 0.79);
+        margin-bottom: 18px;
+      }
+      .signup-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: rgba(243, 246, 255, 0.86);
+      }
+      .signup-input {
+        width: 100%;
+        border-radius: 13px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(5, 9, 18, 0.56);
+        color: #f3f6ff;
+        padding: 12px 14px;
+        font: inherit;
+        margin-bottom: 14px;
+      }
+      .signup-input:focus {
+        outline: none;
+        border-color: rgba(229, 236, 252, 0.5);
+        box-shadow: 0 0 0 3px rgba(229, 236, 252, 0.18);
+      }
+      .auth-stack {
+        display: grid;
+        gap: 10px;
+      }
+      .auth-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 50px;
+        padding: 10px 14px;
+        border-radius: 13px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: #f6f8ff;
+        color: #0f1420;
+        font: inherit;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+      }
+      .auth-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 30px rgba(2, 6, 18, 0.32);
+      }
+      .auth-btn:disabled {
+        opacity: 0.56;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      .auth-btn--apple {
+        background: #0b0f18;
+        color: #f5f7ff;
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+      .auth-btn__apple {
+        font-size: 18px;
+        line-height: 1;
+      }
+      .auth-btn__google {
+        width: 18px;
+        height: 18px;
+      }
+      .signup-hint {
+        margin-top: 14px;
+        margin-bottom: 0;
+        font-size: 12px;
+        color: rgba(243, 246, 255, 0.72);
+      }
+      .signup-status {
+        margin-top: 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        background: rgba(6, 11, 21, 0.65);
+        color: rgba(243, 246, 255, 0.92);
+        padding: 12px 13px;
+        font-size: 14px;
+        display: none;
+      }
+      .signup-status[data-tone="ok"] {
+        border-color: rgba(46, 230, 166, 0.4);
+        background: rgba(16, 54, 43, 0.45);
+      }
+      .signup-status[data-tone="warn"] {
+        border-color: rgba(255, 203, 107, 0.44);
+        background: rgba(66, 46, 14, 0.45);
+      }
+      .signup-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .signup-actions .btn {
+        flex: 1 1 220px;
+        text-align: center;
+      }
+      @media (max-width: 680px) {
+        .signup-shell {
+          padding-top: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="header">
+      <div class="container header__inner">
+        <a class="brand" href="homepage.html" aria-label="Atlas Masa home">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
+              <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M14 46h36" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M32 10v12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M26 22h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand__text">
+            <span class="brand__name">Atlas Masa</span>
+            <span class="brand__tag">Account access</span>
+          </span>
+        </a>
+
+        <nav class="nav nav--desktop" aria-label="Primary navigation">
+          <a href="homepage.html">Homepage</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="vans-company-future.html">Vans • Company • Future</a>
+          <a href="faq.html">FAQ</a>
+          <a href="contact.html">Contact</a>
+          <a href="concierge-local.html">AI Studio</a>
+          <a class="nav__auth" href="signup.html?mode=login">Log in</a>
+          <a class="nav__auth nav__auth--primary" href="signup.html">Sign up</a>
+        </nav>
+
+        <details class="nav nav--mobile">
+          <summary aria-label="Open menu">Menu</summary>
+          <div class="nav__panel" role="navigation" aria-label="Mobile navigation">
+            <a href="homepage.html">Homepage</a>
+            <a href="pricing.html">Pricing</a>
+            <a href="vans-company-future.html">Vans • Company • Future</a>
+            <a href="faq.html">FAQ</a>
+            <a href="contact.html">Contact</a>
+            <a href="concierge-local.html">AI Studio</a>
+            <a href="signup.html?mode=login">Log in</a>
+            <a href="signup.html">Sign up</a>
+          </div>
+        </details>
+      </div>
+    </header>
+
+    <main id="main" class="signup-shell">
+      <div class="container signup-wrap">
+        <section class="signup-card" aria-label="Account sign-in">
+          <span class="signup-kicker">Atlas Masa Access</span>
+          <h1 class="signup-title" id="signup-title">Create your account</h1>
+          <p class="signup-subtitle" id="signup-subtitle">
+            Traditional passwordless sign-in. Use Apple or Google and continue directly to your AI workflow.
+          </p>
+
+          <label class="signup-label" for="identity-email">Email (optional)</label>
+          <input
+            class="signup-input"
+            id="identity-email"
+            type="email"
+            placeholder="name@atlasmasa.com"
+            autocomplete="email"
+          />
+
+          <div class="auth-stack">
+            <button class="auth-btn auth-btn--apple" id="apple-btn" type="button">
+              <span class="auth-btn__apple" aria-hidden="true"></span>
+              <span>Sign in with Apple</span>
+            </button>
+
+            <button class="auth-btn auth-btn--google" id="google-btn" type="button">
+              <svg class="auth-btn__google" viewBox="0 0 256 262" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path fill="#4285F4" d="M255.68 133.45c0-11.4-.92-19.54-2.9-27.99H130.55v48.73h71.74c-1.45 12.12-9.3 30.38-26.73 42.65l-.24 1.63 38.8 30.05 2.68.27c24.58-22.69 38.88-56.1 38.88-95.34"/>
+                <path fill="#34A853" d="M130.55 261.1c35.13 0 64.63-11.55 86.18-31.4l-41.24-31.95c-11.03 7.7-25.82 13.1-44.94 13.1-34.4 0-63.61-22.7-74.07-54.1l-1.54.13-40.35 31.2-.53 1.48c21.4 42.47 65.34 71.54 116.49 71.54"/>
+                <path fill="#FBBC05" d="M56.48 156.75c-2.76-8.14-4.35-16.85-4.35-25.84 0-8.99 1.6-17.7 4.2-25.84l-.07-1.72-40.86-31.7-1.34.64C5.78 88.81 1 108.96 1 130.91c0 21.95 4.78 42.1 13.06 58.63z"/>
+                <path fill="#EB4335" d="M130.55 50.96c24.13 0 40.43 10.4 49.72 19.11l36.3-35.4C195.04 14.53 165.68 1 130.55 1 79.4 1 35.46 30.08 14.06 72.55l42.27 32.79c10.6-31.4 39.82-54.38 74.22-54.38"/>
+              </svg>
+              <span>Sign in with Google</span>
+            </button>
+          </div>
+
+          <p class="signup-hint">No passwords. Session security is handled by provider auth + secure cookie session.</p>
+
+          <div id="signup-status" class="signup-status" role="status" aria-live="polite"></div>
+
+          <div class="signup-actions">
+            <a class="btn btn--primary" href="concierge-local.html?launch=survey">Start Adaptive Deep Survey</a>
+            <a class="btn btn--ghost" href="concierge-local.html?launch=chat">Open AI Studio</a>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="sitewide-language.js"></script>
+    <script>
+      (function () {
+        const appleBtn = document.getElementById("apple-btn");
+        const googleBtn = document.getElementById("google-btn");
+        const statusEl = document.getElementById("signup-status");
+        const emailInput = document.getElementById("identity-email");
+        const titleEl = document.getElementById("signup-title");
+        const subtitleEl = document.getElementById("signup-subtitle");
+
+        const params = new URLSearchParams(window.location.search);
+        const mode = (params.get("mode") || "").trim().toLowerCase();
+        const authResult = params.get("auth");
+        const authReason = params.get("reason");
+
+        if (mode === "login") {
+          titleEl.textContent = "Welcome back";
+          subtitleEl.textContent = "Sign in with your existing provider account and return to your Atlas Masa workflow.";
+        }
+
+        const localEmail = window.localStorage.getItem("atlas_identity_email");
+        if (localEmail && !emailInput.value) {
+          emailInput.value = localEmail;
+        }
+        emailInput.addEventListener("input", function () {
+          window.localStorage.setItem("atlas_identity_email", emailInput.value.trim());
+        });
+
+        function getApiBase() {
+          const fromQuery = params.get("api_base");
+          if (fromQuery) {
+            const normalized = fromQuery.replace(/\/+$/, "");
+            window.localStorage.setItem("atlas_api_base", normalized);
+            return normalized;
+          }
+          const fromStorage = window.localStorage.getItem("atlas_api_base");
+          return (fromStorage || "https://api.atlasmasa.com").replace(/\/+$/, "");
+        }
+
+        const API_BASE = getApiBase();
+
+        function setStatus(message, tone) {
+          if (!message) {
+            statusEl.style.display = "none";
+            statusEl.removeAttribute("data-tone");
+            statusEl.textContent = "";
+            return;
+          }
+          statusEl.style.display = "block";
+          statusEl.setAttribute("data-tone", tone || "warn");
+          statusEl.textContent = message;
+        }
+
+        async function fetchJson(url) {
+          const response = await fetch(url, { credentials: "include" });
+          const text = await response.text();
+          let payload = {};
+          try {
+            payload = text ? JSON.parse(text) : {};
+          } catch (_) {
+            payload = { raw: text };
+          }
+          return { ok: response.ok, status: response.status, payload };
+        }
+
+        async function startOAuth(provider) {
+          appleBtn.disabled = true;
+          googleBtn.disabled = true;
+          setStatus("Redirecting to secure sign-in...", "warn");
+          const returnTo = "/signup.html";
+          try {
+            const result = await fetchJson(
+              API_BASE + "/v1/auth/" + provider + "/start?return_to=" + encodeURIComponent(returnTo)
+            );
+            if (!result.ok || !result.payload.authorize_url) {
+              setStatus(
+                "Sign-in service is temporarily unavailable. Please try again in a moment.",
+                "warn"
+              );
+              appleBtn.disabled = false;
+              googleBtn.disabled = false;
+              return;
+            }
+            window.location.href = result.payload.authorize_url;
+          } catch (_) {
+            setStatus("Network issue while reaching auth service.", "warn");
+            appleBtn.disabled = false;
+            googleBtn.disabled = false;
+          }
+        }
+
+        async function applyCapabilities() {
+          try {
+            const result = await fetchJson(API_BASE + "/health");
+            if (!result.ok) return;
+            const caps = (result.payload && result.payload.capabilities) || {};
+            appleBtn.disabled = !caps.apple_oauth;
+            googleBtn.disabled = !caps.google_oauth;
+            if (!caps.apple_oauth || !caps.google_oauth) {
+              setStatus("Some sign-in providers are still being configured. You can retry shortly.", "warn");
+            }
+          } catch (_) {
+            setStatus("Could not verify provider status right now.", "warn");
+          }
+        }
+
+        appleBtn.addEventListener("click", function () {
+          startOAuth("apple");
+        });
+        googleBtn.addEventListener("click", function () {
+          startOAuth("google");
+        });
+
+        if (authResult === "success") {
+          setStatus(
+            "Sign-in complete. Continue to Adaptive Deep Survey to calibrate your Life OS profile.",
+            "ok"
+          );
+        } else if (authResult === "error") {
+          setStatus("Sign-in failed: " + (authReason || "Unknown reason"), "warn");
+        }
+
+        applyCapabilities();
+      })();
+    </script>
+  </body>
+</html>
