@@ -345,7 +345,7 @@
                 <button class="btn btn--ghost" id="google-signin" type="button" data-i18n="studio.authGoogle">כניסה עם Google</button>
                 <button class="btn btn--ghost" id="apple-signin" type="button" data-i18n="studio.authApple">כניסה עם Apple</button>
                 <button class="btn btn--ghost" id="passkey-signin" type="button" data-i18n="studio.authPasskey">כניסה עם Passkey</button>
-                <button class="btn btn--ghost" id="passkey-enroll" type="button" data-i18n="studio.authPasskeyEnroll">רישום Passkey</button>
+                <button class="btn btn--ghost" id="passkey-enroll" type="button" data-i18n="studio.authPasskeyEnroll">הרשמה עם Passkey</button>
                 <button class="btn btn--primary" id="subscribe-monthly" type="button" data-i18n="studio.subscribeMonthly">מנוי חודשי (Apple Pay)</button>
                 <button class="btn btn--ghost" id="signout-btn" type="button" data-i18n="studio.authSignout" style="display:none">התנתקות</button>
               </div>
@@ -623,7 +623,7 @@
             authGoogle: "כניסה עם Google",
             authApple: "כניסה עם Apple",
             authPasskey: "כניסה עם Passkey",
-            authPasskeyEnroll: "רישום Passkey",
+            authPasskeyEnroll: "הרשמה עם Passkey",
             subscribeMonthly: "מנוי חודשי (Apple Pay)",
             authSignout: "התנתקות",
             profileSurveyNote: "העדפת סגנון מסע נאספת דרך סקר העומק המותאם.",
@@ -727,7 +727,7 @@
             authGoogle: "Sign in with Google",
             authApple: "Sign in with Apple",
             authPasskey: "Sign in with Passkey",
-            authPasskeyEnroll: "Enroll Passkey",
+            authPasskeyEnroll: "Sign up with Passkey",
             subscribeMonthly: "Monthly subscription (Apple Pay)",
             authSignout: "Sign out",
             profileSurveyNote: "Trip style preference is captured in the adaptive deep survey.",
@@ -787,10 +787,10 @@
         mode: "chat",
         user: null,
         capabilities: {
-          google_oauth: false,
-          apple_oauth: false,
-          passkey: false,
-          billing: false,
+          google_oauth: true,
+          apple_oauth: true,
+          passkey: true,
+          billing: true,
           deep_personalization: true,
         },
         subscription: {
@@ -1461,20 +1461,44 @@
             serviceStatus.textContent = state.locale === "he" ? "השירות פעיל" : "Service is online";
             serviceStatus.className = "status-ok";
           } else if (result.status === 0) {
+            state.capabilities = Object.assign({}, state.capabilities, {
+              google_oauth: true,
+              apple_oauth: true,
+              passkey: true,
+              billing: true,
+            });
             applyCapabilityGates();
             serviceStatus.textContent =
               state.locale === "he"
-                ? "שגיאת רשת: אין חיבור ל-API כרגע"
-                : "Network error: API is currently unreachable";
+                ? "קישוריות חלקית לשרת. אפשר להמשיך בסקר מקומי ולנסות התחברות."
+                : "Partial server connectivity. Continue in local survey mode and try sign-in.";
             serviceStatus.className = "status-warn";
           } else {
+            state.capabilities = Object.assign({}, state.capabilities, {
+              google_oauth: true,
+              apple_oauth: true,
+              passkey: true,
+              billing: true,
+            });
             applyCapabilityGates();
-            serviceStatus.textContent = `${state.locale === "he" ? "בעיה בחיבור" : "Connection issue"}: ${result.status}`;
+            serviceStatus.textContent =
+              state.locale === "he"
+                ? "קישוריות חלקית לשרת. חלק מהיכולות בענן זמניות לא יציבות."
+                : "Partial server connectivity. Some cloud features are temporarily unstable.";
             serviceStatus.className = "status-warn";
           }
         } catch (error) {
+          state.capabilities = Object.assign({}, state.capabilities, {
+            google_oauth: true,
+            apple_oauth: true,
+            passkey: true,
+            billing: true,
+          });
           applyCapabilityGates();
-          serviceStatus.textContent = `${state.locale === "he" ? "שגיאת רשת" : "Network error"}: ${error.message}`;
+          serviceStatus.textContent =
+            state.locale === "he"
+              ? "קישוריות חלקית לשרת. נסו שוב בעוד רגע."
+              : "Partial server connectivity. Please retry in a moment.";
           serviceStatus.className = "status-warn";
         }
       }
