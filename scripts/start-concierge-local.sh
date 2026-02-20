@@ -19,6 +19,6 @@ export ATLAS_ALLOWED_ORIGINS="${ATLAS_ALLOWED_ORIGINS:-http://localhost:5500,htt
 printf "\n[Atlas Concierge] Starting API on %s with kb=%s\n" "$ATLAS_BIND" "$ATLAS_KB_ROOT"
 printf "API Key: %s\n" "$ATLAS_API_KEY"
 printf "Cookie secure: %s\n" "$ATLAS_COOKIE_SECURE"
-printf "Open UI: %s\n\n" "$ROOT_DIR/homepage/concierge-local.html"
+printf "Open UI: %s\n\n" "$ROOT_DIR/apps/website/homepage/concierge-local.html"
 
 cargo run -p atlas-api

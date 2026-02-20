@@ -19,4 +19,4 @@ Why is "vacation without hotels" the best framing? What friction do hotels creat
 ## Applied on site
 - Added comparison section on homepage.
 - Added dedicated variant page:
-  - `homepage/variants/prompt-series/009-why-without-hotels.html`
+  - `apps/website/homepage/variants/prompt-series/009-why-without-hotels.html`

@@ -64,8 +64,8 @@ cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge
 cargo run -p atlas-api
 ```
 2. Open static website:
-- `/Users/avrohom/Downloads/journeyatlas/homepage/homepage.html`
-3. Click `AI קונסיירז׳` in nav (or open `homepage/concierge-local.html`).
+- `/Users/avrohom/Downloads/journeyatlas/apps/website/homepage/homepage.html`
+3. Click `AI קונסיירז׳` in nav (or open `apps/website/homepage/concierge-local.html`).
 4. In the page keep:
 - API base: `http://localhost:8080`
 - API key: `dev-atlas-key` (unless changed in env)

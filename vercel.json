@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": "echo \"Deploy static homepage directory\"",
-  "outputDirectory": "homepage",
+  "outputDirectory": "apps/website/homepage",
   "rewrites": [
     {
       "source": "/health",

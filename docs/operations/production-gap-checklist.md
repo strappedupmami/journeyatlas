@@ -25,7 +25,7 @@ This checklist audits production readiness against the contract:
 - Contract area: Mobile-first UX, auth/survey reliability
 - Evidence: Studio showed `Connection issue: 502`, `Passkey login start failed (502)`, `Could not load survey` while API candidates existed.
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/homepage/concierge-local.html`
+  - `/Users/avrohom/Downloads/journeyatlas/apps/website/homepage/concierge-local.html`
 - Implementation plan executed:
   1. Harden request client to continue across API base candidates on upstream failures.
   2. Prefer `https://api.atlasmasa.com` first on production domains.
@@ -56,7 +56,7 @@ This checklist audits production readiness against the contract:
 - Contract area: Passwordless auth completeness
 - Exact files:
   - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-  - `/Users/avrohom/Downloads/journeyatlas/homepage/concierge-local.html`
+  - `/Users/avrohom/Downloads/journeyatlas/apps/website/homepage/concierge-local.html`
 - Implementation plan executed:
   1. Add Apple OAuth runtime config loader.
   2. Add `/v1/auth/apple/start` and `/v1/auth/apple/callback` handlers.
@@ -73,7 +73,7 @@ This checklist audits production readiness against the contract:
 - Contract area: API security and operability
 - Exact files:
   - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-  - `/Users/avrohom/Downloads/journeyatlas/homepage/concierge-local.html`
+  - `/Users/avrohom/Downloads/journeyatlas/apps/website/homepage/concierge-local.html`
 - Implementation plan executed:
   1. Expand `/health` with capability flags (`google_oauth`, `apple_oauth`, `passkey`, `billing`).
   2. Ensure Apple auth routes are treated as public where required.
@@ -87,7 +87,7 @@ This checklist audits production readiness against the contract:
 - Status: `Closed`
 - Contract area: Deep personalization continuity
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/homepage/concierge-local.html`
+  - `/Users/avrohom/Downloads/journeyatlas/apps/website/homepage/concierge-local.html`
 - Implementation plan executed:
   1. Add local adaptive survey fallback payload generation.
   2. Preserve user progression in local mode until API recovers.
@@ -102,7 +102,7 @@ This checklist audits production readiness against the contract:
 - Status: `Closed`
 - Contract area: Mobile-first UX
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/homepage/sitewide-language.js`
+  - `/Users/avrohom/Downloads/journeyatlas/apps/website/homepage/sitewide-language.js`
 - Implementation plan executed:
   1. Make switcher mount responsive to viewport changes.
   2. Keep switcher inside hamburger menu on mobile widths.

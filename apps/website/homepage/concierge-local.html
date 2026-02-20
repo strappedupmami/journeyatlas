@@ -1679,22 +1679,22 @@
           );
           return;
         }
-        if (start.status >= 500) {
-          renderOutput(
-            state.locale === "he"
-              ? "שירות ה-Passkey חווה תקלה זמנית בצד השרת (502/5xx). זה לא קשור לאימייל שלך. ננסה שוב בעוד רגע."
-              : "Passkey service is temporarily failing upstream (502/5xx). This is not your email issue. Please retry shortly.",
-            ["auth", "passkey", "upstream", "error"],
-            start.payload
-          );
-          return;
-        }
         if (start.status === 503 || (start.payload && start.payload.error === "passkey_unavailable")) {
           renderOutput(
             state.locale === "he"
               ? "שירות Passkey עדיין לא מוגדר בשרת. אפשר להיכנס כרגע עם Google או Apple."
               : "Passkey is not configured on the server yet. Use Google or Apple sign-in for now.",
             ["auth", "passkey", "unavailable"],
+            start.payload
+          );
+          return;
+        }
+        if (start.status >= 500) {
+          renderOutput(
+            state.locale === "he"
+              ? "שירות ה-Passkey חווה תקלה זמנית בצד השרת (502/5xx). זה לא קשור לאימייל שלך. ננסה שוב בעוד רגע."
+              : "Passkey service is temporarily failing upstream (502/5xx). This is not your email issue. Please retry shortly.",
+            ["auth", "passkey", "upstream", "error"],
             start.payload
           );
           return;
@@ -1771,22 +1771,22 @@
           );
           return;
         }
-        if (start.status >= 500) {
-          renderOutput(
-            state.locale === "he"
-              ? "רישום Passkey נכשל בגלל תקלה זמנית בשרת (502/5xx). זה לא קשור לאימייל שלך."
-              : "Passkey enrollment failed due to temporary upstream server issue (502/5xx). This is not your email issue.",
-            ["auth", "passkey", "upstream", "error"],
-            start.payload
-          );
-          return;
-        }
         if (start.status === 503 || (start.payload && start.payload.error === "passkey_unavailable")) {
           renderOutput(
             state.locale === "he"
               ? "שירות Passkey עדיין לא מוגדר בשרת. אפשר להיכנס עם Google או Apple."
               : "Passkey is not configured on the server yet. Use Google or Apple sign-in for now.",
             ["auth", "passkey", "unavailable"],
+            start.payload
+          );
+          return;
+        }
+        if (start.status >= 500) {
+          renderOutput(
+            state.locale === "he"
+              ? "רישום Passkey נכשל בגלל תקלה זמנית בשרת (502/5xx). זה לא קשור לאימייל שלך."
+              : "Passkey enrollment failed due to temporary upstream server issue (502/5xx). This is not your email issue.",
+            ["auth", "passkey", "upstream", "error"],
             start.payload
           );
           return;
