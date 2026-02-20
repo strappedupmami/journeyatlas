@@ -82,8 +82,32 @@
 
     <main id="main">
       <section class="hero">
-        <div class="container hero__inner">
-          <div class="hero__copy">
+        <div class="container">
+          <article class="hero__cinema" aria-label="Atlas cinematic banner" data-i18n-aria-label="home.hero.cinema.aria">
+            <div class="hero__cinemaGrid">
+              <div class="hero__shot hero__shot--a">
+                <div class="hero__cinemaMetaRow">
+                  <span class="hero__cinemaMeta" data-i18n="home.hero.cinema.brandLabel">travel brand</span>
+                  <span class="hero__cinemaMeta" data-i18n="home.hero.cinema.year">2026</span>
+                  <span class="hero__cinemaMeta" data-i18n="home.hero.cinema.banner">banner</span>
+                </div>
+                <div class="hero__cinemaBrand" data-i18n="home.hero.cinema.brand">ATLAS MASA</div>
+              </div>
+              <div class="hero__shot hero__shot--b"></div>
+              <div class="hero__shot hero__shot--c">
+                <p class="hero__cinemaQuote" data-i18n="home.hero.cinema.quote1">"The world is a book and those who do not travel read only one page."</p>
+                <span class="hero__cinemaQuoteAuthor" data-i18n="home.hero.cinema.quote1Author">Saint Augustine</span>
+                <p class="hero__cinemaQuote" data-i18n="home.hero.cinema.quote2">"A journey of a thousand miles begins with a single step."</p>
+                <span class="hero__cinemaQuoteAuthor" data-i18n="home.hero.cinema.quote2Author">Lao Tzu</span>
+              </div>
+              <div class="hero__shot hero__shot--d">
+                <span class="hero__cinemaFooter" data-i18n="home.hero.cinema.footer">TRAVEL DESIGN</span>
+              </div>
+            </div>
+          </article>
+
+          <div class="hero__inner">
+            <div class="hero__copy">
             <p class="eyebrow" data-i18n="home.hero.eyebrow">AI Travel/Work OS • חופשה בלי מלונות • המלון שלך על גלגלים</p>
             <h1 data-i18n="home.hero.title">אטלס מסע בונה אקוסיסטם AI מקיף לטיול, עבודה, חיים ומגורים בתנועה.</h1>
             <p class="lead" data-i18n="home.hero.lead">
@@ -102,29 +126,30 @@
             </ul>
           </div>
 
-          <aside class="hero__card card" aria-label="Quick summary" data-i18n-aria-label="home.hero.cardAria">
-            <div class="hero__cardTop">
-              <span class="pill" data-i18n="home.hero.cardPill">AI Studio רב-פיצ'רי כלול</span>
-              <span class="mini" data-i18n="home.hero.cardMini">בונים עכשיו • משיקים כשצריך</span>
-            </div>
-            <h2 class="hero__cardTitle" data-i18n="home.hero.cardTitle">מה מקבלים בכל חבילה?</h2>
-            <ul class="checklist">
-              <li data-i18n="home.hero.cardLi1">יחידת לינה ניידת + שירותים שורפים (דור 1 ללא כיור/מקלחת)</li>
-              <li data-i18n="home.hero.cardLi2">AI Concierge + Studio + סקר עומק מותאם בזמן אמת</li>
-              <li data-i18n="home.hero.cardLi3">תזכורות/אזעקות חכמות + פיד יזום לביצוע יומי</li>
-              <li data-i18n="home.hero.cardLi4">תכנון מסלול, שגרת מים/אפור ותמיכת תפעול בזמן אמת</li>
-            </ul>
-            <div class="split">
-              <div>
-                <div class="kpi" data-i18n="home.hero.kpi1">5-10 דק׳ יציאה</div>
-                <div class="kpi__label" data-i18n="home.hero.kpi1Label">מהחלטה לתזוזה</div>
+            <aside class="hero__card card" aria-label="Quick summary" data-i18n-aria-label="home.hero.cardAria">
+              <div class="hero__cardTop">
+                <span class="pill" data-i18n="home.hero.cardPill">AI Studio רב-פיצ'רי כלול</span>
+                <span class="mini" data-i18n="home.hero.cardMini">בונים עכשיו • משיקים כשצריך</span>
               </div>
-              <div>
-                <div class="kpi" data-i18n="home.hero.kpi2">0 צ׳ק-אין</div>
-                <div class="kpi__label" data-i18n="home.hero.kpi2Label">בלי לובי ובלי ריסט יומי</div>
+              <h2 class="hero__cardTitle" data-i18n="home.hero.cardTitle">מה מקבלים בכל חבילה?</h2>
+              <ul class="checklist">
+                <li data-i18n="home.hero.cardLi1">יחידת לינה ניידת + שירותים שורפים (דור 1 ללא כיור/מקלחת)</li>
+                <li data-i18n="home.hero.cardLi2">AI Concierge + Studio + סקר עומק מותאם בזמן אמת</li>
+                <li data-i18n="home.hero.cardLi3">תזכורות/אזעקות חכמות + פיד יזום לביצוע יומי</li>
+                <li data-i18n="home.hero.cardLi4">תכנון מסלול, שגרת מים/אפור ותמיכת תפעול בזמן אמת</li>
+              </ul>
+              <div class="split">
+                <div>
+                  <div class="kpi" data-i18n="home.hero.kpi1">5-10 דק׳ יציאה</div>
+                  <div class="kpi__label" data-i18n="home.hero.kpi1Label">מהחלטה לתזוזה</div>
+                </div>
+                <div>
+                  <div class="kpi" data-i18n="home.hero.kpi2">0 צ׳ק-אין</div>
+                  <div class="kpi__label" data-i18n="home.hero.kpi2Label">בלי לובי ובלי ריסט יומי</div>
+                </div>
               </div>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </div>
       </section>
 
@@ -1087,7 +1112,19 @@
             home: {
               hero: {
                 ctaSecondary: "לקרוא את תיאוריית הניידות",
-                badge3: "ניקוי עצמי חכם כבר בבניות מוקדמות"
+                badge3: "ניקוי עצמי חכם כבר בבניות מוקדמות",
+                cinema: {
+                  aria: "באנר קולנועי של אטלס מסע",
+                  brandLabel: "מותג מסע",
+                  year: "2026",
+                  banner: "באנר",
+                  brand: "אטלס מסע",
+                  quote1: "\"העולם הוא ספר, ומי שלא מטייל קורא רק עמוד אחד.\"",
+                  quote1Author: "אוגוסטינוס הקדוש",
+                  quote2: "\"מסע של אלף מילים מתחיל בצעד אחד.\"",
+                  quote2Author: "לאו דזה",
+                  footer: "עיצוב מסע"
+                }
               },
               mobility: {
                 title: "תיאוריית הניידות של אטלס מסע",
@@ -1164,7 +1201,19 @@
             home: {
               hero: {
                 ctaSecondary: "Read Mobility Theory",
-                badge3: "Self-cleaning tech planned for earliest builds"
+                badge3: "Self-cleaning tech planned for earliest builds",
+                cinema: {
+                  aria: "Atlas Masa cinematic banner",
+                  brandLabel: "travel brand",
+                  year: "2026",
+                  banner: "banner",
+                  brand: "ATLAS MASA",
+                  quote1: "\"The world is a book and those who do not travel read only one page.\"",
+                  quote1Author: "Saint Augustine",
+                  quote2: "\"A journey of a thousand miles begins with a single step.\"",
+                  quote2Author: "Lao Tzu",
+                  footer: "travel design"
+                }
               },
               mobility: {
                 title: "Atlas Masa Mobility Theory",
@@ -1241,7 +1290,19 @@
             home: {
               hero: {
                 ctaSecondary: "قراءة نظرية التنقل",
-                badge3: "تقنيات التنظيف الذاتي مخططة للبدايات المبكرة"
+                badge3: "تقنيات التنظيف الذاتي مخططة للبدايات المبكرة",
+                cinema: {
+                  aria: "بانر سينمائي من Atlas Masa",
+                  brandLabel: "علامة سفر",
+                  year: "2026",
+                  banner: "بانر",
+                  brand: "ATLAS MASA",
+                  quote1: "\"العالم كتاب، ومن لا يسافر يقرأ صفحة واحدة فقط.\"",
+                  quote1Author: "القديس أوغسطين",
+                  quote2: "\"رحلة الألف ميل تبدأ بخطوة واحدة.\"",
+                  quote2Author: "لاو تزو",
+                  footer: "تصميم السفر"
+                }
               },
               mobility: {
                 title: "نظرية التنقل في Atlas Masa",
@@ -1318,7 +1379,19 @@
             home: {
               hero: {
                 ctaSecondary: "Читать теорию мобильности",
-                badge3: "Технологии самоочистки планируются с ранних сборок"
+                badge3: "Технологии самоочистки планируются с ранних сборок",
+                cinema: {
+                  aria: "Кинематографичный баннер Atlas Masa",
+                  brandLabel: "travel brand",
+                  year: "2026",
+                  banner: "banner",
+                  brand: "ATLAS MASA",
+                  quote1: "\"Мир — это книга, и кто не путешествует, читает лишь одну страницу.\"",
+                  quote1Author: "Святой Августин",
+                  quote2: "\"Путь в тысячу миль начинается с первого шага.\"",
+                  quote2Author: "Лао-цзы",
+                  footer: "travel design"
+                }
               },
               mobility: {
                 title: "Теория мобильности Atlas Masa",
@@ -1395,7 +1468,19 @@
             home: {
               hero: {
                 ctaSecondary: "Lire la théorie de mobilité",
-                badge3: "Technologie auto-nettoyante prévue dès les premières builds"
+                badge3: "Technologie auto-nettoyante prévue dès les premières builds",
+                cinema: {
+                  aria: "Bannière cinématique Atlas Masa",
+                  brandLabel: "marque voyage",
+                  year: "2026",
+                  banner: "bannière",
+                  brand: "ATLAS MASA",
+                  quote1: "\"Le monde est un livre; ceux qui ne voyagent pas n'en lisent qu'une page.\"",
+                  quote1Author: "Saint Augustin",
+                  quote2: "\"Un voyage de mille lieues commence toujours par un premier pas.\"",
+                  quote2Author: "Lao Tseu",
+                  footer: "travel design"
+                }
               },
               mobility: {
                 title: "Théorie de mobilité Atlas Masa",
