@@ -37,6 +37,17 @@ updates:
     commit-message:
       prefix: "deps(web)"
       include: "scope"
+    ignore:
+      # Keep Next.js 14 toolchain compatibility until we intentionally run a full Next 16 migration.
+      - dependency-name: "next"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "eslint-config-next"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "eslint"
+        update-types:
+          - "version-update:semver-major"
     groups:
       npm-security:
         applies-to: "security-updates"
