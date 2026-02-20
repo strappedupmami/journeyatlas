@@ -47,7 +47,8 @@ impl PolicyEngine {
         {
             violations.push(PolicyViolation::IllegalDumpingGuidance);
             notes.push(
-                "We only provide legal greywater disposal guidance through authorized points.".to_string(),
+                "We only provide legal greywater disposal guidance through authorized points."
+                    .to_string(),
             );
         }
 
@@ -63,7 +64,9 @@ impl PolicyEngine {
             && contains_any(&lower, &["אפשר לעשן", "smoking allowed", "לעשן ברכב"])
         {
             violations.push(PolicyViolation::SmokingPolicyConflict);
-            notes.push("No-smoking policy is strict and non-negotiable in all vehicles.".to_string());
+            notes.push(
+                "No-smoking policy is strict and non-negotiable in all vehicles.".to_string(),
+            );
         }
 
         PolicyGateResult {
@@ -94,7 +97,8 @@ mod tests {
     #[test]
     fn blocks_illegal_dumping_requests() {
         let engine = PolicyEngine::new(PolicySet::default());
-        let result = engine.evaluate_user_message(Intent::Policy, "איפה אפשר לשפוך מים אפורים בטבע?");
+        let result =
+            engine.evaluate_user_message(Intent::Policy, "איפה אפשר לשפוך מים אפורים בטבע?");
         assert!(result.blocked);
     }
 }

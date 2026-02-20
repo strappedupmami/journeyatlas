@@ -16,12 +16,14 @@ pub struct GearInventoryItem {
     pub minimum_required: i32,
 }
 
+#[allow(async_fn_in_trait)]
 pub trait SessionRepository: Send + Sync {
     async fn load_session(&self, session_id: &str) -> Result<Option<ConversationSession>>;
     async fn upsert_session(&self, session: &ConversationSession) -> Result<()>;
     async fn purge_expired(&self, now: DateTime<Utc>) -> Result<u64>;
 }
 
+#[allow(async_fn_in_trait)]
 pub trait InventoryRepository: Send + Sync {
     async fn list_inventory(&self) -> Result<Vec<GearInventoryItem>>;
     async fn upsert_inventory_item(&self, item: GearInventoryItem) -> Result<()>;

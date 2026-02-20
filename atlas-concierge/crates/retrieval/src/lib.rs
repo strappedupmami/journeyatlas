@@ -44,7 +44,10 @@ pub struct HybridRetriever {
 }
 
 impl HybridRetriever {
-    pub fn from_kb_dir(path: impl AsRef<Path>, embedder: Option<Arc<dyn EmbeddingModel>>) -> Result<Self> {
+    pub fn from_kb_dir(
+        path: impl AsRef<Path>,
+        embedder: Option<Arc<dyn EmbeddingModel>>,
+    ) -> Result<Self> {
         let docs = load_docs(path.as_ref())?;
         let mut chunks = Vec::new();
 
@@ -52,7 +55,9 @@ impl HybridRetriever {
             let split = chunk_document(&doc.body, 420);
             for (idx, chunk) in split.iter().enumerate() {
                 let chunk_id = format!("{}::{}", doc.id, idx);
-                let keywords = tokenize::tokenize(chunk).into_iter().collect::<HashSet<_>>();
+                let keywords = tokenize::tokenize(chunk)
+                    .into_iter()
+                    .collect::<HashSet<_>>();
                 let embedding = embedder.as_ref().map(|model| model.embed(chunk));
 
                 chunks.push(IndexedChunk {
@@ -83,7 +88,9 @@ impl HybridRetriever {
     }
 
     pub fn search(&self, query: &str, top_k: usize) -> Vec<RetrievedChunk> {
-        let query_tokens = tokenize::tokenize(query).into_iter().collect::<HashSet<_>>();
+        let query_tokens = tokenize::tokenize(query)
+            .into_iter()
+            .collect::<HashSet<_>>();
         let query_embedding = self.embedder.as_ref().map(|model| model.embed(query));
 
         let mut scored = self
@@ -162,7 +169,11 @@ fn load_docs(root: &Path) -> Result<Vec<KnowledgeDoc>> {
 
         let title = heading_regex
             .captures(&body)
-            .and_then(|captures| captures.get(1).map(|value| value.as_str().trim().to_string()))
+            .and_then(|captures| {
+                captures
+                    .get(1)
+                    .map(|value| value.as_str().trim().to_string())
+            })
             .unwrap_or_else(|| {
                 path.file_stem()
                     .and_then(|stem| stem.to_str())

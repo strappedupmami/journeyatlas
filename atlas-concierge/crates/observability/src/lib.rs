@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use once_cell::sync::OnceCell;
@@ -74,7 +74,10 @@ impl AppMetrics {
 pub fn init_tracing(service_name: &str) {
     TRACING_INIT.get_or_init(|| {
         let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            EnvFilter::new(format!("{}=info,atlas_api=info,atlas_agents=info", service_name))
+            EnvFilter::new(format!(
+                "{}=info,atlas_api=info,atlas_agents=info",
+                service_name
+            ))
         });
 
         tracing_subscriber::fmt()

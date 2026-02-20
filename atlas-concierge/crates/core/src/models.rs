@@ -37,7 +37,7 @@ impl Locale {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Intent {
     TripPlanning,
@@ -60,7 +60,7 @@ pub enum TripStyle {
 }
 
 impl TripStyle {
-    pub fn from_str(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value.trim().to_lowercase().as_str() {
             "beach" | "coast" | "חוף" | "חופים" => Some(Self::Beach),
             "north" | "galilee" | "צפון" => Some(Self::North),
@@ -81,7 +81,7 @@ pub enum OpsChecklistType {
 }
 
 impl OpsChecklistType {
-    pub fn from_str(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value.trim().to_lowercase().as_str() {
             "turnover" | "סבב" | "החלפה" => Some(Self::Turnover),
             "cleaning" | "ניקיון" => Some(Self::Cleaning),
@@ -125,7 +125,9 @@ impl Default for PolicySet {
             no_smoking_required: true,
             illegal_dumping_forbidden: true,
             no_minor_targeting: true,
-            cleaning_fee_policy: "Vehicle must be returned clean and odor-free; surcharge applies for deep cleaning".to_string(),
+            cleaning_fee_policy:
+                "Vehicle must be returned clean and odor-free; surcharge applies for deep cleaning"
+                    .to_string(),
             safety_rules: vec![
                 "Never provide illegal dumping guidance".to_string(),
                 "Always include legal sleep/backup options".to_string(),

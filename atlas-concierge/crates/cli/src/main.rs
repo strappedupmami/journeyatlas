@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use atlas_agents::ConciergeAgent;
 use atlas_core::{ChatInput, Locale, OpsChecklistType, TripPlanRequest, TripStyle};
 use atlas_ml::AtlasMlStack;
-use atlas_observability::{AppMetrics, init_tracing};
+use atlas_observability::{init_tracing, AppMetrics};
 use atlas_retrieval::HybridRetriever;
 use atlas_storage::Store;
 use clap::{Parser, Subcommand};
@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
             locale,
             people,
         } => {
-            let style = TripStyle::from_str(&style).context("invalid --style value")?;
+            let style = TripStyle::parse(&style).context("invalid --style value")?;
             let locale = Locale::from_optional_str(Some(&locale));
 
             let response = agent
@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
         }
         Command::Ops { command } => match command {
             OpsCommand::Checklist { kind } => {
-                let kind = OpsChecklistType::from_str(&kind).context("invalid checklist kind")?;
+                let kind = OpsChecklistType::parse(&kind).context("invalid checklist kind")?;
                 let checklist = agent.ops_checklist(kind).await?;
                 println!("{}", serde_json::to_string_pretty(&checklist)?);
             }

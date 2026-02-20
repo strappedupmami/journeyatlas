@@ -1,5 +1,5 @@
-mod fallback;
 mod centroid;
+mod fallback;
 
 #[cfg(feature = "burn-ml")]
 mod burn_impl;
@@ -54,26 +54,34 @@ impl AtlasMlStack {
         {
             let embedder = Arc::new(burn_impl::BurnHashEmbeddingModel::new(192));
             let classifier: Arc<dyn IntentClassifier> = if Path::new(&dataset_path).exists() {
-                CentroidIntentClassifier::from_jsonl(&dataset_path, embedder.clone(), "burn-centroid-intent")
-                    .map(|clf| Arc::new(clf) as Arc<dyn IntentClassifier>)
-                    .unwrap_or_else(|_| Arc::new(burn_impl::BurnKeywordIntentClassifier::new(192)))
+                CentroidIntentClassifier::from_jsonl(
+                    &dataset_path,
+                    embedder.clone(),
+                    "burn-centroid-intent",
+                )
+                .map(|clf| Arc::new(clf) as Arc<dyn IntentClassifier>)
+                .unwrap_or_else(|_| Arc::new(burn_impl::BurnKeywordIntentClassifier::new(192)))
             } else {
                 Arc::new(burn_impl::BurnKeywordIntentClassifier::new(192))
             };
-            return Self {
+            Self {
                 embedder,
                 classifier,
                 burn_enabled: true,
-            };
+            }
         }
 
         #[cfg(not(feature = "burn-ml"))]
         {
             let embedder = Arc::new(HashEmbeddingModel::new(192));
             let classifier: Arc<dyn IntentClassifier> = if Path::new(&dataset_path).exists() {
-                CentroidIntentClassifier::from_jsonl(&dataset_path, embedder.clone(), "fallback-centroid-intent")
-                    .map(|clf| Arc::new(clf) as Arc<dyn IntentClassifier>)
-                    .unwrap_or_else(|_| Arc::new(RuleIntentClassifier))
+                CentroidIntentClassifier::from_jsonl(
+                    &dataset_path,
+                    embedder.clone(),
+                    "fallback-centroid-intent",
+                )
+                .map(|clf| Arc::new(clf) as Arc<dyn IntentClassifier>)
+                .unwrap_or_else(|_| Arc::new(RuleIntentClassifier))
             } else {
                 Arc::new(RuleIntentClassifier)
             };

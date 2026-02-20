@@ -1,8 +1,8 @@
 use serde_json::json;
 
 use crate::models::{
-    ConciergeReply, Intent, Locale, OpsChecklist, OpsChecklistType, RetrievedChunk, SuggestedAction,
-    TripDayPlan, TripPlanRequest, TripPlanResponse, TripStyle,
+    ConciergeReply, Intent, Locale, OpsChecklist, OpsChecklistType, RetrievedChunk,
+    SuggestedAction, TripDayPlan, TripPlanRequest, TripPlanResponse, TripStyle,
 };
 
 pub fn compose_chat_reply(
@@ -137,8 +137,7 @@ pub fn build_trip_plan(req: TripPlanRequest) -> TripPlanResponse {
                     "עצירת אוכל קלה + תצפית ערב".to_string(),
                 ],
                 sleep_plan: "חניון לילה מוסדר באזור החוף + חלופה קרובה".to_string(),
-                water_grey_plan:
-                    "בדיקת מפלס מים אפורים בערב וריקון רק בנקודה מורשית".to_string(),
+                water_grey_plan: "בדיקת מפלס מים אפורים בערב וריקון רק בנקודה מורשית".to_string(),
                 shower_options: vec![
                     "מקלחות חניון מוסדר".to_string(),
                     "חדר כושר אזורי כחלופה".to_string(),
@@ -155,10 +154,7 @@ pub fn build_trip_plan(req: TripPlanRequest) -> TripPlanResponse {
                 ],
                 sleep_plan: "לינה מוסדרת בגליל העליון עם גיבוי בטווח 25 דק".to_string(),
                 water_grey_plan: "מילוי מים בבוקר וריקון אפורים באמצע מסלול".to_string(),
-                shower_options: vec![
-                    "חניון מוסדר".to_string(),
-                    "מתחם רחצה יישובי".to_string(),
-                ],
+                shower_options: vec!["חניון מוסדר".to_string(), "מתחם רחצה יישובי".to_string()],
                 backup_option: "תכנית גיבוי לפי מזג אוויר/עומס".to_string(),
             },
             TripStyle::Desert => TripDayPlan {
@@ -197,7 +193,8 @@ pub fn build_trip_plan(req: TripPlanRequest) -> TripPlanResponse {
     };
 
     TripPlanResponse {
-        summary: "תכנון תנועה-ראשונה: פחות מעבר בין נקודות לינה, יותר יציבות תפעולית וחופש".to_string(),
+        summary: "תכנון תנועה-ראשונה: פחות מעבר בין נקודות לינה, יותר יציבות תפעולית וחופש"
+            .to_string(),
         days: day_plans,
         safety_notes: vec![
             "לא מבצעים ריקון מים אפורים מחוץ לנקודה מורשית".to_string(),

@@ -14,16 +14,16 @@ use atlas_observability::AppMetrics;
 use atlas_retrieval::HybridRetriever;
 use atlas_storage::Store;
 use axum::extract::{Json, Path as AxumPath, Query, State};
-use axum::http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header};
+use axum::http::{header, HeaderMap, HeaderValue, Method, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use axum::{Router, body::Body};
-use base64::Engine as _;
+use axum::{body::Body, Router};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine as _;
 use hmac::{Hmac, Mac};
 use parking_lot::RwLock;
-use rand::{RngCore, rng};
+use rand::{rng, RngCore};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -50,6 +50,7 @@ const MAX_MEMORY_IMPORT_ITEMS: usize = 250;
 const MAX_NOTES_PER_USER: usize = 5_000;
 
 #[derive(Clone)]
+#[allow(private_interfaces)]
 pub struct ApiState {
     pub agent: Arc<ConciergeAgent<Store>>,
     pub metrics: Arc<AppMetrics>,
@@ -109,14 +110,11 @@ struct BillingRuntimeConfig {
     monthly_price_id: String,
     success_url: String,
     cancel_url: String,
-    return_url: String,
 }
 
 #[derive(Debug, Clone)]
 struct WebauthnRuntimeConfig {
     webauthn: Arc<Webauthn>,
-    rp_id: String,
-    origin: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -621,7 +619,10 @@ pub fn build_router(state: ApiState) -> Router {
             "/v1/auth/passkey/register/finish",
             post(auth_passkey_register_finish),
         )
-        .route("/v1/auth/passkey/login/start", post(auth_passkey_login_start))
+        .route(
+            "/v1/auth/passkey/login/start",
+            post(auth_passkey_login_start),
+        )
         .route(
             "/v1/auth/passkey/login/finish",
             post(auth_passkey_login_finish),
@@ -667,8 +668,14 @@ pub fn build_router(state: ApiState) -> Router {
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(RequestBodyLimitLayer::new(64 * 1024))
-        .layer(middleware::from_fn_with_state(state.clone(), api_key_middleware))
-        .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            api_key_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_middleware,
+        ))
         .with_state(state)
 }
 
@@ -712,7 +719,12 @@ async fn auth_google_start(
     let state_token = generate_urlsafe_token(24);
     let code_verifier = generate_urlsafe_token(64);
     let code_challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(code_verifier.as_bytes()));
-    let return_to = sanitize_return_to(query.return_to.as_deref().unwrap_or("/concierge-local.html"));
+    let return_to = sanitize_return_to(
+        query
+            .return_to
+            .as_deref()
+            .unwrap_or("/concierge-local.html"),
+    );
 
     state.oauth_states.write().insert(
         state_token.clone(),
@@ -754,11 +766,7 @@ async fn auth_google_callback(
             "{}{}?auth=error&reason={}",
             config.frontend_origin,
             "/concierge-local.html",
-            pct_encode(
-                query.error_description
-                    .as_deref()
-                    .unwrap_or(error.as_str())
-            )
+            pct_encode(query.error_description.as_deref().unwrap_or(error.as_str()))
         );
         return Redirect::to(target.as_str()).into_response();
     }
@@ -789,7 +797,8 @@ async fn auth_google_callback(
     let Some(code) = query.code.as_deref() else {
         let target = format!(
             "{}{}?auth=error&reason=missing_code",
-            config.frontend_origin, pending.return_to.as_str()
+            config.frontend_origin,
+            pending.return_to.as_str()
         );
         return Redirect::to(target.as_str()).into_response();
     };
@@ -814,7 +823,8 @@ async fn auth_google_callback(
                 Err(_) => {
                     let target = format!(
                         "{}{}?auth=error&reason=token_parse_failed",
-                        config.frontend_origin, pending.return_to.as_str()
+                        config.frontend_origin,
+                        pending.return_to.as_str()
                     );
                     return Redirect::to(target.as_str()).into_response();
                 }
@@ -832,7 +842,8 @@ async fn auth_google_callback(
         Err(_) => {
             let target = format!(
                 "{}{}?auth=error&reason=token_exchange_network_failed",
-                config.frontend_origin, pending.return_to.as_str()
+                config.frontend_origin,
+                pending.return_to.as_str()
             );
             return Redirect::to(target.as_str()).into_response();
         }
@@ -845,20 +856,24 @@ async fn auth_google_callback(
         .send()
         .await
     {
-        Ok(response) if response.status().is_success() => match response.json::<GoogleUserInfoResponse>().await {
-            Ok(payload) => payload,
-            Err(_) => {
-                let target = format!(
-                    "{}{}?auth=error&reason=userinfo_parse_failed",
-                    config.frontend_origin, pending.return_to.as_str()
-                );
-                return Redirect::to(target.as_str()).into_response();
+        Ok(response) if response.status().is_success() => {
+            match response.json::<GoogleUserInfoResponse>().await {
+                Ok(payload) => payload,
+                Err(_) => {
+                    let target = format!(
+                        "{}{}?auth=error&reason=userinfo_parse_failed",
+                        config.frontend_origin,
+                        pending.return_to.as_str()
+                    );
+                    return Redirect::to(target.as_str()).into_response();
+                }
             }
-        },
+        }
         _ => {
             let target = format!(
                 "{}{}?auth=error&reason=userinfo_failed",
-                config.frontend_origin, pending.return_to.as_str()
+                config.frontend_origin,
+                pending.return_to.as_str()
             );
             return Redirect::to(target.as_str()).into_response();
         }
@@ -867,7 +882,8 @@ async fn auth_google_callback(
     if !userinfo.verified_email.unwrap_or(true) {
         let target = format!(
             "{}{}?auth=error&reason=email_not_verified",
-            config.frontend_origin, pending.return_to.as_str()
+            config.frontend_origin,
+            pending.return_to.as_str()
         );
         return Redirect::to(target.as_str()).into_response();
     }
@@ -877,7 +893,9 @@ async fn auth_google_callback(
         &state,
         "google",
         userinfo.email.to_lowercase(),
-        userinfo.name.unwrap_or_else(|| "Atlas Masa User".to_string()),
+        userinfo
+            .name
+            .unwrap_or_else(|| "Atlas Masa User".to_string()),
         userinfo.locale.unwrap_or_else(|| "en".to_string()),
         now,
     )
@@ -888,7 +906,8 @@ async fn auth_google_callback(
         Err(_) => {
             let target = format!(
                 "{}{}?auth=error&reason=session_issue_failed",
-                config.frontend_origin, pending.return_to.as_str()
+                config.frontend_origin,
+                pending.return_to.as_str()
             );
             return Redirect::to(target.as_str()).into_response();
         }
@@ -909,7 +928,9 @@ async fn auth_google_callback(
         state.cookie_domain.as_deref(),
     );
     if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
-        response.headers_mut().insert(header::SET_COOKIE, header_value);
+        response
+            .headers_mut()
+            .insert(header::SET_COOKIE, header_value);
     }
     response
 }
@@ -957,7 +978,10 @@ async fn auth_passkey_register_start(
     if user.passkey_user_handle.is_none() {
         user.passkey_user_handle = Some(uuid::Uuid::new_v4().to_string());
         user.updated_at = chrono::Utc::now().to_rfc3339();
-        state.users.write().insert(user.user_id.clone(), user.clone());
+        state
+            .users
+            .write()
+            .insert(user.user_id.clone(), user.clone());
         let _ = persist_user_if_configured(&state, &user).await;
     }
 
@@ -967,14 +991,12 @@ async fn auth_passkey_register_start(
         .and_then(|value| uuid::Uuid::parse_str(value).ok())
         .unwrap_or_else(uuid::Uuid::new_v4);
 
-    let registration = runtime
-        .webauthn
-        .start_passkey_registration(
-            user_handle,
-            user.email.as_str(),
-            user.name.as_str(),
-            None,
-        );
+    let registration = runtime.webauthn.start_passkey_registration(
+        user_handle,
+        user.email.as_str(),
+        user.name.as_str(),
+        None,
+    );
 
     let (creation_response, registration_state) = match registration {
         Ok(value) => value,
@@ -1004,7 +1026,8 @@ async fn auth_passkey_register_start(
         StatusCode::OK,
         Json(PasskeyRegistrationStartResponse {
             request_id,
-            options: serde_json::to_value(creation_response).unwrap_or_else(|_| serde_json::json!({})),
+            options: serde_json::to_value(creation_response)
+                .unwrap_or_else(|_| serde_json::json!({})),
         }),
     )
         .into_response()
@@ -1150,7 +1173,9 @@ async fn auth_passkey_login_start(
             .into_response();
     }
 
-    let authentication = runtime.webauthn.start_passkey_authentication(passkeys.as_slice());
+    let authentication = runtime
+        .webauthn
+        .start_passkey_authentication(passkeys.as_slice());
     let (request, auth_state) = match authentication {
         Ok(value) => value,
         Err(error) => {
@@ -1289,7 +1314,9 @@ async fn auth_passkey_login_finish(
         state.cookie_domain.as_deref(),
     );
     if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
-        response.headers_mut().insert(header::SET_COOKIE, header_value);
+        response
+            .headers_mut()
+            .insert(header::SET_COOKIE, header_value);
     }
     response
 }
@@ -1328,8 +1355,10 @@ async fn chat(
                     .get(&user.user_id)
                     .cloned()
                     .unwrap_or_else(|| default_studio_preferences(&user.user_id));
-                let effective_studio_pref =
-                    merge_studio_preferences(stored_studio_pref, request_overrides_to_studio(&request));
+                let effective_studio_pref = merge_studio_preferences(
+                    stored_studio_pref,
+                    request_overrides_to_studio(&request),
+                );
 
                 response.reply_text = apply_studio_format(
                     response.reply_text,
@@ -1364,22 +1393,25 @@ async fn chat(
                         "reminders_app": effective_studio_pref.reminders_app
                     }),
                 });
-                response.suggested_actions.push(atlas_core::SuggestedAction {
-                    action_type: "create_alarm".to_string(),
-                    label: match response.locale {
-                        atlas_core::Locale::He => "יצירת אזעקה".to_string(),
-                        _ => "Create alarm".to_string(),
-                    },
-                    payload: serde_json::json!({
-                        "label": "Atlas Masa focus sprint",
-                        "time_local": "08:30",
-                        "days": ["Mon", "Tue", "Wed", "Thu", "Sun"],
-                        "alarms_app": effective_studio_pref.alarms_app
-                    }),
-                });
+                response
+                    .suggested_actions
+                    .push(atlas_core::SuggestedAction {
+                        action_type: "create_alarm".to_string(),
+                        label: match response.locale {
+                            atlas_core::Locale::He => "יצירת אזעקה".to_string(),
+                            _ => "Create alarm".to_string(),
+                        },
+                        payload: serde_json::json!({
+                            "label": "Atlas Masa focus sprint",
+                            "time_local": "08:30",
+                            "days": ["Mon", "Tue", "Wed", "Thu", "Sun"],
+                            "alarms_app": effective_studio_pref.alarms_app
+                        }),
+                    });
 
                 if let Some(payload_obj) = response.json_payload.as_object_mut() {
-                    payload_obj.insert("input_user_id".to_string(), serde_json::json!(user.user_id));
+                    payload_obj
+                        .insert("input_user_id".to_string(), serde_json::json!(user.user_id));
                     payload_obj.insert("user_profile".to_string(), serde_json::json!(user));
                     payload_obj.insert(
                         "studio_preferences".to_string(),
@@ -1401,13 +1433,12 @@ async fn chat(
                 }
             } else {
                 // Guest formatting fallback.
-                let guest_pref =
-                    merge_studio_preferences(default_studio_preferences("guest"), request_overrides_to_studio(&request));
-                response.reply_text = apply_studio_format_guest(
-                    response.reply_text,
-                    &guest_pref,
-                    response.locale,
+                let guest_pref = merge_studio_preferences(
+                    default_studio_preferences("guest"),
+                    request_overrides_to_studio(&request),
                 );
+                response.reply_text =
+                    apply_studio_format_guest(response.reply_text, &guest_pref, response.locale);
                 response.suggested_actions.push(atlas_core::SuggestedAction {
                     action_type: "create_reminder".to_string(),
                     label: match response.locale {
@@ -1421,19 +1452,21 @@ async fn chat(
                         "reminders_app": guest_pref.reminders_app
                     }),
                 });
-                response.suggested_actions.push(atlas_core::SuggestedAction {
-                    action_type: "create_alarm".to_string(),
-                    label: match response.locale {
-                        atlas_core::Locale::He => "יצירת אזעקה".to_string(),
-                        _ => "Create alarm".to_string(),
-                    },
-                    payload: serde_json::json!({
-                        "label": "Atlas guest focus sprint",
-                        "time_local": "08:30",
-                        "days": ["Mon", "Tue", "Wed", "Thu", "Sun"],
-                        "alarms_app": guest_pref.alarms_app
-                    }),
-                });
+                response
+                    .suggested_actions
+                    .push(atlas_core::SuggestedAction {
+                        action_type: "create_alarm".to_string(),
+                        label: match response.locale {
+                            atlas_core::Locale::He => "יצירת אזעקה".to_string(),
+                            _ => "Create alarm".to_string(),
+                        },
+                        payload: serde_json::json!({
+                            "label": "Atlas guest focus sprint",
+                            "time_local": "08:30",
+                            "days": ["Mon", "Tue", "Wed", "Thu", "Sun"],
+                            "alarms_app": guest_pref.alarms_app
+                        }),
+                    });
             }
 
             let premium_user = session_user.or_else(|| {
@@ -1474,13 +1507,11 @@ async fn chat(
                         );
                         payload_obj.insert(
                             "ai_model".to_string(),
-                            serde_json::json!(
-                                state
-                                    .openai_runtime
-                                    .as_ref()
-                                    .map(|cfg| cfg.model.clone())
-                                    .unwrap_or_default()
-                            ),
+                            serde_json::json!(state
+                                .openai_runtime
+                                .as_ref()
+                                .map(|cfg| cfg.model.clone())
+                                .unwrap_or_default()),
                         );
                     }
                 }
@@ -1584,7 +1615,9 @@ async fn social_login(
         state.cookie_domain.as_deref(),
     );
     if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
-        response.headers_mut().insert(header::SET_COOKIE, header_value);
+        response
+            .headers_mut()
+            .insert(header::SET_COOKIE, header_value);
     }
     response
 }
@@ -1609,7 +1642,9 @@ async fn auth_logout(State(state): State<ApiState>, headers: HeaderMap) -> impl 
         state.cookie_domain.as_deref(),
     );
     if let Ok(header_value) = HeaderValue::from_str(&clear_cookie) {
-        response.headers_mut().insert(header::SET_COOKIE, header_value);
+        response
+            .headers_mut()
+            .insert(header::SET_COOKIE, header_value);
     }
     response
 }
@@ -1649,50 +1684,52 @@ async fn profile_upsert(
             .into_response();
     };
 
-    let mut users = state.users.write();
-    let Some(user) = users.get_mut(&target_user_id) else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "error": "user_not_found",
-                "message": "sign in first"
-            })),
-        )
-            .into_response();
-    };
+    let user_clone = {
+        let mut users = state.users.write();
+        let Some(user) = users.get_mut(&target_user_id) else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": "user_not_found",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        };
 
-    if let Some(style) = input.trip_style {
-        let style = sanitize_limited_text(style.as_str(), MAX_PROFILE_FIELD_LEN);
-        if !style.is_empty() {
-            user.trip_style = Some(sanitize_enum_value(
-                style.as_str(),
-                &["mixed", "beach", "north", "desert", "business", "nature"],
-                "mixed",
-            ));
+        if let Some(style) = input.trip_style {
+            let style = sanitize_limited_text(style.as_str(), MAX_PROFILE_FIELD_LEN);
+            if !style.is_empty() {
+                user.trip_style = Some(sanitize_enum_value(
+                    style.as_str(),
+                    &["mixed", "beach", "north", "desert", "business", "nature"],
+                    "mixed",
+                ));
+            }
         }
-    }
-    if let Some(risk) = input.risk_preference {
-        let risk = sanitize_limited_text(risk.as_str(), MAX_PROFILE_FIELD_LEN);
-        if !risk.is_empty() {
-            user.risk_preference = Some(sanitize_enum_value(
-                risk.as_str(),
-                &["low", "medium", "high"],
-                "medium",
-            ));
+        if let Some(risk) = input.risk_preference {
+            let risk = sanitize_limited_text(risk.as_str(), MAX_PROFILE_FIELD_LEN);
+            if !risk.is_empty() {
+                user.risk_preference = Some(sanitize_enum_value(
+                    risk.as_str(),
+                    &["low", "medium", "high"],
+                    "medium",
+                ));
+            }
         }
-    }
-    if let Some(opt_in) = input.memory_opt_in {
-        user.memory_opt_in = opt_in;
-    }
-    if let Some(locale) = input.locale {
-        let locale = sanitize_limited_text(locale.as_str(), MAX_PROFILE_FIELD_LEN);
-        if !locale.is_empty() {
-            user.locale = sanitize_enum_value(locale.as_str(), &["he", "en", "ar", "ru", "fr"], "he");
+        if let Some(opt_in) = input.memory_opt_in {
+            user.memory_opt_in = opt_in;
         }
-    }
-    user.updated_at = chrono::Utc::now().to_rfc3339();
-    let user_clone = user.clone();
-    drop(users);
+        if let Some(locale) = input.locale {
+            let locale = sanitize_limited_text(locale.as_str(), MAX_PROFILE_FIELD_LEN);
+            if !locale.is_empty() {
+                user.locale =
+                    sanitize_enum_value(locale.as_str(), &["he", "en", "ar", "ru", "fr"], "he");
+            }
+        }
+        user.updated_at = chrono::Utc::now().to_rfc3339();
+        user.clone()
+    };
     let _ = persist_user_if_configured(&state, &user_clone).await;
 
     (
@@ -1705,10 +1742,7 @@ async fn profile_upsert(
         .into_response()
 }
 
-async fn auth_me(
-    State(state): State<ApiState>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+async fn auth_me(State(state): State<ApiState>, headers: HeaderMap) -> impl IntoResponse {
     let Some(user) = session_user_from_headers(&state, &headers) else {
         return (
             StatusCode::UNAUTHORIZED,
@@ -1796,15 +1830,16 @@ async fn note_upsert(
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
 
-    let mut notes_map = state.user_notes.write();
-    let notes = notes_map.entry(user_id.clone()).or_default();
-    if let Some(existing) = notes.iter_mut().find(|entry| entry.note_id == note_id) {
-        *existing = note.clone();
-    } else {
-        notes.push(note.clone());
+    {
+        let mut notes_map = state.user_notes.write();
+        let notes = notes_map.entry(user_id.clone()).or_default();
+        if let Some(existing) = notes.iter_mut().find(|entry| entry.note_id == note_id) {
+            *existing = note.clone();
+        } else {
+            notes.push(note.clone());
+        }
+        notes.sort_by(|lhs, rhs| rhs.updated_at.cmp(&lhs.updated_at));
     }
-    notes.sort_by(|lhs, rhs| rhs.updated_at.cmp(&lhs.updated_at));
-    drop(notes_map);
     let _ = persist_notes_if_configured(&state, user_id.as_str()).await;
 
     (
@@ -1835,11 +1870,11 @@ async fn note_rewrite(
         }
     };
 
-    let note = state
-        .user_notes
-        .read()
-        .get(&user_id)
-        .and_then(|list| list.iter().find(|entry| entry.note_id == input.note_id).cloned());
+    let note = state.user_notes.read().get(&user_id).and_then(|list| {
+        list.iter()
+            .find(|entry| entry.note_id == input.note_id)
+            .cloned()
+    });
     let Some(note) = note else {
         return (
             StatusCode::NOT_FOUND,
@@ -2062,7 +2097,10 @@ async fn billing_create_checkout_session(
             ("client_reference_id", user.user_id.as_str()),
             ("metadata[user_id]", user.user_id.as_str()),
             ("metadata[product]", "atlas_masa_pro"),
-            ("subscription_data[metadata][user_id]", user.user_id.as_str()),
+            (
+                "subscription_data[metadata][user_id]",
+                user.user_id.as_str(),
+            ),
         ])
         .send()
         .await
@@ -2270,7 +2308,11 @@ async fn studio_preferences_get(
         .cloned()
         .unwrap_or_else(|| default_studio_preferences(&user_id));
 
-    (StatusCode::OK, Json(serde_json::json!({ "preferences": prefs }))).into_response()
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "preferences": prefs })),
+    )
+        .into_response()
 }
 
 async fn studio_preferences_upsert(
@@ -2292,17 +2334,23 @@ async fn studio_preferences_upsert(
         }
     };
 
-    let mut prefs_map = state.studio_preferences.write();
-    let current = prefs_map
-        .get(&user_id)
-        .cloned()
-        .unwrap_or_else(|| default_studio_preferences(&user_id));
-    let merged = merge_studio_preferences(current, input);
-    prefs_map.insert(user_id, merged.clone());
-    drop(prefs_map);
+    let merged = {
+        let mut prefs_map = state.studio_preferences.write();
+        let current = prefs_map
+            .get(&user_id)
+            .cloned()
+            .unwrap_or_else(|| default_studio_preferences(&user_id));
+        let merged = merge_studio_preferences(current, input);
+        prefs_map.insert(user_id, merged.clone());
+        merged
+    };
     let _ = persist_studio_preferences_if_configured(&state, merged.user_id.as_str()).await;
 
-    (StatusCode::OK, Json(serde_json::json!({ "ok": true, "preferences": merged }))).into_response()
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "ok": true, "preferences": merged })),
+    )
+        .into_response()
 }
 
 async fn survey_next(
@@ -2378,33 +2426,38 @@ async fn survey_answer(
         .map(|user| user.locale.clone())
         .unwrap_or_else(|| "he".to_string());
 
-    let mut states = state.survey_states.write();
-    let entry = states.entry(user_id.clone()).or_insert_with(|| SurveyStateRecord {
-        user_id: user_id.clone(),
-        answers: HashMap::new(),
-        completed: false,
-        updated_at: chrono::Utc::now().to_rfc3339(),
-    });
-    entry
-        .answers
-        .insert(input.question_id.trim().to_string(), input.answer.trim().to_string());
-    entry.completed = next_survey_question(&user_locale, &entry.answers).is_none();
-    entry.updated_at = chrono::Utc::now().to_rfc3339();
-    let persisted_user = entry.user_id.clone();
-    drop(states);
+    let persisted_user = {
+        let mut states = state.survey_states.write();
+        let entry = states
+            .entry(user_id.clone())
+            .or_insert_with(|| SurveyStateRecord {
+                user_id: user_id.clone(),
+                answers: HashMap::new(),
+                completed: false,
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            });
+        entry.answers.insert(
+            input.question_id.trim().to_string(),
+            input.answer.trim().to_string(),
+        );
+        entry.completed = next_survey_question(&user_locale, &entry.answers).is_none();
+        entry.updated_at = chrono::Utc::now().to_rfc3339();
+        entry.user_id.clone()
+    };
     let _ = persist_survey_state_if_configured(&state, persisted_user.as_str()).await;
 
-    let state_snapshot = state
-        .survey_states
-        .read()
-        .get(&user_id)
-        .cloned()
-        .unwrap_or(SurveyStateRecord {
-            user_id: user_id.clone(),
-            answers: HashMap::new(),
-            completed: false,
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        });
+    let state_snapshot =
+        state
+            .survey_states
+            .read()
+            .get(&user_id)
+            .cloned()
+            .unwrap_or(SurveyStateRecord {
+                user_id: user_id.clone(),
+                answers: HashMap::new(),
+                completed: false,
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            });
 
     let total = survey_total_questions(&state_snapshot.answers);
     let answered = state_snapshot.answers.len().min(total);
@@ -2516,7 +2569,10 @@ async fn feedback_submit(
             "other",
         ),
         severity: sanitize_enum_value(
-            input.severity.unwrap_or_else(|| "normal".to_string()).as_str(),
+            input
+                .severity
+                .unwrap_or_else(|| "normal".to_string())
+                .as_str(),
             &["low", "normal", "high", "critical"],
             "normal",
         ),
@@ -2855,7 +2911,12 @@ fn build_session_cookie(
     segments.join("; ")
 }
 
-fn build_clear_cookie(cookie_name: &str, secure: bool, same_site: &str, domain: Option<&str>) -> String {
+fn build_clear_cookie(
+    cookie_name: &str,
+    secure: bool,
+    same_site: &str,
+    domain: Option<&str>,
+) -> String {
     let mut segments = vec![
         format!("{cookie_name}="),
         "Path=/".to_string(),
@@ -2891,7 +2952,11 @@ fn default_company_status() -> CompanyStatusRecord {
     }
 }
 
-fn resolve_user_id(state: &ApiState, headers: &HeaderMap, explicit_user_id: Option<String>) -> Option<String> {
+fn resolve_user_id(
+    state: &ApiState,
+    headers: &HeaderMap,
+    explicit_user_id: Option<String>,
+) -> Option<String> {
     let session_user = session_user_from_headers(state, headers)?;
     if let Some(from_body) = explicit_user_id.as_ref() {
         if from_body != &session_user.user_id {
@@ -2943,7 +3008,8 @@ fn merge_studio_preferences(
         );
     }
     if let Some(value) = incoming.response_depth {
-        base.response_depth = sanitize_enum_value(value.as_str(), &["quick", "balanced", "deep"], "deep");
+        base.response_depth =
+            sanitize_enum_value(value.as_str(), &["quick", "balanced", "deep"], "deep");
     }
     if let Some(value) = incoming.response_tone {
         base.response_tone = sanitize_enum_value(
@@ -2953,8 +3019,11 @@ fn merge_studio_preferences(
         );
     }
     if let Some(value) = incoming.proactive_mode {
-        base.proactive_mode =
-            sanitize_enum_value(value.as_str(), &["enabled", "focus_only", "disabled"], "enabled");
+        base.proactive_mode = sanitize_enum_value(
+            value.as_str(),
+            &["enabled", "focus_only", "disabled"],
+            "enabled",
+        );
     }
     if let Some(value) = incoming.reminders_app {
         base.reminders_app = sanitize_enum_value(
@@ -3006,7 +3075,9 @@ fn apply_studio_format(
         format!(
             "פרופיל פעיל: {} | סגנון: {} | סיכון: {}",
             user.name,
-            user.trip_style.clone().unwrap_or_else(|| "mixed".to_string()),
+            user.trip_style
+                .clone()
+                .unwrap_or_else(|| "mixed".to_string()),
             user.risk_preference
                 .clone()
                 .unwrap_or_else(|| "medium".to_string())
@@ -3015,7 +3086,9 @@ fn apply_studio_format(
         format!(
             "Active profile: {} | style: {} | risk: {}",
             user.name,
-            user.trip_style.clone().unwrap_or_else(|| "mixed".to_string()),
+            user.trip_style
+                .clone()
+                .unwrap_or_else(|| "mixed".to_string()),
             user.risk_preference
                 .clone()
                 .unwrap_or_else(|| "medium".to_string())
@@ -3047,9 +3120,15 @@ fn format_by_mode(
     let rendered = match prefs.preferred_format.as_str() {
         "concise" => {
             if locale == atlas_core::Locale::He {
-                format!("{}\n\nתכל'ס עכשיו: בצעו צעד אחד ב-15 הדקות הקרובות.", base_reply)
+                format!(
+                    "{}\n\nתכל'ס עכשיו: בצעו צעד אחד ב-15 הדקות הקרובות.",
+                    base_reply
+                )
             } else {
-                format!("{}\n\nDo this now: execute one action in the next 15 minutes.", base_reply)
+                format!(
+                    "{}\n\nDo this now: execute one action in the next 15 minutes.",
+                    base_reply
+                )
             }
         }
         "checklist" => {
@@ -3091,16 +3170,14 @@ fn format_by_mode(
                 )
             }
         }
-        "json" => {
-            serde_json::json!({
-                "mode": "json",
-                "tone": prefs.response_tone,
-                "depth": prefs.response_depth,
-                "profile": profile_line,
-                "response": base_reply
-            })
-            .to_string()
-        }
+        "json" => serde_json::json!({
+            "mode": "json",
+            "tone": prefs.response_tone,
+            "depth": prefs.response_depth,
+            "profile": profile_line,
+            "response": base_reply
+        })
+        .to_string(),
         "notebook_style" => {
             if locale == atlas_core::Locale::He {
                 format!(
@@ -3114,21 +3191,12 @@ fn format_by_mode(
                 )
             }
         }
-        _ => {
-            if locale == atlas_core::Locale::He {
-                format!("{}\n\n{}", base_reply, profile_line)
-            } else {
-                format!("{}\n\n{}", base_reply, profile_line)
-            }
-        }
+        _ => format!("{}\n\n{}", base_reply, profile_line),
     };
 
     if prefs.response_tone == "executive" {
         if locale == atlas_core::Locale::He {
-            format!(
-                "סטנדרט הנהלה: מסר מדויק, מכובד ותכליתי.\n\n{}",
-                rendered
-            )
+            format!("סטנדרט הנהלה: מסר מדויק, מכובד ותכליתי.\n\n{}", rendered)
         } else {
             format!(
                 "Executive standard: precise, high-caliber, and mission-aligned guidance.\n\n{}",
@@ -3147,7 +3215,10 @@ fn build_proactive_feed(
     survey: Option<&SurveyStateRecord>,
     notes: Option<&[UserNoteRecord]>,
 ) -> Vec<ProactiveFeedItem> {
-    let style = user.trip_style.clone().unwrap_or_else(|| "mixed".to_string());
+    let style = user
+        .trip_style
+        .clone()
+        .unwrap_or_else(|| "mixed".to_string());
     let risk = user
         .risk_preference
         .clone()
@@ -3168,8 +3239,7 @@ fn build_proactive_feed(
                 "Daily momentum plan".to_string()
             },
             summary: if user.locale == "he" {
-                "להגדיר יעד יומי, להפעיל תזכורת, ולבצע בלוק פוקוס ראשון תוך 30 דקות."
-                    .to_string()
+                "להגדיר יעד יומי, להפעיל תזכורת, ולבצע בלוק פוקוס ראשון תוך 30 דקות.".to_string()
             } else {
                 "Define one daily target, trigger a reminder, and execute first focus block in 30 minutes."
                     .to_string()
@@ -3388,12 +3458,8 @@ fn next_survey_question(locale: &str, answers: &HashMap<String, String>) -> Opti
         kind: kind.to_string(),
         required: true,
         choices,
-        placeholder: if he {
-            placeholder_he
-        } else {
-            placeholder_en
-        }
-        .map(|value| value.to_string()),
+        placeholder: if he { placeholder_he } else { placeholder_en }
+            .map(|value| value.to_string()),
     };
 
     if !answers.contains_key("primary_goal") {
@@ -3510,7 +3576,12 @@ fn next_survey_question(locale: &str, answers: &HashMap<String, String>) -> Opti
                 survey_choice(he, "uncertainty", "חוסר ודאות", "Uncertainty"),
                 survey_choice(he, "fatigue", "עייפות", "Fatigue"),
                 survey_choice(he, "overload", "עומס משימות", "Task overload"),
-                survey_choice(he, "social", "רעש חברתי/התראות", "Social noise/notifications"),
+                survey_choice(
+                    he,
+                    "social",
+                    "רעש חברתי/התראות",
+                    "Social noise/notifications",
+                ),
             ],
             None,
             None,
@@ -3549,8 +3620,18 @@ fn next_survey_question(locale: &str, answers: &HashMap<String, String>) -> Opti
             None,
             "choice",
             vec![
-                survey_choice(he, "daily_commute", "נסיעות יומיות כבדות", "Heavy daily commuting"),
-                survey_choice(he, "multi_day", "שהייה מתגלגלת רב-יומית", "Multi-day rolling travel"),
+                survey_choice(
+                    he,
+                    "daily_commute",
+                    "נסיעות יומיות כבדות",
+                    "Heavy daily commuting",
+                ),
+                survey_choice(
+                    he,
+                    "multi_day",
+                    "שהייה מתגלגלת רב-יומית",
+                    "Multi-day rolling travel",
+                ),
                 survey_choice(he, "hybrid", "היברידי", "Hybrid"),
             ],
             None,
@@ -3604,7 +3685,12 @@ fn next_survey_question(locale: &str, answers: &HashMap<String, String>) -> Opti
             None,
             "choice",
             vec![
-                survey_choice(he, "fixed_percent", "אחוז קבוע מהכנסות", "Fixed percent of income"),
+                survey_choice(
+                    he,
+                    "fixed_percent",
+                    "אחוז קבוע מהכנסות",
+                    "Fixed percent of income",
+                ),
                 survey_choice(he, "milestones", "לפי אבני דרך", "By milestones"),
                 survey_choice(he, "later", "בהמשך", "Later"),
             ],
@@ -3636,8 +3722,16 @@ fn next_survey_question(locale: &str, answers: &HashMap<String, String>) -> Opti
             "voice_preference",
             "האם אתה רוצה שיחה קולית רציפה עם המערכת?",
             "Do you want continuous voice conversation with the system?",
-            if en { Some("This can be changed later in Studio settings.") } else { Some("אפשר לשנות בכל רגע בהגדרות הסטודיו.") },
-            if en { Some("This can be changed later in Studio settings.") } else { Some("אפשר לשנות בכל רגע בהגדרות הסטודיו.") },
+            if en {
+                Some("This can be changed later in Studio settings.")
+            } else {
+                Some("אפשר לשנות בכל רגע בהגדרות הסטודיו.")
+            },
+            if en {
+                Some("This can be changed later in Studio settings.")
+            } else {
+                Some("אפשר לשנות בכל רגע בהגדרות הסטודיו.")
+            },
             "choice",
             vec![
                 survey_choice(he, "yes", "כן", "Yes"),
@@ -3689,7 +3783,10 @@ fn sanitize_note_tags(tags: Vec<String>) -> Vec<String> {
         .collect()
 }
 
-fn parse_or_default_utc(input: Option<&str>, fallback: chrono::DateTime<chrono::Utc>) -> chrono::DateTime<chrono::Utc> {
+fn parse_or_default_utc(
+    input: Option<&str>,
+    fallback: chrono::DateTime<chrono::Utc>,
+) -> chrono::DateTime<chrono::Utc> {
     input
         .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
         .map(|value| value.with_timezone(&chrono::Utc))
@@ -3786,12 +3883,12 @@ fn build_openai_runtime_config() -> Option<OpenAiRuntimeConfig> {
 fn build_billing_runtime_config() -> Option<BillingRuntimeConfig> {
     let stripe_secret_key = env::var("ATLAS_STRIPE_SECRET_KEY").ok()?;
     let monthly_price_id = env::var("ATLAS_STRIPE_MONTHLY_PRICE_ID").ok()?;
-    let success_url =
-        env::var("ATLAS_STRIPE_SUCCESS_URL").unwrap_or_else(|_| "https://atlasmasa.com/concierge-local.html?billing=success".to_string());
-    let cancel_url =
-        env::var("ATLAS_STRIPE_CANCEL_URL").unwrap_or_else(|_| "https://atlasmasa.com/concierge-local.html?billing=cancel".to_string());
-    let return_url =
-        env::var("ATLAS_STRIPE_RETURN_URL").unwrap_or_else(|_| "https://atlasmasa.com/concierge-local.html?billing=portal".to_string());
+    let success_url = env::var("ATLAS_STRIPE_SUCCESS_URL").unwrap_or_else(|_| {
+        "https://atlasmasa.com/concierge-local.html?billing=success".to_string()
+    });
+    let cancel_url = env::var("ATLAS_STRIPE_CANCEL_URL").unwrap_or_else(|_| {
+        "https://atlasmasa.com/concierge-local.html?billing=cancel".to_string()
+    });
     let stripe_webhook_secret = env::var("ATLAS_STRIPE_WEBHOOK_SECRET")
         .ok()
         .filter(|value| !value.trim().is_empty());
@@ -3802,7 +3899,6 @@ fn build_billing_runtime_config() -> Option<BillingRuntimeConfig> {
         monthly_price_id,
         success_url,
         cancel_url,
-        return_url,
     })
 }
 
@@ -3825,8 +3921,6 @@ fn build_webauthn_runtime() -> Option<WebauthnRuntimeConfig> {
 
     Some(WebauthnRuntimeConfig {
         webauthn: Arc::new(webauthn),
-        rp_id,
-        origin,
     })
 }
 
@@ -3864,7 +3958,12 @@ fn is_public_endpoint(path: &str) -> bool {
 fn legacy_social_login_enabled() -> bool {
     env::var("ATLAS_ALLOW_LEGACY_SOCIAL_LOGIN")
         .ok()
-        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
         .unwrap_or(true)
 }
 
@@ -4009,9 +4108,10 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
         state.users.insert(user.user_id.clone(), user);
     }
 
-    let sessions = sqlx::query("SELECT session_id, user_id, expires_at, created_at FROM auth_sessions")
-        .fetch_all(pool)
-        .await?;
+    let sessions =
+        sqlx::query("SELECT session_id, user_id, expires_at, created_at FROM auth_sessions")
+            .fetch_all(pool)
+            .await?;
     for row in sessions {
         let expires_at = row
             .get::<String, _>("expires_at")
@@ -4067,7 +4167,11 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
     for row in notes {
         let json: String = row.get("data_json");
         if let Ok(value) = serde_json::from_str::<UserNoteRecord>(&json) {
-            state.user_notes.entry(row.get("user_id")).or_default().push(value);
+            state
+                .user_notes
+                .entry(row.get("user_id"))
+                .or_default()
+                .push(value);
         }
     }
 
@@ -4176,7 +4280,9 @@ async fn persist_feedback_if_configured(state: &ApiState) -> Result<()> {
     let Some(pool) = state.db_pool.as_ref() else {
         return Ok(());
     };
-    sqlx::query("DELETE FROM feedback_items").execute(pool).await?;
+    sqlx::query("DELETE FROM feedback_items")
+        .execute(pool)
+        .await?;
     let items = state.feedback_items.read().clone();
     for item in &items {
         let json = serde_json::to_string(item)?;
@@ -4194,7 +4300,9 @@ async fn persist_sessions_if_configured(state: &ApiState) -> Result<()> {
         return Ok(());
     };
 
-    sqlx::query("DELETE FROM auth_sessions").execute(pool).await?;
+    sqlx::query("DELETE FROM auth_sessions")
+        .execute(pool)
+        .await?;
     let snapshot = state
         .sessions
         .read()
@@ -4375,7 +4483,9 @@ async fn find_or_create_user_by_email(
         .users
         .read()
         .values()
-        .find(|value| value.email == email && (value.provider == provider || value.provider == "passkey"))
+        .find(|value| {
+            value.email == email && (value.provider == provider || value.provider == "passkey")
+        })
         .cloned()
     {
         return existing;
@@ -4402,7 +4512,8 @@ async fn find_or_create_user_by_email(
 
 async fn issue_session_for_user(state: &ApiState, user: &UserRecord) -> Result<String> {
     let session_id = uuid::Uuid::new_v4().to_string();
-    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(state.session_ttl.as_secs() as i64);
+    let expires_at =
+        chrono::Utc::now() + chrono::Duration::seconds(state.session_ttl.as_secs() as i64);
     state.sessions.write().insert(
         session_id.clone(),
         SessionRecord {
@@ -4504,9 +4615,10 @@ async fn generate_premium_openai_reply(
         .await
         .context("OpenAI request failed")?;
 
-    if !response.status().is_success() {
+    let status = response.status();
+    if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
-        anyhow::bail!("OpenAI non-success status {}: {}", response.status().as_u16(), body);
+        anyhow::bail!("OpenAI non-success status {}: {}", status.as_u16(), body);
     }
 
     let body: serde_json::Value = response.json().await.context("OpenAI parse failed")?;
@@ -4558,12 +4670,16 @@ async fn rewrite_note_with_openai(
         .send()
         .await
         .context("OpenAI note rewrite request failed")?;
-    if !response.status().is_success() {
+    let status = response.status();
+    if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
-        anyhow::bail!("OpenAI note rewrite failed {}: {}", response.status().as_u16(), body);
+        anyhow::bail!("OpenAI note rewrite failed {}: {}", status.as_u16(), body);
     }
 
-    let body: serde_json::Value = response.json().await.context("OpenAI rewrite parse failed")?;
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .context("OpenAI rewrite parse failed")?;
     extract_openai_output_text(&body)
         .filter(|value| !value.trim().is_empty())
         .context("OpenAI rewrite output missing")
@@ -4601,7 +4717,6 @@ fn extract_openai_output_text(payload: &serde_json::Value) -> Option<String> {
 fn build_cors_layer(allowed_origins: &Arc<Vec<String>>) -> CorsLayer {
     let origins = allowed_origins
         .iter()
-        .into_iter()
         .filter_map(|origin| HeaderValue::from_str(origin).ok())
         .collect::<Vec<_>>();
     let origins = if origins.is_empty() {
@@ -4613,7 +4728,10 @@ fn build_cors_layer(allowed_origins: &Arc<Vec<String>>) -> CorsLayer {
     CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_headers([header::CONTENT_TYPE, header::HeaderName::from_static("x-api-key")])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::HeaderName::from_static("x-api-key"),
+        ])
         .allow_credentials(true)
 }
 
@@ -4630,7 +4748,14 @@ async fn rate_limit_middleware(
         .headers()
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())
-        .map(|value| value.split(',').next().unwrap_or("unknown").trim().to_string())
+        .map(|value| {
+            value
+                .split(',')
+                .next()
+                .unwrap_or("unknown")
+                .trim()
+                .to_string()
+        })
         .unwrap_or_else(|| "local".to_string());
 
     if !state.limiter.allow(&ip) {

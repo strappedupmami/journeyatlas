@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use atlas_api::build_app;
-use axum::body::{Body, to_bytes};
+use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
@@ -10,12 +10,21 @@ fn kb_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../kb")
 }
 
+fn allowed_origin() -> &'static str {
+    "http://localhost:5500"
+}
+
 #[tokio::test]
 async fn health_is_public() {
     let app = build_app(kb_root()).await.expect("app should build");
 
     let response = app
-        .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -119,6 +128,7 @@ async fn social_login_sets_cookie_and_auth_me_uses_session() {
         .header("content-type", "application/json")
         .header("x-api-key", "dev-atlas-key")
         .header("cookie", cookie_pair)
+        .header("origin", allowed_origin())
         .body(Body::from(
             json!({
                 "trip_style": "beach",
@@ -173,6 +183,7 @@ async fn studio_survey_feed_and_actions_flow() {
         .header("content-type", "application/json")
         .header("x-api-key", "dev-atlas-key")
         .header("cookie", cookie_pair.clone())
+        .header("origin", allowed_origin())
         .body(Body::from(
             json!({
                 "preferred_format": "notebook_style",
@@ -205,6 +216,7 @@ async fn studio_survey_feed_and_actions_flow() {
         .header("content-type", "application/json")
         .header("x-api-key", "dev-atlas-key")
         .header("cookie", cookie_pair.clone())
+        .header("origin", allowed_origin())
         .body(Body::from(
             json!({
                 "question_id": "primary_goal",
@@ -232,6 +244,7 @@ async fn studio_survey_feed_and_actions_flow() {
         .header("content-type", "application/json")
         .header("x-api-key", "dev-atlas-key")
         .header("cookie", cookie_pair.clone())
+        .header("origin", allowed_origin())
         .body(Body::from(
             json!({
                 "title": "Atlas reminder",
@@ -249,6 +262,7 @@ async fn studio_survey_feed_and_actions_flow() {
         .header("content-type", "application/json")
         .header("x-api-key", "dev-atlas-key")
         .header("cookie", cookie_pair)
+        .header("origin", allowed_origin())
         .body(Body::from(
             json!({
                 "label": "Atlas focus",

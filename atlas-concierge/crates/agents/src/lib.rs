@@ -5,9 +5,9 @@ use anyhow::Result;
 use atlas_core::intent::needs_clarification;
 use atlas_core::{
     build_ops_checklist, build_trip_plan, classify_intent_rules, compose_chat_reply, detect_locale,
-    normalize_text, ChatInput, ConciergeReply, ConversationSession, ConversationTurn, Intent, Locale,
-    OpsChecklist, OpsChecklistType, PolicyEngine, PolicySet, RetrievedChunk, TripPlanRequest,
-    TripPlanResponse,
+    normalize_text, ChatInput, ConciergeReply, ConversationSession, ConversationTurn, Intent,
+    Locale, OpsChecklist, OpsChecklistType, PolicyEngine, PolicySet, RetrievedChunk,
+    TripPlanRequest, TripPlanResponse,
 };
 use atlas_ml::AtlasMlStack;
 use atlas_observability::AppMetrics;
@@ -75,7 +75,9 @@ where
             clarifying_questions = clarifying_questions_for(intent, locale);
         }
 
-        let policy_result = self.policy_engine.evaluate_user_message(intent, &normalized);
+        let policy_result = self
+            .policy_engine
+            .evaluate_user_message(intent, &normalized);
         let mut reply = if policy_result.blocked {
             self.metrics.inc_fallback();
             blocked_reply(locale, &policy_result.notes)
@@ -209,10 +211,12 @@ fn clarifying_questions_for(intent: Intent, locale: Locale) -> Vec<String> {
             "מה סגנון הטיול המועדף: חוף / צפון / מדבר?".to_string(),
             "לכמה ימים וכמה אנשים?".to_string(),
         ],
-        (Intent::OpsChecklist, Locale::He) => vec![
-            "איזה צ׳ק-ליסט צריך עכשיו: החלפה / ניקיון / ציוד / תקלה?".to_string(),
-        ],
-        (Intent::Troubleshooting, Locale::He) => vec!["מה בדיוק התקלה כרגע ובאיזה אזור אתם?".to_string()],
+        (Intent::OpsChecklist, Locale::He) => {
+            vec!["איזה צ׳ק-ליסט צריך עכשיו: החלפה / ניקיון / ציוד / תקלה?".to_string()]
+        }
+        (Intent::Troubleshooting, Locale::He) => {
+            vec!["מה בדיוק התקלה כרגע ובאיזה אזור אתם?".to_string()]
+        }
         (Intent::TripPlanning, Locale::En) => vec![
             "Preferred style: beach, north, desert, or mixed?".to_string(),
             "How many days and people?".to_string(),
