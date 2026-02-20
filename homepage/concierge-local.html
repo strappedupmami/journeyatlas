@@ -322,6 +322,7 @@
               </div>
               <div class="actions">
                 <button class="btn btn--ghost" id="google-signin" type="button" data-i18n="studio.authGoogle">כניסה עם Google</button>
+                <button class="btn btn--ghost" id="apple-signin" type="button" data-i18n="studio.authApple">כניסה עם Apple</button>
                 <button class="btn btn--ghost" id="passkey-signin" type="button" data-i18n="studio.authPasskey">כניסה עם Passkey</button>
                 <button class="btn btn--ghost" id="passkey-enroll" type="button" data-i18n="studio.authPasskeyEnroll">רישום Passkey</button>
                 <button class="btn btn--primary" id="subscribe-monthly" type="button" data-i18n="studio.subscribeMonthly">מנוי חודשי (Apple Pay)</button>
@@ -613,6 +614,7 @@
             authGuest: "לא מחוברים. מומלץ להתחבר כדי לשמור זיכרון ארוך-טווח.",
             passkeyEmail: "אימייל להתחברות עם Google/Passkey",
             authGoogle: "כניסה עם Google",
+            authApple: "כניסה עם Apple",
             authPasskey: "כניסה עם Passkey",
             authPasskeyEnroll: "רישום Passkey",
             subscribeMonthly: "מנוי חודשי (Apple Pay)",
@@ -717,6 +719,7 @@
             authGuest: "Not signed in. Sign in to unlock long-term memory.",
             passkeyEmail: "Email for Google/Passkey sign-in",
             authGoogle: "Sign in with Google",
+            authApple: "Sign in with Apple",
             authPasskey: "Sign in with Passkey",
             authPasskeyEnroll: "Enroll Passkey",
             subscribeMonthly: "Monthly subscription (Apple Pay)",
@@ -778,10 +781,19 @@
         feature: "concierge",
         mode: "chat",
         user: null,
+        capabilities: {
+          google_oauth: false,
+          apple_oauth: false,
+          passkey: false,
+          billing: false,
+          deep_personalization: true,
+        },
         style: "beach",
         survey: {
           question: null,
           selected: null,
+          localMode: false,
+          localAnswers: {},
           progress: { percent: 0, answered: 0, total: 0 },
         },
         studio: {
@@ -818,6 +830,7 @@
       const voiceStatus = document.getElementById("voice-status");
       const userStatus = document.getElementById("user-status");
       const googleSigninBtn = document.getElementById("google-signin");
+      const appleSigninBtn = document.getElementById("apple-signin");
       const passkeySigninBtn = document.getElementById("passkey-signin");
       const passkeyEnrollBtn = document.getElementById("passkey-enroll");
       const subscribeMonthlyBtn = document.getElementById("subscribe-monthly");
@@ -952,7 +965,7 @@
 
         const host = window.location.hostname;
         if (host === "atlasmasa.com" || host === "www.atlasmasa.com") {
-          candidates.push("https://api.atlasmasa.com");
+          candidates.unshift("https://api.atlasmasa.com");
         }
 
         return [...new Set(candidates)];
@@ -966,6 +979,48 @@
 
       function renderLocaleLabel() {
         activeLocaleLabel.textContent = `${t("studio.locale")}: ${state.locale}`;
+      }
+
+      function setFeatureAvailability(button, enabled, reason) {
+        if (!button) return;
+        button.disabled = !enabled;
+        button.style.opacity = enabled ? "1" : "0.56";
+        button.style.cursor = enabled ? "pointer" : "not-allowed";
+        button.title = enabled ? "" : reason;
+      }
+
+      function applyCapabilityGates() {
+        const caps = state.capabilities || {};
+        const authUnavailableMessage =
+          state.locale === "he"
+            ? "הפיצ׳ר לא מוגדר כרגע בשרת."
+            : "This feature is not configured on the API server yet.";
+
+        setFeatureAvailability(
+          googleSigninBtn,
+          !!caps.google_oauth,
+          authUnavailableMessage
+        );
+        setFeatureAvailability(
+          appleSigninBtn,
+          !!caps.apple_oauth,
+          authUnavailableMessage
+        );
+        setFeatureAvailability(
+          passkeySigninBtn,
+          !!caps.passkey,
+          authUnavailableMessage
+        );
+        setFeatureAvailability(
+          passkeyEnrollBtn,
+          !!caps.passkey,
+          authUnavailableMessage
+        );
+        setFeatureAvailability(
+          subscribeMonthlyBtn,
+          !!caps.billing,
+          authUnavailableMessage
+        );
       }
 
       function renderFeature() {
@@ -1067,6 +1122,7 @@
       function renderSurvey(payload) {
         if (!payload) return;
         state.survey.question = payload.question || null;
+        state.survey.localMode = !!payload.local_mode;
         state.survey.progress = payload.progress || { percent: 0, answered: 0, total: 0 };
         state.survey.selected = null;
 
@@ -1290,6 +1346,8 @@
         if (body) headers["content-type"] = "application/json";
         const bases = getApiBaseCandidates();
         const networkErrors = [];
+        const serverFailures = [];
+        let lastClientFailure = null;
 
         for (const base of bases) {
           try {
@@ -1308,13 +1366,54 @@
               payload = { raw: text };
             }
 
-            return { ok: response.ok, status: response.status, payload, base };
+            const result = {
+              ok: response.ok,
+              status: response.status,
+              payload,
+              base,
+            };
+            if (response.ok) {
+              return result;
+            }
+
+            if (response.status >= 500) {
+              serverFailures.push(result);
+              continue;
+            }
+
+            if (!lastClientFailure) {
+              lastClientFailure = result;
+            }
           } catch (error) {
             networkErrors.push({
               base,
               message: error && error.message ? error.message : String(error),
             });
           }
+        }
+
+        if (lastClientFailure) {
+          return lastClientFailure;
+        }
+
+        if (serverFailures.length) {
+          const last = serverFailures[serverFailures.length - 1];
+          return {
+            ok: false,
+            status: last.status,
+            payload: Object.assign({}, last.payload || {}, {
+              error: (last.payload && last.payload.error) || "upstream_server_error",
+              message:
+                (last.payload && last.payload.message) ||
+                "Upstream server error on all API candidates",
+              candidates: bases,
+              failures: serverFailures.map((failure) => ({
+                base: failure.base,
+                status: failure.status,
+              })),
+            }),
+            base: last.base,
+          };
         }
 
         return {
@@ -1334,19 +1433,25 @@
         try {
           const result = await request("/health", "GET", null, false);
           if (result.ok) {
+            const capabilities = result.payload && result.payload.capabilities ? result.payload.capabilities : {};
+            state.capabilities = Object.assign({}, state.capabilities, capabilities);
+            applyCapabilityGates();
             serviceStatus.textContent = state.locale === "he" ? "השירות פעיל" : "Service is online";
             serviceStatus.className = "status-ok";
           } else if (result.status === 0) {
+            applyCapabilityGates();
             serviceStatus.textContent =
               state.locale === "he"
                 ? "שגיאת רשת: אין חיבור ל-API כרגע"
                 : "Network error: API is currently unreachable";
             serviceStatus.className = "status-warn";
           } else {
+            applyCapabilityGates();
             serviceStatus.textContent = `${state.locale === "he" ? "בעיה בחיבור" : "Connection issue"}: ${result.status}`;
             serviceStatus.className = "status-warn";
           }
         } catch (error) {
+          applyCapabilityGates();
           serviceStatus.textContent = `${state.locale === "he" ? "שגיאת רשת" : "Network error"}: ${error.message}`;
           serviceStatus.className = "status-warn";
         }
@@ -1470,6 +1575,42 @@
         }
       }
 
+      async function startAppleOAuth() {
+        try {
+          const path = `${window.location.pathname}`;
+          const result = await request(
+            `/v1/auth/apple/start?return_to=${encodeURIComponent(path)}`,
+            "GET",
+            null,
+            true
+          );
+          if (result.status === 0) {
+            renderOutput(
+              state.locale === "he"
+                ? "שגיאת רשת: לא הצלחנו להגיע לשירות ההתחברות."
+                : "Network error: could not reach auth service.",
+              ["auth", "apple", "oauth", "network"],
+              result.payload
+            );
+            return;
+          }
+          if (!result.ok || !result.payload.authorize_url) {
+            renderOutput(
+              `Apple OAuth failed (${result.status})`,
+              ["auth", "apple", "oauth", "error"],
+              result.payload
+            );
+            return;
+          }
+          window.location.href = result.payload.authorize_url;
+        } catch (error) {
+          renderOutput(
+            `${state.locale === "he" ? "שגיאת OAuth" : "OAuth error"}: ${error.message}`,
+            ["auth", "apple", "oauth", "network"]
+          );
+        }
+      }
+
       async function signInWithPasskey() {
         const email = getIdentityEmail();
         if (!email) {
@@ -1488,6 +1629,29 @@
               ? "שגיאת רשת: שירות Passkey לא נגיש כרגע."
               : "Network error: Passkey service is unreachable right now.",
             ["auth", "passkey", "network"],
+            start.payload
+          );
+          return;
+        }
+        if (start.status === 503 || (start.payload && start.payload.error === "passkey_unavailable")) {
+          renderOutput(
+            state.locale === "he"
+              ? "שירות Passkey עדיין לא מוגדר בשרת. אפשר להיכנס כרגע עם Google או Apple."
+              : "Passkey is not configured on the server yet. Use Google or Apple sign-in for now.",
+            ["auth", "passkey", "unavailable"],
+            start.payload
+          );
+          return;
+        }
+        if (
+          start.status === 404 ||
+          (start.payload && (start.payload.error === "user_not_found" || start.payload.error === "no_passkeys_registered"))
+        ) {
+          renderOutput(
+            state.locale === "he"
+              ? "לא נמצא Passkey פעיל למייל הזה. לחצו קודם על 'רישום Passkey'."
+              : "No passkey found for this email. Use 'Enroll Passkey' first.",
+            ["auth", "passkey", "enroll-required"],
             start.payload
           );
           return;
@@ -1547,6 +1711,16 @@
               ? "שגיאת רשת: שירות רישום Passkey לא נגיש כרגע."
               : "Network error: Passkey enrollment service is unreachable right now.",
             ["auth", "passkey", "network"],
+            start.payload
+          );
+          return;
+        }
+        if (start.status === 503 || (start.payload && start.payload.error === "passkey_unavailable")) {
+          renderOutput(
+            state.locale === "he"
+              ? "שירות Passkey עדיין לא מוגדר בשרת. אפשר להיכנס עם Google או Apple."
+              : "Passkey is not configured on the server yet. Use Google or Apple sign-in for now.",
+            ["auth", "passkey", "unavailable"],
             start.payload
           );
           return;
@@ -1778,12 +1952,89 @@
         );
       }
 
+      function localSurveyQuestions(locale) {
+        const he = locale === "he";
+        return [
+          {
+            id: "primary_goal",
+            title: he ? "מה היעד המרכזי שלך כרגע?" : "What is your primary goal right now?",
+            description: he
+              ? "זה יכוון את המערכת בין פוקוס על בריאות, עושר או תפעול."
+              : "This guides whether the system prioritizes health, wealth, or execution.",
+            kind: "choice",
+            choices: [
+              { value: "wealth", label: he ? "בניית עושר" : "Build wealth" },
+              { value: "health", label: he ? "בריאות ויציבות" : "Health and resilience" },
+              { value: "execution", label: he ? "ביצוע יומי" : "Daily execution" },
+            ],
+          },
+          {
+            id: "pressure_source",
+            title: he ? "מה הלחץ הכי גדול ביום-יום?" : "What causes the most pressure day-to-day?",
+            description: he
+              ? "נעשה התאמה יזומה סביב מקור החיכוך העיקרי."
+              : "We’ll proactively adapt around your biggest friction source.",
+            kind: "choice",
+            choices: [
+              { value: "time", label: he ? "חוסר זמן" : "Lack of time" },
+              { value: "uncertainty", label: he ? "חוסר ודאות" : "Uncertainty" },
+              { value: "fatigue", label: he ? "עייפות" : "Fatigue" },
+            ],
+          },
+          {
+            id: "cadence",
+            title: he
+              ? "באיזה קצב תרצה שהמערכת תדחוף ביצוע?"
+              : "How aggressively should the system push execution?",
+            description: he
+              ? "אפשר לשנות את זה בכל רגע בהגדרות הסטודיו."
+              : "You can change this anytime in Studio settings.",
+            kind: "choice",
+            choices: [
+              { value: "direct", label: he ? "ישיר וחד" : "Direct and sharp" },
+              { value: "coach", label: he ? "מאמן תומך" : "Supportive coach" },
+              { value: "strategic", label: he ? "אסטרטגי ארוך טווח" : "Long-term strategic" },
+            ],
+          },
+        ];
+      }
+
+      function buildLocalSurveyPayload() {
+        const questions = localSurveyQuestions(state.locale);
+        const answers = state.survey.localAnswers || {};
+        const answered = questions.filter((question) => Object.prototype.hasOwnProperty.call(answers, question.id)).length;
+        const nextQuestion = questions.find((question) => !Object.prototype.hasOwnProperty.call(answers, question.id)) || null;
+        const total = questions.length;
+        const percent = total === 0 ? 0 : Math.round((answered / total) * 100);
+        return {
+          question: nextQuestion,
+          progress: {
+            answered,
+            total,
+            percent,
+          },
+          profile_hints: Object.keys(answers).map((key) => `${key}:${answers[key]}`),
+          local_mode: true,
+        };
+      }
+
       async function loadSurveyNext() {
         const result = await request("/v1/survey/next");
         if (!result.ok) {
-          surveyQuestion.textContent = state.locale === "he" ? "לא הצלחנו לטעון סקר" : "Could not load survey";
+          const payload = buildLocalSurveyPayload();
+          renderSurvey(payload);
+          surveyDescription.textContent =
+            state.locale === "he"
+              ? "השרת לא זמין כרגע. הופעל מצב סקר מקומי עד שחיבור ה-API יחזור."
+              : "API is currently unavailable. Local survey mode is active until connectivity returns.";
+          renderOutput(
+            `${state.locale === "he" ? "טעינת סקר מהשרת נכשלה" : "Survey API load failed"} (${result.status || "network"})`,
+            ["survey", "fallback", "local-mode"],
+            result.payload
+          );
           return;
         }
+        state.survey.localAnswers = {};
         renderSurvey(result.payload);
       }
 
@@ -1792,6 +2043,22 @@
         const answer = answerOverride || state.survey.selected;
         if (!answer) {
           renderOutput(state.locale === "he" ? "בחרו תשובה בסקר" : "Select a survey answer", ["survey"]);
+          return;
+        }
+
+        if (state.survey.localMode) {
+          state.survey.localAnswers[state.survey.question.id] = answer;
+          const payload = buildLocalSurveyPayload();
+          renderSurvey(payload);
+          if (!payload.question) {
+            renderOutput(
+              state.locale === "he"
+                ? "הסקר המקומי הושלם. התחברו כדי לסנכרן ולהפעיל התאמה עמוקה מלאה."
+                : "Local survey is complete. Sign in to sync and unlock full deep personalization.",
+              ["survey", "fallback", "completed"],
+              payload
+            );
+          }
           return;
         }
 
@@ -2113,6 +2380,7 @@
         });
 
         googleSigninBtn.addEventListener("click", startGoogleOAuth);
+        appleSigninBtn.addEventListener("click", startAppleOAuth);
         passkeySigninBtn.addEventListener("click", signInWithPasskey);
         passkeyEnrollBtn.addEventListener("click", enrollPasskey);
         subscribeMonthlyBtn.addEventListener("click", subscribeMonthly);
@@ -2135,6 +2403,7 @@
         window.addEventListener("atlas:language-change", (event) => {
           state.locale = (event && event.detail && event.detail.code) || "he";
           renderLocaleLabel();
+          applyCapabilityGates();
           renderPromptSuggestions();
           if (recognition) recognition.lang = state.locale === "he" ? "he-IL" : "en-US";
         });
@@ -2154,7 +2423,10 @@
         const billing = params.get("billing");
 
         if (auth === "success") {
-          renderOutput(state.locale === "he" ? "Google OAuth הושלם בהצלחה." : "Google OAuth completed successfully.", ["auth", "google", "oauth"]);
+          renderOutput(
+            state.locale === "he" ? "אימות OAuth הושלם בהצלחה." : "OAuth sign-in completed successfully.",
+            ["auth", "oauth", "success"]
+          );
         } else if (auth === "error") {
           renderOutput(`${state.locale === "he" ? "שגיאת OAuth" : "OAuth error"}: ${reason || "unknown"}`, ["auth", "oauth", "error"]);
         }
@@ -2188,6 +2460,7 @@
         renderMode();
         setPressed(styleSegment, "style", state.style);
         syncStudioControls();
+        applyCapabilityGates();
         initVoice();
 
         await runHealthCheck();

@@ -66,6 +66,7 @@ pub struct ApiState {
     pub user_notes: Arc<RwLock<HashMap<String, Vec<UserNoteRecord>>>>,
     pub oauth_states: Arc<RwLock<HashMap<String, OAuthStateRecord>>>,
     pub google_oauth: Option<GoogleOAuthConfig>,
+    pub apple_oauth: Option<AppleOAuthConfig>,
     pub openai_runtime: Option<OpenAiRuntimeConfig>,
     pub billing_runtime: Option<BillingRuntimeConfig>,
     pub webauthn_runtime: Option<WebauthnRuntimeConfig>,
@@ -86,6 +87,7 @@ struct HealthResponse {
     status: &'static str,
     timestamp_utc: String,
     metrics: atlas_observability::MetricsSnapshot,
+    capabilities: HealthCapabilities,
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +96,23 @@ struct GoogleOAuthConfig {
     client_secret: String,
     redirect_uri: String,
     frontend_origin: String,
+}
+
+#[derive(Debug, Clone)]
+struct AppleOAuthConfig {
+    client_id: String,
+    client_secret: String,
+    redirect_uri: String,
+    frontend_origin: String,
+}
+
+#[derive(Debug, Serialize)]
+struct HealthCapabilities {
+    google_oauth: bool,
+    apple_oauth: bool,
+    passkey: bool,
+    billing: bool,
+    deep_personalization: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -130,9 +149,24 @@ struct GoogleOAuthCallbackQuery {
     error_description: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct AppleOAuthStartQuery {
+    return_to: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AppleOAuthCallbackQuery {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 struct OAuthStateRecord {
-    code_verifier: String,
+    provider: String,
+    code_verifier: Option<String>,
+    nonce: Option<String>,
     return_to: String,
     expires_at: chrono::DateTime<chrono::Utc>,
 }
@@ -563,6 +597,7 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
     );
     let allowed_origins = parse_allowed_origins();
     let google_oauth = build_google_oauth_config();
+    let apple_oauth = build_apple_oauth_config();
     let openai_runtime = build_openai_runtime_config();
     let billing_runtime = build_billing_runtime_config();
     let webauthn_runtime = build_webauthn_runtime();
@@ -586,6 +621,7 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         user_notes: Arc::new(RwLock::new(persisted_state.user_notes)),
         oauth_states: Arc::new(RwLock::new(HashMap::new())),
         google_oauth,
+        apple_oauth,
         openai_runtime,
         billing_runtime,
         webauthn_runtime,
@@ -611,6 +647,8 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/v1/plan_trip", post(plan_trip))
         .route("/v1/auth/google/start", get(auth_google_start))
         .route("/v1/auth/google/callback", get(auth_google_callback))
+        .route("/v1/auth/apple/start", get(auth_apple_start))
+        .route("/v1/auth/apple/callback", get(auth_apple_callback))
         .route(
             "/v1/auth/passkey/register/start",
             post(auth_passkey_register_start),
@@ -684,6 +722,13 @@ async fn health(State(state): State<ApiState>) -> impl IntoResponse {
         status: "ok",
         timestamp_utc: chrono::Utc::now().to_rfc3339(),
         metrics: state.metrics.snapshot(),
+        capabilities: HealthCapabilities {
+            google_oauth: state.google_oauth.is_some(),
+            apple_oauth: state.apple_oauth.is_some(),
+            passkey: state.webauthn_runtime.is_some(),
+            billing: state.billing_runtime.is_some(),
+            deep_personalization: true,
+        },
     };
     (StatusCode::OK, Json(payload))
 }
@@ -698,6 +743,21 @@ struct GoogleUserInfoResponse {
     email: String,
     verified_email: Option<bool>,
     name: Option<String>,
+    locale: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AppleTokenResponse {
+    id_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct AppleIdTokenClaims {
+    aud: Option<String>,
+    exp: Option<i64>,
+    nonce: Option<String>,
+    email: Option<String>,
+    email_verified: Option<serde_json::Value>,
     locale: Option<String>,
 }
 
@@ -729,7 +789,9 @@ async fn auth_google_start(
     state.oauth_states.write().insert(
         state_token.clone(),
         OAuthStateRecord {
-            code_verifier,
+            provider: "google".to_string(),
+            code_verifier: Some(code_verifier),
+            nonce: None,
             return_to,
             expires_at: chrono::Utc::now() + chrono::Duration::minutes(12),
         },
@@ -793,6 +855,21 @@ async fn auth_google_callback(
         );
         return Redirect::to(target.as_str()).into_response();
     }
+    if pending.provider != "google" {
+        let target = format!(
+            "{}{}?auth=error&reason=provider_mismatch",
+            config.frontend_origin, "/concierge-local.html"
+        );
+        return Redirect::to(target.as_str()).into_response();
+    }
+    let Some(code_verifier) = pending.code_verifier.as_deref() else {
+        let target = format!(
+            "{}{}?auth=error&reason=missing_pkce_verifier",
+            config.frontend_origin,
+            pending.return_to.as_str()
+        );
+        return Redirect::to(target.as_str()).into_response();
+    };
 
     let Some(code) = query.code.as_deref() else {
         let target = format!(
@@ -812,7 +889,7 @@ async fn auth_google_callback(
             ("client_id", config.client_id.as_str()),
             ("client_secret", config.client_secret.as_str()),
             ("redirect_uri", config.redirect_uri.as_str()),
-            ("code_verifier", pending.code_verifier.as_str()),
+            ("code_verifier", code_verifier),
         ])
         .send()
         .await
@@ -897,6 +974,283 @@ async fn auth_google_callback(
             .name
             .unwrap_or_else(|| "Atlas Masa User".to_string()),
         userinfo.locale.unwrap_or_else(|| "en".to_string()),
+        now,
+    )
+    .await;
+
+    let session_id = match issue_session_for_user(&state, &user).await {
+        Ok(value) => value,
+        Err(_) => {
+            let target = format!(
+                "{}{}?auth=error&reason=session_issue_failed",
+                config.frontend_origin,
+                pending.return_to.as_str()
+            );
+            return Redirect::to(target.as_str()).into_response();
+        }
+    };
+
+    let target = format!(
+        "{}{}?auth=success",
+        config.frontend_origin,
+        pending.return_to.as_str()
+    );
+    let mut response = Redirect::to(target.as_str()).into_response();
+    let cookie_value = build_session_cookie(
+        &state.cookie_name,
+        session_id.as_str(),
+        state.session_ttl.as_secs(),
+        state.cookie_secure,
+        state.cookie_same_site.as_str(),
+        state.cookie_domain.as_deref(),
+    );
+    if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
+        response
+            .headers_mut()
+            .insert(header::SET_COOKIE, header_value);
+    }
+    response
+}
+
+async fn auth_apple_start(
+    State(state): State<ApiState>,
+    Query(query): Query<AppleOAuthStartQuery>,
+) -> impl IntoResponse {
+    let Some(config) = state.apple_oauth.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "oauth_unavailable",
+                "message": "Apple Sign In is not configured"
+            })),
+        )
+            .into_response();
+    };
+
+    let state_token = generate_urlsafe_token(24);
+    let nonce = generate_urlsafe_token(24);
+    let return_to = sanitize_return_to(
+        query
+            .return_to
+            .as_deref()
+            .unwrap_or("/concierge-local.html"),
+    );
+
+    state.oauth_states.write().insert(
+        state_token.clone(),
+        OAuthStateRecord {
+            provider: "apple".to_string(),
+            code_verifier: None,
+            nonce: Some(nonce.clone()),
+            return_to,
+            expires_at: chrono::Utc::now() + chrono::Duration::minutes(12),
+        },
+    );
+
+    let authorize_url = format!(
+        "https://appleid.apple.com/auth/authorize?client_id={}&redirect_uri={}&response_type=code&response_mode=query&scope={}&state={}&nonce={}",
+        pct_encode(config.client_id.as_str()),
+        pct_encode(config.redirect_uri.as_str()),
+        pct_encode("name email"),
+        pct_encode(state_token.as_str()),
+        pct_encode(nonce.as_str()),
+    );
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "authorize_url": authorize_url
+        })),
+    )
+        .into_response()
+}
+
+async fn auth_apple_callback(
+    State(state): State<ApiState>,
+    Query(query): Query<AppleOAuthCallbackQuery>,
+) -> impl IntoResponse {
+    let Some(config) = state.apple_oauth.as_ref() else {
+        return Redirect::to("/").into_response();
+    };
+
+    if let Some(error) = query.error.as_ref() {
+        let target = format!(
+            "{}{}?auth=error&reason={}",
+            config.frontend_origin,
+            "/concierge-local.html",
+            pct_encode(query.error_description.as_deref().unwrap_or(error.as_str()))
+        );
+        return Redirect::to(target.as_str()).into_response();
+    }
+
+    let Some(state_token) = query.state.as_deref() else {
+        let target = format!(
+            "{}{}?auth=error&reason=missing_state",
+            config.frontend_origin, "/concierge-local.html"
+        );
+        return Redirect::to(target.as_str()).into_response();
+    };
+
+    let Some(pending) = state.oauth_states.write().remove(state_token) else {
+        let target = format!(
+            "{}{}?auth=error&reason=invalid_state",
+            config.frontend_origin, "/concierge-local.html"
+        );
+        return Redirect::to(target.as_str()).into_response();
+    };
+    if pending.expires_at <= chrono::Utc::now() {
+        let target = format!(
+            "{}{}?auth=error&reason=state_expired",
+            config.frontend_origin, "/concierge-local.html"
+        );
+        return Redirect::to(target.as_str()).into_response();
+    }
+    if pending.provider != "apple" {
+        let target = format!(
+            "{}{}?auth=error&reason=provider_mismatch",
+            config.frontend_origin,
+            pending.return_to.as_str()
+        );
+        return Redirect::to(target.as_str()).into_response();
+    }
+
+    let Some(code) = query.code.as_deref() else {
+        let target = format!(
+            "{}{}?auth=error&reason=missing_code",
+            config.frontend_origin,
+            pending.return_to.as_str()
+        );
+        return Redirect::to(target.as_str()).into_response();
+    };
+
+    let token = match state
+        .http_client
+        .post("https://appleid.apple.com/auth/token")
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("client_id", config.client_id.as_str()),
+            ("client_secret", config.client_secret.as_str()),
+            ("redirect_uri", config.redirect_uri.as_str()),
+        ])
+        .send()
+        .await
+    {
+        Ok(response) if response.status().is_success() => {
+            match response.json::<AppleTokenResponse>().await {
+                Ok(payload) => payload,
+                Err(_) => {
+                    let target = format!(
+                        "{}{}?auth=error&reason=token_parse_failed",
+                        config.frontend_origin,
+                        pending.return_to.as_str()
+                    );
+                    return Redirect::to(target.as_str()).into_response();
+                }
+            }
+        }
+        Ok(response) => {
+            let target = format!(
+                "{}{}?auth=error&reason=token_exchange_failed_{}",
+                config.frontend_origin,
+                pending.return_to.as_str(),
+                response.status().as_u16()
+            );
+            return Redirect::to(target.as_str()).into_response();
+        }
+        Err(_) => {
+            let target = format!(
+                "{}{}?auth=error&reason=token_exchange_network_failed",
+                config.frontend_origin,
+                pending.return_to.as_str()
+            );
+            return Redirect::to(target.as_str()).into_response();
+        }
+    };
+
+    let Some(claims) = parse_untrusted_jwt_payload::<AppleIdTokenClaims>(token.id_token.as_str())
+    else {
+        let target = format!(
+            "{}{}?auth=error&reason=id_token_parse_failed",
+            config.frontend_origin,
+            pending.return_to.as_str()
+        );
+        return Redirect::to(target.as_str()).into_response();
+    };
+
+    if claims.aud.as_deref() != Some(config.client_id.as_str()) {
+        let target = format!(
+            "{}{}?auth=error&reason=invalid_audience",
+            config.frontend_origin,
+            pending.return_to.as_str()
+        );
+        return Redirect::to(target.as_str()).into_response();
+    }
+
+    let now_ts = chrono::Utc::now().timestamp();
+    if claims.exp.unwrap_or(0) <= now_ts {
+        let target = format!(
+            "{}{}?auth=error&reason=id_token_expired",
+            config.frontend_origin,
+            pending.return_to.as_str()
+        );
+        return Redirect::to(target.as_str()).into_response();
+    }
+
+    if let Some(expected_nonce) = pending.nonce.as_deref() {
+        if claims.nonce.as_deref() != Some(expected_nonce) {
+            let target = format!(
+                "{}{}?auth=error&reason=nonce_mismatch",
+                config.frontend_origin,
+                pending.return_to.as_str()
+            );
+            return Redirect::to(target.as_str()).into_response();
+        }
+    }
+
+    let Some(email) = claims
+        .email
+        .as_deref()
+        .map(|value| value.trim().to_lowercase())
+    else {
+        let target = format!(
+            "{}{}?auth=error&reason=missing_email",
+            config.frontend_origin,
+            pending.return_to.as_str()
+        );
+        return Redirect::to(target.as_str()).into_response();
+    };
+    let verified = claims
+        .email_verified
+        .as_ref()
+        .and_then(bool_from_jsonish)
+        .unwrap_or(false);
+    if !verified {
+        let target = format!(
+            "{}{}?auth=error&reason=email_not_verified",
+            config.frontend_origin,
+            pending.return_to.as_str()
+        );
+        return Redirect::to(target.as_str()).into_response();
+    }
+
+    let display_name = email
+        .split('@')
+        .next()
+        .unwrap_or("Atlas Masa User")
+        .trim()
+        .to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    let user = find_or_create_user_by_email(
+        &state,
+        "apple",
+        email,
+        if display_name.is_empty() {
+            "Atlas Masa User".to_string()
+        } else {
+            display_name
+        },
+        claims.locale.unwrap_or_else(|| "en".to_string()),
         now,
     )
     .await;
@@ -3867,6 +4221,22 @@ fn build_google_oauth_config() -> Option<GoogleOAuthConfig> {
     })
 }
 
+fn build_apple_oauth_config() -> Option<AppleOAuthConfig> {
+    let client_id = env::var("ATLAS_APPLE_CLIENT_ID").ok()?;
+    let client_secret = env::var("ATLAS_APPLE_CLIENT_SECRET").ok()?;
+    let redirect_uri = env::var("ATLAS_APPLE_REDIRECT_URI").ok()?;
+    let frontend_origin = env::var("ATLAS_FRONTEND_ORIGIN")
+        .ok()
+        .unwrap_or_else(|| "https://atlasmasa.com".to_string());
+
+    Some(AppleOAuthConfig {
+        client_id,
+        client_secret,
+        redirect_uri,
+        frontend_origin,
+    })
+}
+
 fn build_openai_runtime_config() -> Option<OpenAiRuntimeConfig> {
     let api_key = env::var("ATLAS_OPENAI_API_KEY").ok()?;
     let model = env::var("ATLAS_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.2".to_string());
@@ -3941,12 +4311,31 @@ fn sanitize_return_to(value: &str) -> String {
     "/concierge-local.html".to_string()
 }
 
+fn parse_untrusted_jwt_payload<T: for<'de> serde::Deserialize<'de>>(token: &str) -> Option<T> {
+    let payload_b64 = token.split('.').nth(1)?;
+    let payload_raw = URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
+    serde_json::from_slice::<T>(&payload_raw).ok()
+}
+
+fn bool_from_jsonish(value: &serde_json::Value) -> Option<bool> {
+    if let Some(parsed) = value.as_bool() {
+        return Some(parsed);
+    }
+    value.as_str().and_then(|parsed| match parsed {
+        "true" | "1" => Some(true),
+        "false" | "0" => Some(false),
+        _ => None,
+    })
+}
+
 fn is_public_endpoint(path: &str) -> bool {
     matches!(
         path,
         "/health"
             | "/v1/auth/google/start"
             | "/v1/auth/google/callback"
+            | "/v1/auth/apple/start"
+            | "/v1/auth/apple/callback"
             | "/v1/auth/passkey/register/start"
             | "/v1/auth/passkey/register/finish"
             | "/v1/auth/passkey/login/start"
@@ -3964,7 +4353,7 @@ fn legacy_social_login_enabled() -> bool {
                 "1" | "true" | "yes" | "on"
             )
         })
-        .unwrap_or(true)
+        .unwrap_or(false)
 }
 
 async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {

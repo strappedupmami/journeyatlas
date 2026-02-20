@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Once;
 
 use atlas_api::build_app;
 use axum::body::{to_bytes, Body};
@@ -12,6 +13,13 @@ fn kb_root() -> PathBuf {
 
 fn allowed_origin() -> &'static str {
     "http://localhost:5500"
+}
+
+fn enable_legacy_social_login_for_tests() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        std::env::set_var("ATLAS_ALLOW_LEGACY_SOCIAL_LOGIN", "true");
+    });
 }
 
 #[tokio::test]
@@ -80,6 +88,7 @@ async fn chat_returns_structured_payload() {
 
 #[tokio::test]
 async fn social_login_sets_cookie_and_auth_me_uses_session() {
+    enable_legacy_social_login_for_tests();
     let app = build_app(kb_root()).await.expect("app should build");
 
     let login_request = Request::builder()
@@ -146,6 +155,7 @@ async fn social_login_sets_cookie_and_auth_me_uses_session() {
 
 #[tokio::test]
 async fn studio_survey_feed_and_actions_flow() {
+    enable_legacy_social_login_for_tests();
     let app = build_app(kb_root()).await.expect("app should build");
 
     let login_request = Request::builder()

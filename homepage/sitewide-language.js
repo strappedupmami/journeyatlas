@@ -224,17 +224,11 @@
       mobileMenuMount && mobileMenuMount.parentElement && mobileMenuMount.parentElement.tagName === "DETAILS"
         ? mobileMenuMount.parentElement
         : null;
-    const preferMenuMount =
-      !!mobileMenuMount &&
-      !!window.matchMedia &&
-      window.matchMedia("(max-width: 980px)").matches;
     const useFloating = !headerMount && !mobileMenuMount;
 
     container = document.createElement("aside");
     container.className = useFloating
       ? "atlas-lang-switcher atlas-lang-switcher--floating"
-      : preferMenuMount
-      ? "atlas-lang-switcher atlas-lang-switcher--in-menu"
       : "atlas-lang-switcher";
     container.setAttribute("aria-label", "Language switcher");
 
@@ -258,20 +252,38 @@
 
     container.appendChild(head);
     container.appendChild(row);
-    if (preferMenuMount && mobileMenuMount) {
-      mobileMenuMount.appendChild(container);
-      if (mobileMenuDetails) {
-        mobileMenuDetails.removeAttribute("open");
-        mobileMenuMount.addEventListener("click", (event) => {
-          const target = event.target;
-          if (!target || !(target.matches && target.matches("a, .atlas-lang-btn"))) return;
+
+    const mountSwitcher = () => {
+      const mobile = !!window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
+      container.classList.remove("atlas-lang-switcher--floating", "atlas-lang-switcher--in-menu");
+
+      if (mobile && mobileMenuMount) {
+        mobileMenuMount.appendChild(container);
+        container.classList.add("atlas-lang-switcher--in-menu");
+        if (mobileMenuDetails) {
           mobileMenuDetails.removeAttribute("open");
-        });
+        }
+        return;
       }
-    } else if (headerMount) {
-      headerMount.appendChild(container);
-    } else {
+
+      if (headerMount) {
+        headerMount.appendChild(container);
+        return;
+      }
+
+      container.classList.add("atlas-lang-switcher--floating");
       document.body.appendChild(container);
+    };
+
+    mountSwitcher();
+    window.addEventListener("resize", mountSwitcher);
+
+    if (mobileMenuMount && mobileMenuDetails) {
+      mobileMenuMount.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!target || !(target.matches && target.matches("a, .atlas-lang-btn"))) return;
+        mobileMenuDetails.removeAttribute("open");
+      });
     }
   }
 
