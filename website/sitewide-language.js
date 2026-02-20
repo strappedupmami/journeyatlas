@@ -10,6 +10,7 @@
 
   let current = "he";
   let container = null;
+  const FAVICON_PATH = "/favicon.svg";
 
   function getByPath(objectValue, path) {
     if (!objectValue || !path) return undefined;
@@ -189,6 +190,18 @@
     document.head.appendChild(style);
   }
 
+  function ensureFavicon() {
+    if (!document || !document.head) return;
+    let icon = document.querySelector('link[rel="icon"]');
+    if (!icon) {
+      icon = document.createElement("link");
+      icon.setAttribute("rel", "icon");
+      document.head.appendChild(icon);
+    }
+    icon.setAttribute("type", "image/svg+xml");
+    icon.setAttribute("href", FAVICON_PATH);
+  }
+
   function applyLanguage(code, persist) {
     const selected = LANGUAGES.find((language) => language.code === code) || LANGUAGES[0];
     current = selected.code;
@@ -277,6 +290,7 @@
   }
 
   function init() {
+    ensureFavicon();
     injectStyles();
     injectUI();
 

@@ -8,6 +8,7 @@
       name="description"
       content="מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת וזרם ביצוע."
     />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -273,10 +274,38 @@
           </span>
         </a>
         <nav class="nav nav--desktop" aria-label="Primary navigation">
-          <a href="homepage.html" data-i18n="studio.nav.home">דף הבית</a>
-          <a href="pricing.html" data-i18n="studio.nav.pricing">חבילות</a>
-          <a href="vans-company-future.html" data-i18n="studio.nav.theory">תיאוריה</a>
-          <a href="contact.html" data-i18n="studio.nav.contact">צור קשר</a>
+          <div class="nav__item nav__item--menu">
+            <a class="nav__trigger" href="homepage.html" data-i18n="studio.nav.home">דף הבית</a>
+            <div class="nav__menu" role="menu" aria-label="Homepage sections">
+              <a class="nav__menu-link" href="homepage.html#mission">Mission and vision</a>
+              <a class="nav__menu-link" href="homepage.html#ai-ecosystem">AI ecosystem overview</a>
+              <a class="nav__menu-link" href="homepage.html#guides">Israel guides and field routes</a>
+            </div>
+          </div>
+          <div class="nav__item nav__item--menu">
+            <a class="nav__trigger" href="pricing.html" data-i18n="studio.nav.pricing">חבילות</a>
+            <div class="nav__menu" role="menu" aria-label="Pricing sections">
+              <a class="nav__menu-link" href="pricing.html#plans">Plans and tiers</a>
+              <a class="nav__menu-link" href="pricing.html#included">What is included</a>
+              <a class="nav__menu-link" href="pricing.html#enterprise">Fleet / business rollout</a>
+            </div>
+          </div>
+          <div class="nav__item nav__item--menu">
+            <a class="nav__trigger" href="vans-company-future.html" data-i18n="studio.nav.theory">תיאוריה</a>
+            <div class="nav__menu" role="menu" aria-label="Vans and company sections">
+              <a class="nav__menu-link" href="vans-company-future.html#brands">Atlas Masa and BlackHaven</a>
+              <a class="nav__menu-link" href="vans-company-future.html#platform">Vehicle platform roadmap</a>
+              <a class="nav__menu-link" href="vans-company-future.html#operations">Operations and safe harbor hubs</a>
+            </div>
+          </div>
+          <div class="nav__item nav__item--menu">
+            <a class="nav__trigger" href="contact.html" data-i18n="studio.nav.contact">צור קשר</a>
+            <div class="nav__menu" role="menu" aria-label="Contact and support sections">
+              <a class="nav__menu-link" href="contact.html">Contact and support intake</a>
+              <a class="nav__menu-link" href="faq.html">Frequently asked questions</a>
+              <a class="nav__menu-link" href="policies.html">Policies and trust center</a>
+            </div>
+          </div>
           <a class="nav__auth" href="signin.html" data-i18n="studio.nav.login">התחברות</a>
           <a class="nav__auth nav__auth--primary" href="signup.html" data-i18n="studio.nav.signup">הרשמה</a>
         </nav>
@@ -330,8 +359,8 @@
 
             <div class="survey-card" style="margin-top:12px">
               <p id="service-status" class="muted-line" data-i18n="studio.statusChecking">בודקים חיבור לשירות...</p>
-              <p id="voice-status" class="voice-state" data-i18n="studio.voiceReady">מצב קולי: מוכן</p>
-              <p id="active-locale-label" class="muted-line" data-i18n="studio.locale">שפת שירות: עברית</p>
+              <p id="voice-status" class="voice-state" data-i18n="studio.voiceReady" style="display:none">מצב קולי: מוכן</p>
+              <p id="active-locale-label" class="muted-line" data-i18n="studio.locale" style="display:none">שפת שירות: עברית</p>
             </div>
 
             <div class="survey-card" style="margin-top:10px">
@@ -340,7 +369,7 @@
               <div class="actions">
                 <a class="btn btn--ghost" href="signin.html" data-i18n="studio.authPortalSignin">Passwordless (more secure) Sign in</a>
                 <a class="btn btn--ghost" href="signup.html" data-i18n="studio.authPortalSignup">Passwordless (more secure) Sign up</a>
-                <button class="btn btn--primary" id="subscribe-monthly" type="button" data-i18n="studio.subscribeMonthly">מנוי חודשי (Apple Pay)</button>
+                <button class="btn btn--primary" id="subscribe-monthly" type="button" data-i18n="studio.subscribeMonthly" style="display:none">מנוי חודשי (Apple Pay)</button>
                 <button class="btn btn--ghost" id="signout-btn" type="button" data-i18n="studio.authSignout" style="display:none">התנתקות</button>
               </div>
               <p class="muted-line" data-i18n="studio.profileSurveyNote">
@@ -1297,6 +1326,7 @@
         if (!state.user) {
           userStatus.textContent = t("studio.authGuest");
           signoutBtn.style.display = "none";
+          subscribeMonthlyBtn.style.display = "none";
           subscribeMonthlyBtn.disabled = false;
           subscribeMonthlyBtn.style.opacity = "1";
           return;
@@ -1314,8 +1344,11 @@
         userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}${subscriptionTag ? ` • ${subscriptionTag}` : ""}`;
         signoutBtn.style.display = "inline-flex";
         const founderBypass = !!(state.subscription && state.subscription.bypass);
-        subscribeMonthlyBtn.disabled = founderBypass;
-        subscribeMonthlyBtn.style.opacity = founderBypass ? "0.62" : "1";
+        const hasActiveSubscription = !!(state.subscription && state.subscription.active);
+        const showSubscriptionCta = !founderBypass && !hasActiveSubscription;
+        subscribeMonthlyBtn.style.display = showSubscriptionCta ? "inline-flex" : "none";
+        subscribeMonthlyBtn.disabled = !showSubscriptionCta;
+        subscribeMonthlyBtn.style.opacity = showSubscriptionCta ? "1" : "0.62";
       }
 
       function escapeHtml(input) {

@@ -9,6 +9,7 @@
       name="description"
       content="אטלס מסע: המלון שלך על גלגלים. מסע חווייתי לניסיון קצר, מנוי מסע לחופש קבוע, ועזרה מלאה לטיול כלולה בחינם."
     />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -38,13 +39,41 @@
         </a>
 
         <nav class="nav nav--desktop" aria-label="Primary navigation" data-i18n-aria-label="common.navAria">
-          <a href="homepage.html" data-i18n="common.nav.home">דף הבית</a>
-          <a href="pricing.html" data-i18n="common.nav.pricing">חבילות ומחירים</a>
-          <a href="vans-company-future.html" data-i18n="common.nav.mobility">ואנים • חברה • עתיד</a>
+          <div class="nav__item nav__item--menu">
+            <a class="nav__trigger" href="homepage.html" data-i18n="common.nav.home">דף הבית</a>
+            <div class="nav__menu" role="menu" aria-label="Homepage sections">
+              <a class="nav__menu-link" href="homepage.html#mission">Mission and vision</a>
+              <a class="nav__menu-link" href="homepage.html#ai-ecosystem">AI ecosystem overview</a>
+              <a class="nav__menu-link" href="homepage.html#guides">Israel guides and field routes</a>
+            </div>
+          </div>
+          <div class="nav__item nav__item--menu">
+            <a class="nav__trigger" href="pricing.html" data-i18n="common.nav.pricing">חבילות ומחירים</a>
+            <div class="nav__menu" role="menu" aria-label="Pricing sections">
+              <a class="nav__menu-link" href="pricing.html#plans">Plans and tiers</a>
+              <a class="nav__menu-link" href="pricing.html#included">What is included</a>
+              <a class="nav__menu-link" href="pricing.html#enterprise">Fleet / business rollout</a>
+            </div>
+          </div>
+          <div class="nav__item nav__item--menu">
+            <a class="nav__trigger" href="vans-company-future.html" data-i18n="common.nav.mobility">ואנים • חברה • עתיד</a>
+            <div class="nav__menu" role="menu" aria-label="Mobility sections">
+              <a class="nav__menu-link" href="vans-company-future.html#brands">Atlas Masa and BlackHaven</a>
+              <a class="nav__menu-link" href="vans-company-future.html#platform">Vehicle platform roadmap</a>
+              <a class="nav__menu-link" href="vans-company-future.html#operations">Operations and safe harbor hubs</a>
+            </div>
+          </div>
+          <div class="nav__item nav__item--menu">
+            <a class="nav__trigger" href="contact.html" data-i18n="common.nav.contact">צור קשר</a>
+            <div class="nav__menu" role="menu" aria-label="Contact sections">
+              <a class="nav__menu-link" href="contact.html">Contact and support intake</a>
+              <a class="nav__menu-link" href="faq.html">Frequently asked questions</a>
+              <a class="nav__menu-link" href="policies.html">Policies and trust center</a>
+            </div>
+          </div>
           <a href="#guides" data-i18n="common.nav.guides">מדריכים בישראל</a>
           <a href="faq.html" data-i18n="common.nav.faq">שאלות נפוצות</a>
           <a href="policies.html" data-i18n="common.nav.policies">כללים ומדיניות</a>
-          <a href="contact.html" data-i18n="common.nav.contact">צור קשר</a>
           <a href="concierge-local.html" data-i18n="common.nav.concierge">עוזר מסע חכם</a>
           <a class="nav__auth" href="signin.html" data-i18n="common.nav.login">התחברות</a>
           <a class="nav__auth nav__auth--primary" href="signup.html" data-i18n="common.nav.signup">הרשמה</a>
@@ -81,7 +110,7 @@
     </header>
 
     <main id="main">
-      <section class="hero">
+      <section class="hero" id="mission">
         <div class="container">
           <article class="hero__cinema" aria-label="Atlas cinematic banner" data-i18n-aria-label="home.hero.cinema.aria">
             <div class="hero__cinemaGrid">

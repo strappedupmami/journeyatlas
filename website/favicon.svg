@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Atlas Masa">
+  <defs>
+    <linearGradient id="atlasGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c5cff" />
+      <stop offset="100%" stop-color="#2ee6a6" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="#080c16" />
+  <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="url(#atlasGradient)" stroke-width="4" stroke-linecap="round" />
+  <path d="M14 46h36" fill="none" stroke="url(#atlasGradient)" stroke-width="4" stroke-linecap="round" />
+  <path d="M32 10v12" fill="none" stroke="url(#atlasGradient)" stroke-width="4" stroke-linecap="round" />
+  <path d="M26 22h12" fill="none" stroke="url(#atlasGradient)" stroke-width="4" stroke-linecap="round" />
+</svg>

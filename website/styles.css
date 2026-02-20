@@ -238,6 +238,63 @@ strong{font-weight:800}
 .nav--desktop::-webkit-scrollbar{display:none}
 .nav--desktop a{flex:0 0 auto}
 
+.nav__item{
+  position:relative;
+  flex:0 0 auto;
+}
+
+.nav__trigger{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+
+.nav__item--menu .nav__trigger::after{
+  content:"▾";
+  font-size:10px;
+  opacity:.78;
+}
+
+.nav__menu{
+  position:absolute;
+  top:calc(100% + 8px);
+  inset-inline-start:0;
+  min-width:250px;
+  padding:10px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(7,11,20,.96);
+  box-shadow:0 20px 44px rgba(0,0,0,.45);
+  display:grid;
+  gap:6px;
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(6px);
+  transition:opacity .18s ease, transform .18s ease, visibility .18s ease;
+  z-index:45;
+}
+
+.nav__menu-link{
+  display:block;
+  padding:9px 10px;
+  border-radius:10px;
+  color:var(--ink);
+  font-size:13px;
+  font-weight:600;
+  line-height:1.3;
+}
+
+.nav__menu-link:hover{
+  background:rgba(255,255,255,.07);
+}
+
+.nav__item--menu:hover .nav__menu,
+.nav__item--menu:focus-within .nav__menu{
+  opacity:1;
+  visibility:visible;
+  transform:translateY(0);
+}
+
 @media (min-width: 981px){
   .nav--desktop{display:flex !important}
   .nav--mobile{display:none !important}
