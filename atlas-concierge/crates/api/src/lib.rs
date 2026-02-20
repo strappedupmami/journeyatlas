@@ -2864,6 +2864,27 @@ async fn survey_answer(
     };
     let _ = persist_survey_state_if_configured(&state, persisted_user.as_str()).await;
 
+    if input.question_id.trim() == "trip_style" {
+        let normalized = sanitize_enum_value(
+            input.answer.trim(),
+            &["mixed", "beach", "north", "desert"],
+            "mixed",
+        );
+        let updated_user = {
+            let mut users = state.users.write();
+            if let Some(user) = users.get_mut(&user_id) {
+                user.trip_style = Some(normalized);
+                user.updated_at = chrono::Utc::now().to_rfc3339();
+                Some(user.clone())
+            } else {
+                None
+            }
+        };
+        if let Some(user) = updated_user {
+            let _ = persist_user_if_configured(&state, &user).await;
+        }
+    }
+
     let state_snapshot =
         state
             .survey_states
@@ -3822,6 +3843,9 @@ fn build_survey_hints(state: &SurveyStateRecord) -> Vec<String> {
     if let Some(pattern) = state.answers.get("travel_pattern") {
         hints.push(format!("travel_pattern: {}", pattern));
     }
+    if let Some(style) = state.answers.get("trip_style") {
+        hints.push(format!("trip_style: {}", style));
+    }
     if let Some(wealth) = state.answers.get("wealth_focus") {
         hints.push(format!("wealth_focus: {}", wealth));
     }
@@ -3832,7 +3856,7 @@ fn build_survey_hints(state: &SurveyStateRecord) -> Vec<String> {
 }
 
 fn survey_total_questions(answers: &HashMap<String, String>) -> usize {
-    let mut total = 10;
+    let mut total = 11;
     if answers
         .get("daily_pressure")
         .map(|value| value == "high")
@@ -4051,6 +4075,25 @@ fn next_survey_question(locale: &str, answers: &HashMap<String, String>) -> Opti
                     "Multi-day rolling travel",
                 ),
                 survey_choice(he, "hybrid", "היברידי", "Hybrid"),
+            ],
+            None,
+            None,
+        ));
+    }
+
+    if !answers.contains_key("trip_style") {
+        return Some(mk(
+            "trip_style",
+            "מה סגנון המסע המועדף עליך?",
+            "What is your preferred trip style?",
+            Some("נשתמש בזה כדי לכוון מסלולים ופיד יזום."),
+            Some("Used to tune routes and proactive feed recommendations."),
+            "choice",
+            vec![
+                survey_choice(he, "mixed", "משולב", "Mixed"),
+                survey_choice(he, "beach", "חוף", "Beach"),
+                survey_choice(he, "north", "צפון", "North"),
+                survey_choice(he, "desert", "מדבר", "Desert"),
             ],
             None,
             None,

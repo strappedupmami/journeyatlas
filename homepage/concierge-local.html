@@ -349,23 +349,9 @@
                 <button class="btn btn--primary" id="subscribe-monthly" type="button" data-i18n="studio.subscribeMonthly">מנוי חודשי (Apple Pay)</button>
                 <button class="btn btn--ghost" id="signout-btn" type="button" data-i18n="studio.authSignout" style="display:none">התנתקות</button>
               </div>
-              <div class="field">
-                <label for="profile-style" data-i18n="studio.prefStyle">העדפת סגנון מסע</label>
-                <select id="profile-style">
-                  <option value="mixed">mixed</option>
-                  <option value="beach">beach</option>
-                  <option value="north">north</option>
-                  <option value="desert">desert</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="risk-pref" data-i18n="studio.prefRisk">העדפת סיכון</label>
-                <select id="risk-pref">
-                  <option value="low">low</option>
-                  <option value="medium" selected>medium</option>
-                  <option value="high">high</option>
-                </select>
-              </div>
+              <p class="muted-line" data-i18n="studio.profileSurveyNote">
+                העדפת סגנון מסע נאספת דרך סקר העומק המותאם.
+              </p>
               <div class="actions">
                 <button class="btn btn--ghost" id="save-profile-btn" type="button" data-i18n="studio.saveProfile">שמירת פרופיל</button>
               </div>
@@ -640,8 +626,7 @@
             authPasskeyEnroll: "רישום Passkey",
             subscribeMonthly: "מנוי חודשי (Apple Pay)",
             authSignout: "התנתקות",
-            prefStyle: "העדפת סגנון מסע",
-            prefRisk: "העדפת סיכון",
+            profileSurveyNote: "העדפת סגנון מסע נאספת דרך סקר העומק המותאם.",
             saveProfile: "שמירת פרופיל",
             modeLabel: "מצב קונסיירז׳",
             mode: {
@@ -745,8 +730,7 @@
             authPasskeyEnroll: "Enroll Passkey",
             subscribeMonthly: "Monthly subscription (Apple Pay)",
             authSignout: "Sign out",
-            prefStyle: "Trip style preference",
-            prefRisk: "Risk preference",
+            profileSurveyNote: "Trip style preference is captured in the adaptive deep survey.",
             saveProfile: "Save profile",
             modeLabel: "Concierge mode",
             mode: { chat: "General question", trip: "Plan trip", health: "System health" },
@@ -863,8 +847,6 @@
       const passkeyEmailInput = document.getElementById("passkey-email");
       const signoutBtn = document.getElementById("signout-btn");
       const saveProfileBtn = document.getElementById("save-profile-btn");
-      const profileStyle = document.getElementById("profile-style");
-      const riskPref = document.getElementById("risk-pref");
       const surveyQuestion = document.getElementById("survey-question");
       const surveyDescription = document.getElementById("survey-description");
       const surveyChoices = document.getElementById("survey-choices");
@@ -1326,9 +1308,6 @@
         if (passkeyEmailInput && state.user.email) {
           passkeyEmailInput.value = state.user.email;
         }
-        if (state.user.trip_style) profileStyle.value = state.user.trip_style;
-        if (state.user.risk_preference) riskPref.value = state.user.risk_preference;
-
         const founderBypass = !!(state.subscription && state.subscription.bypass);
         subscribeMonthlyBtn.disabled = founderBypass;
         subscribeMonthlyBtn.style.opacity = founderBypass ? "0.62" : "1";
@@ -1877,8 +1856,6 @@
         }
 
         const payload = {
-          trip_style: profileStyle.value,
-          risk_preference: riskPref.value,
           memory_opt_in: true,
           locale: state.locale,
         };
@@ -1891,7 +1868,7 @@
 
         state.user = result.payload.user || state.user;
         updateUserState();
-        renderOutput(state.locale === "he" ? "הפרופיל נשמר" : "Profile saved", ["profile", payload.trip_style, payload.risk_preference], result.payload);
+        renderOutput(state.locale === "he" ? "הפרופיל נשמר" : "Profile saved", ["profile", "memory_opt_in"], result.payload);
       }
 
       async function loadStudioPreferences() {
@@ -2054,6 +2031,20 @@
               { value: "time", label: he ? "חוסר זמן" : "Lack of time" },
               { value: "uncertainty", label: he ? "חוסר ודאות" : "Uncertainty" },
               { value: "fatigue", label: he ? "עייפות" : "Fatigue" },
+            ],
+          },
+          {
+            id: "trip_style",
+            title: he ? "מה סגנון המסע המועדף עליך?" : "What is your preferred trip style?",
+            description: he
+              ? "הבחירה הזו תשמש את המערכת להתאמות מסלול ופיד יזום."
+              : "This choice is used for route personalization and proactive feed tuning.",
+            kind: "choice",
+            choices: [
+              { value: "mixed", label: he ? "משולב" : "Mixed" },
+              { value: "beach", label: he ? "חוף" : "Beach" },
+              { value: "north", label: he ? "צפון" : "North" },
+              { value: "desert", label: he ? "מדבר" : "Desert" },
             ],
           },
           {
