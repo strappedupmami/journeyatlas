@@ -7,6 +7,14 @@ This checklist hardens the Rust API for production deployment with Google OAuth,
 - Terminate TLS at your edge/load balancer and forward to API on `:8080`.
 - Point `api.atlasmasa.com` to the service.
 
+### Railway-specific setup (recommended)
+- In Railway, create a **separate API service** from this repo.
+- Service root directory must be: `atlas-concierge`
+- Builder: Dockerfile (auto-detected from `atlas-concierge/Dockerfile`)
+- Keep Vercel website deploy separate from Railway API deploy.
+- If `ATLAS_BIND` is unset, API auto-binds to Railway `PORT`; otherwise set explicit:
+  - `ATLAS_BIND=0.0.0.0:8080`
+
 ## 2) Required environment variables
 Use `atlas-concierge/.env.example` as source of truth. In production, set at least:
 - `ATLAS_API_KEY`
