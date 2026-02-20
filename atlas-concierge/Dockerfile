@@ -1,4 +1,4 @@
-FROM rust:1.82-bookworm AS builder
+FROM rust:1.85-bookworm AS builder
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock* ./
@@ -7,7 +7,7 @@ COPY kb ./kb
 COPY config ./config
 COPY migrations ./migrations
 
-RUN cargo build --release -p atlas-api
+RUN cargo build --release --locked -p atlas-api
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
