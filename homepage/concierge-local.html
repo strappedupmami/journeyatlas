@@ -810,6 +810,30 @@
       };
 
       let recognition = null;
+      const NEGATIVE_SIGNAL_PATTERNS = [
+        "frustrat",
+        "angry",
+        "upset",
+        "stuck",
+        "hate",
+        "not working",
+        "broken",
+        "terrible",
+        "awful",
+        "bad",
+        "can't",
+        "cannot",
+        "לא עובד",
+        "לא עובדת",
+        "לא מצליח",
+        "לא מצליחה",
+        "תקוע",
+        "מתוסכל",
+        "מתוסכלת",
+        "נמאס",
+        "גרוע",
+        "שבור",
+      ];
 
       function getByPath(objectValue, path) {
         if (!objectValue || !path) return undefined;
@@ -1026,6 +1050,43 @@
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#39;");
+      }
+
+      function detectNegativeSignal(text) {
+        const normalized = String(text || "").trim().toLowerCase();
+        if (!normalized) return false;
+        return NEGATIVE_SIGNAL_PATTERNS.some((pattern) => normalized.includes(pattern));
+      }
+
+      async function maybeOfferAutoReport(sourceText, sourceTag, severity = "high") {
+        if (!state.user) return;
+        if (!detectNegativeSignal(sourceText)) return;
+
+        const promptText =
+          state.locale === "he"
+            ? "זיהינו סימן לתסכול. לשלוח דיווח קצר לצוות (ליָשה) כדי לשפר את המוצר?"
+            : "We detected possible frustration. Send a short report to the team (Yasha) to improve the product?";
+        if (!window.confirm(promptText)) return;
+
+        const message = String(sourceText || "").trim().slice(0, 1200);
+        const result = await request("/v1/feedback/submit", "POST", {
+          category: "ux",
+          severity,
+          message,
+          tags: ["auto-detected-negative", sourceTag],
+          target_employee: "yasha",
+          source: "concierge-auto-detect",
+        });
+
+        if (result.ok) {
+          renderOutput(
+            state.locale === "he"
+              ? "דיווח נשלח לצוות לטיפול מהיר."
+              : "Report sent to the team for rapid follow-up.",
+            ["feedback", "auto-report", "yasha"],
+            result.payload
+          );
+        }
       }
 
       async function request(path, method = "GET", body = null, includeKey = true) {
@@ -1567,6 +1628,11 @@
             );
 
             if (!trip.ok) {
+              await maybeOfferAutoReport(
+                `${text || ""} ${trip.payload && trip.payload.message ? trip.payload.message : ""}`,
+                "trip-plan-error",
+                "high"
+              );
               renderOutput(`${state.locale === "he" ? "יצירת מסלול נכשלה" : "Trip plan failed"} (${trip.status})`, ["trip", "error"], trip.payload);
               return;
             }
@@ -1603,11 +1669,17 @@
           );
 
           if (!result.ok) {
+            await maybeOfferAutoReport(
+              `${text || ""} ${result.payload && result.payload.message ? result.payload.message : ""}`,
+              "chat-error",
+              "high"
+            );
             renderOutput(`${state.locale === "he" ? "לא הצלחנו לענות" : "Could not answer"} (${result.status})`, ["chat", "error"], result.payload);
             return;
           }
 
           const payload = result.payload || {};
+          await maybeOfferAutoReport(text, "user-reaction", "normal");
           renderOutput(payload.reply_text || "", ["chat", payload.intent || "unknown", state.studio.preferred_format], payload);
           renderActions(payload.suggested_actions || []);
           if (payload.json_payload && payload.json_payload.proactive_feed) {
