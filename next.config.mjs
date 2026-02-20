@@ -1,5 +1,3 @@
-import type { NextConfig } from "next";
-
 const cspHeader = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
@@ -9,10 +7,11 @@ const cspHeader = [
   "connect-src 'self' https:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
-  "form-action 'self'"
+  "form-action 'self'",
 ].join("; ");
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
@@ -25,17 +24,17 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
           },
           {
             key: "Strict-Transport-Security",
-            value: "max-age=31536000; includeSubDomains; preload"
+            value: "max-age=31536000; includeSubDomains; preload",
           },
-          { key: "Content-Security-Policy", value: cspHeader }
-        ]
-      }
+          { key: "Content-Security-Policy", value: cspHeader },
+        ],
+      },
     ];
-  }
+  },
 };
 
 export default nextConfig;
