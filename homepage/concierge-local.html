@@ -267,6 +267,18 @@
           </div>
         </details>
       </div>
+      <section class="ai-quickbar" aria-label="AI quick start" data-i18n-aria-label="studio.quickAria">
+        <div class="container ai-quickbar__inner" id="launch-bar">
+          <span class="ai-quickbar__label" data-i18n="studio.quickLabel">התחלה מהירה עם AI:</span>
+          <button class="ai-quickbar__item" type="button" data-launch="chat" data-i18n="studio.quick.chat">צ׳אט טקסט</button>
+          <button class="ai-quickbar__item" type="button" data-launch="trip" data-i18n="studio.quick.trip">תכנון מסלול</button>
+          <button class="ai-quickbar__item" type="button" data-launch="voice" data-i18n="studio.quick.voice">צ׳ק-אין קולי</button>
+          <button class="ai-quickbar__item" type="button" data-launch="survey" data-i18n="studio.quick.survey">סקר עומק</button>
+          <button class="ai-quickbar__item" type="button" data-launch="notes" data-i18n="studio.quick.notes">לכידת פתקים</button>
+          <button class="ai-quickbar__item" type="button" data-launch="memory" data-i18n="studio.quick.memory">ייבוא זיכרון</button>
+          <button class="ai-quickbar__item" type="button" data-launch="feed" data-i18n="studio.quick.feed">פיד יזום</button>
+        </div>
+      </section>
     </header>
     <main class="section">
       <div class="container concierge-app">
@@ -564,8 +576,20 @@
               survey: "סקר עומק מותאם",
               feed: "פיד יזום",
             },
+            quickAria: "התחלה מהירה לפיצ׳רי AI",
+            quickLabel: "התחלה מהירה עם AI:",
+            quick: {
+              chat: "צ׳אט טקסט",
+              trip: "תכנון מסלול",
+              voice: "צ׳ק-אין קולי",
+              survey: "סקר עומק",
+              notes: "לכידת פתקים",
+              memory: "ייבוא זיכרון",
+              feed: "פיד יזום",
+            },
             statusChecking: "בודקים חיבור לשירות...",
             voiceReady: "מצב קולי: מוכן",
+            voiceTapPrompt: "לחצו על כפתור הקלט הקולי כדי להתחיל צ׳ק-אין קולי.",
             locale: "שפת שירות",
             authTitle: "חשבון משתמש והתאמה אישית",
             authGuest: "לא מחוברים. מומלץ להתחבר כדי לשמור זיכרון ארוך-טווח.",
@@ -644,8 +668,20 @@
               survey: "Adaptive Deep Survey",
               feed: "Proactive Feed",
             },
+            quickAria: "Quick launch AI features",
+            quickLabel: "AI quick start:",
+            quick: {
+              chat: "Text chat",
+              trip: "Trip planning",
+              voice: "Voice check-in",
+              survey: "Deep survey",
+              notes: "Notes capture",
+              memory: "Memory import",
+              feed: "Proactive feed",
+            },
             statusChecking: "Checking service connection...",
             voiceReady: "Voice: ready",
+            voiceTapPrompt: "Tap the voice input button to start a voice check-in.",
             locale: "Service language",
             authTitle: "User account and personalization",
             authGuest: "Not signed in. Sign in to unlock long-term memory.",
@@ -746,6 +782,7 @@
       const outputBox = document.getElementById("output-box");
       const tagRow = document.getElementById("tag-row");
       const actionList = document.getElementById("action-list");
+      const launchBar = document.getElementById("launch-bar");
       const serviceStatus = document.getElementById("service-status");
       const activeLocaleLabel = document.getElementById("active-locale-label");
       const voiceStatus = document.getElementById("voice-status");
@@ -1025,6 +1062,75 @@
         state.studio.reminders_app = remindersApp.value;
         state.studio.alarms_app = alarmsApp.value;
         state.studio.voice_mode = voiceMode.value;
+      }
+
+      function applyLaunchPreset(launch, options = {}) {
+        const preset = String(launch || "").trim().toLowerCase();
+        if (!preset) return;
+
+        const userGesture = !!options.userGesture;
+        const shouldFocus = !options.skipFocus;
+
+        if (preset === "chat") {
+          state.feature = "concierge";
+          state.mode = "chat";
+          renderFeature();
+          renderMode();
+          if (shouldFocus) messageEl.focus();
+          return;
+        }
+
+        if (preset === "trip") {
+          state.feature = "concierge";
+          state.mode = "trip";
+          renderFeature();
+          renderMode();
+          if (shouldFocus) messageEl.focus();
+          return;
+        }
+
+        if (preset === "voice") {
+          state.feature = "concierge";
+          state.mode = "chat";
+          renderFeature();
+          renderMode();
+          if (shouldFocus) voiceBtn.focus();
+          if (userGesture) {
+            toggleVoiceInput();
+          } else {
+            renderOutput(t("studio.voiceTapPrompt"), ["voice", "quick-start"]);
+          }
+          return;
+        }
+
+        if (preset === "survey") {
+          state.feature = "survey";
+          renderFeature();
+          loadSurveyNext();
+          if (shouldFocus) surveyNextBtn.focus();
+          return;
+        }
+
+        if (preset === "notes") {
+          state.feature = "studio";
+          renderFeature();
+          if (shouldFocus) noteContent.focus();
+          return;
+        }
+
+        if (preset === "memory") {
+          state.feature = "studio";
+          renderFeature();
+          if (shouldFocus) memoryImportJson.focus();
+          return;
+        }
+
+        if (preset === "feed") {
+          state.feature = "feed";
+          renderFeature();
+          loadProactiveFeed();
+          if (shouldFocus) refreshFeedBtn.focus();
+        }
       }
 
       function updateUserState() {
@@ -1831,6 +1937,14 @@
       }
 
       function setupEvents() {
+        if (launchBar) {
+          launchBar.addEventListener("click", (event) => {
+            const button = event.target.closest("button[data-launch]");
+            if (!button) return;
+            applyLaunchPreset(button.dataset.launch, { userGesture: true });
+          });
+        }
+
         featureSegment.addEventListener("click", (event) => {
           const button = event.target.closest("button[data-feature]");
           if (!button) return;
@@ -1906,11 +2020,19 @@
         }
       }
 
+      function handleLaunchFromQuery() {
+        const params = new URLSearchParams(window.location.search);
+        const launch = params.get("launch");
+        if (!launch) return;
+        applyLaunchPreset(launch, { userGesture: false });
+      }
+
       async function bootstrap() {
         state.locale = getSiteLocale();
         renderLocaleLabel();
         setupDebugMode();
         handleStatusFromQuery();
+        handleLaunchFromQuery();
         if (apiBaseInput) {
           apiBaseInput.value = inferApiBase();
         }
