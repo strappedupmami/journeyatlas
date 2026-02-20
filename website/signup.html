@@ -11,6 +11,67 @@
     />
     <link rel="stylesheet" href="styles.css" />
     <style>
+      .signup-header {
+        position: sticky;
+        top: 0;
+        z-index: 55;
+        backdrop-filter: blur(16px);
+        background: rgba(6, 10, 18, 0.66);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .signup-header__inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px 0;
+      }
+      .signup-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 11px;
+      }
+      .signup-brand__mark {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 13px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: linear-gradient(145deg, rgba(126, 156, 213, 0.24), rgba(255, 255, 255, 0.06));
+      }
+      .signup-brand__name {
+        font-family: var(--font-head-latin);
+        font-size: 24px;
+        letter-spacing: 0.02em;
+      }
+      .signup-brand__sub {
+        color: rgba(243, 246, 255, 0.68);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .signup-nav {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .signup-nav a {
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(243, 246, 255, 0.92);
+        font-size: 13px;
+        font-weight: 700;
+        padding: 8px 13px;
+      }
+      .signup-nav a:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .signup-nav .signup-nav__primary {
+        background: linear-gradient(135deg, rgba(124, 92, 255, 0.42), rgba(46, 230, 166, 0.22));
+      }
       .signup-shell {
         position: relative;
         padding: clamp(40px, 7vw, 90px) 0 80px;
@@ -166,6 +227,13 @@
         text-align: center;
       }
       @media (max-width: 680px) {
+        .signup-header__inner {
+          flex-wrap: wrap;
+        }
+        .signup-nav {
+          width: 100%;
+          justify-content: flex-start;
+        }
         .signup-shell {
           padding-top: 28px;
         }
@@ -175,10 +243,10 @@
   <body>
     <a class="skip" href="#main">Skip to content</a>
 
-    <header class="header">
-      <div class="container header__inner">
-        <a class="brand" href="homepage.html" aria-label="Atlas Masa home">
-          <span class="brand__mark" aria-hidden="true">
+    <header class="signup-header">
+      <div class="container signup-header__inner">
+        <a class="signup-brand" href="homepage.html" aria-label="Atlas Masa home">
+          <span class="signup-brand__mark" aria-hidden="true">
             <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
               <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
               <path d="M14 46h36" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
@@ -186,36 +254,19 @@
               <path d="M26 22h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
             </svg>
           </span>
-          <span class="brand__text">
-            <span class="brand__name">Atlas Masa</span>
-            <span class="brand__tag">Account access</span>
+          <span>
+            <span class="signup-brand__name">Atlas Masa</span><br />
+            <span class="signup-brand__sub">Account Access</span>
           </span>
         </a>
 
-        <nav class="nav nav--desktop" aria-label="Primary navigation">
+        <nav class="signup-nav" aria-label="Primary navigation">
           <a href="homepage.html">Homepage</a>
           <a href="pricing.html">Pricing</a>
-          <a href="vans-company-future.html">Vans • Company • Future</a>
-          <a href="faq.html">FAQ</a>
-          <a href="contact.html">Contact</a>
           <a href="concierge-local.html">AI Studio</a>
-          <a class="nav__auth" href="signup.html?mode=login">Log in</a>
-          <a class="nav__auth nav__auth--primary" href="signup.html">Sign up</a>
+          <a href="signup.html?mode=login">Log in</a>
+          <a class="signup-nav__primary" href="signup.html">Sign up</a>
         </nav>
-
-        <details class="nav nav--mobile">
-          <summary aria-label="Open menu">Menu</summary>
-          <div class="nav__panel" role="navigation" aria-label="Mobile navigation">
-            <a href="homepage.html">Homepage</a>
-            <a href="pricing.html">Pricing</a>
-            <a href="vans-company-future.html">Vans • Company • Future</a>
-            <a href="faq.html">FAQ</a>
-            <a href="contact.html">Contact</a>
-            <a href="concierge-local.html">AI Studio</a>
-            <a href="signup.html?mode=login">Log in</a>
-            <a href="signup.html">Sign up</a>
-          </div>
-        </details>
       </div>
     </header>
 
@@ -259,8 +310,8 @@
           <div id="signup-status" class="signup-status" role="status" aria-live="polite"></div>
 
           <div class="signup-actions">
-            <a class="btn btn--primary" href="concierge-local.html?launch=survey">Start Adaptive Deep Survey</a>
-            <a class="btn btn--ghost" href="concierge-local.html?launch=chat">Open AI Studio</a>
+            <a class="btn btn--primary" id="survey-link" href="concierge-local.html?launch=survey">Start Adaptive Deep Survey</a>
+            <a class="btn btn--ghost" id="studio-link" href="concierge-local.html?launch=chat">Open AI Studio</a>
           </div>
         </section>
       </div>
@@ -275,6 +326,8 @@
         const emailInput = document.getElementById("identity-email");
         const titleEl = document.getElementById("signup-title");
         const subtitleEl = document.getElementById("signup-subtitle");
+        const surveyLink = document.getElementById("survey-link");
+        const studioLink = document.getElementById("studio-link");
 
         const params = new URLSearchParams(window.location.search);
         const mode = (params.get("mode") || "").trim().toLowerCase();
@@ -306,6 +359,9 @@
         }
 
         const API_BASE = getApiBase();
+        const apiBaseQuery = "?api_base=" + encodeURIComponent(API_BASE);
+        surveyLink.href = "concierge-local.html?launch=survey&api_base=" + encodeURIComponent(API_BASE);
+        studioLink.href = "concierge-local.html?launch=chat&api_base=" + encodeURIComponent(API_BASE);
 
         function setStatus(message, tone) {
           if (!message) {
@@ -335,7 +391,7 @@
           appleBtn.disabled = true;
           googleBtn.disabled = true;
           setStatus("Redirecting to secure sign-in...", "warn");
-          const returnTo = "/signup.html";
+          const returnTo = "/signup.html" + apiBaseQuery;
           try {
             const result = await fetchJson(
               API_BASE + "/v1/auth/" + provider + "/start?return_to=" + encodeURIComponent(returnTo)
@@ -372,6 +428,41 @@
           }
         }
 
+        async function verifySessionAfterAuth() {
+          const result = await fetchJson(API_BASE + "/v1/auth/me");
+          if (result.ok && result.payload && result.payload.user) {
+            setStatus(
+              "Account session is active. Continue to Adaptive Deep Survey.",
+              "ok"
+            );
+            return;
+          }
+
+          const apiHost = (function () {
+            try {
+              return new URL(API_BASE).hostname;
+            } catch (_) {
+              return "";
+            }
+          })();
+          const onAtlasWeb =
+            window.location.hostname === "atlasmasa.com" ||
+            window.location.hostname === "www.atlasmasa.com";
+          const crossDomainApi = apiHost.endsWith(".up.railway.app");
+
+          if (onAtlasWeb && crossDomainApi) {
+            setStatus(
+              "Sign-in completed, but session cookie is blocked across domains. Move API to api.atlasmasa.com (same-site) to unlock persistent account mode.",
+              "warn"
+            );
+          } else {
+            setStatus(
+              "Sign-in finished, but we could not load your account session yet. Please refresh once and retry.",
+              "warn"
+            );
+          }
+        }
+
         appleBtn.addEventListener("click", function () {
           startOAuth("apple");
         });
@@ -380,10 +471,7 @@
         });
 
         if (authResult === "success") {
-          setStatus(
-            "Sign-in complete. Continue to Adaptive Deep Survey to calibrate your Life OS profile.",
-            "ok"
-          );
+          verifySessionAfterAuth();
         } else if (authResult === "error") {
           setStatus("Sign-in failed: " + (authReason || "Unknown reason"), "warn");
         }

@@ -962,12 +962,19 @@
         const fromQuery = params.get("api_base");
         const fromWindow =
           typeof window.ATLAS_API_BASE === "string" ? window.ATLAS_API_BASE : "";
+        let fromStorage = "";
+        try {
+          fromStorage = window.localStorage.getItem("atlas_api_base") || "";
+        } catch (_) {
+          fromStorage = "";
+        }
         const host = window.location.hostname;
         const isProdDomain = host === "atlasmasa.com" || host === "www.atlasmasa.com";
         const candidates = [
           apiBaseInput && apiBaseInput.value ? apiBaseInput.value : "",
           fromQuery,
           fromWindow,
+          fromStorage,
           isProdDomain ? "https://api.atlasmasa.com" : "",
           inferApiBase(),
         ]
@@ -1853,6 +1860,23 @@
           } else {
             state.user = null;
             state.subscription = { bypass: false, active: false, tier: "standard" };
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("auth") === "success" && result.status === 401) {
+              const apiBase = (result.base || "").toLowerCase();
+              if (
+                (window.location.hostname === "atlasmasa.com" ||
+                  window.location.hostname === "www.atlasmasa.com") &&
+                apiBase.includes(".up.railway.app")
+              ) {
+                renderOutput(
+                  state.locale === "he"
+                    ? "ההתחברות הצליחה, אבל עוגיית סשן נחסמת בין דומיינים. צריך API ב-api.atlasmasa.com כדי לצאת ממצב Guest קבוע."
+                    : "Sign-in succeeded, but session cookie is blocked across domains. Move API to api.atlasmasa.com to unlock persistent account mode.",
+                  ["auth", "session", "cross-domain", "cookie"],
+                  result.payload
+                );
+              }
+            }
           }
           updateUserState();
         } catch {
