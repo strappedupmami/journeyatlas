@@ -1,0 +1,16 @@
+import SwiftUI
+
+@main
+struct AtlasMasaMacOSApp: App {
+    @StateObject private var session = SessionStore()
+
+    var body: some Scene {
+        WindowGroup {
+            RootDashboardView()
+                .environmentObject(session)
+                .task {
+                    await session.bootstrap()
+                }
+        }
+    }
+}

@@ -1,0 +1,38 @@
+name: AtlasMasaMacOS
+options:
+  bundleIdPrefix: com.atlasmasa
+settings:
+  base:
+    SWIFT_VERSION: 5.10
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+packages: {}
+targets:
+  AtlasMasaMacOS:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: AtlasMasaMacOS/Sources
+    info:
+      path: AtlasMasaMacOS/Info.plist
+      properties:
+        CFBundleDisplayName: Atlas Masa Desktop
+        LSApplicationCategoryType: public.app-category.business
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: AtlasMasaMacOS/AtlasMasaMacOS.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.atlasmasa.macos
+        DEVELOPMENT_TEAM: ""
+  AtlasMasaMacOSTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: AtlasMasaMacOS/Tests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.atlasmasa.macos.tests
+    dependencies:
+      - target: AtlasMasaMacOS
