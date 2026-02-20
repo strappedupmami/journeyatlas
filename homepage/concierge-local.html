@@ -252,18 +252,22 @@
           </span>
         </a>
         <nav class="nav nav--desktop" aria-label="Primary navigation">
-          <a href="homepage.html">דף הבית</a>
-          <a href="pricing.html">חבילות</a>
-          <a href="mobility-theory.html">תיאוריה</a>
-          <a href="contact.html">צור קשר</a>
+          <a href="homepage.html" data-i18n="studio.nav.home">דף הבית</a>
+          <a href="pricing.html" data-i18n="studio.nav.pricing">חבילות</a>
+          <a href="mobility-theory.html" data-i18n="studio.nav.theory">תיאוריה</a>
+          <a href="contact.html" data-i18n="studio.nav.contact">צור קשר</a>
+          <a class="nav__auth" href="concierge-local.html?launch=login" data-i18n="studio.nav.login">התחברות</a>
+          <a class="nav__auth nav__auth--primary" href="concierge-local.html?launch=signup" data-i18n="studio.nav.signup">הרשמה</a>
         </nav>
         <details class="nav nav--mobile">
           <summary aria-label="פתח תפריט">תפריט</summary>
           <div class="nav__panel" role="navigation" aria-label="Mobile navigation">
-            <a href="homepage.html">דף הבית</a>
-            <a href="pricing.html">חבילות</a>
-            <a href="mobility-theory.html">תיאוריה</a>
-            <a href="contact.html">צור קשר</a>
+            <a href="homepage.html" data-i18n="studio.nav.home">דף הבית</a>
+            <a href="pricing.html" data-i18n="studio.nav.pricing">חבילות</a>
+            <a href="mobility-theory.html" data-i18n="studio.nav.theory">תיאוריה</a>
+            <a href="contact.html" data-i18n="studio.nav.contact">צור קשר</a>
+            <a href="concierge-local.html?launch=login" data-i18n="studio.nav.login">התחברות</a>
+            <a href="concierge-local.html?launch=signup" data-i18n="studio.nav.signup">הרשמה</a>
           </div>
         </details>
       </div>
@@ -277,6 +281,8 @@
           <button class="ai-quickbar__item" type="button" data-launch="notes" data-i18n="studio.quick.notes">לכידת פתקים</button>
           <button class="ai-quickbar__item" type="button" data-launch="memory" data-i18n="studio.quick.memory">ייבוא זיכרון</button>
           <button class="ai-quickbar__item" type="button" data-launch="feed" data-i18n="studio.quick.feed">פיד יזום</button>
+          <button class="ai-quickbar__item" type="button" data-launch="login" data-i18n="studio.quick.login">התחברות</button>
+          <button class="ai-quickbar__item" type="button" data-launch="signup" data-i18n="studio.quick.signup">הרשמה</button>
         </div>
       </section>
     </header>
@@ -566,6 +572,14 @@
               "מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת ופיד יזום.",
           },
           studio: {
+            nav: {
+              home: "דף הבית",
+              pricing: "חבילות",
+              theory: "תיאוריה",
+              contact: "צור קשר",
+              login: "התחברות",
+              signup: "הרשמה",
+            },
             pill: "Atlas Masa AI",
             title: "סטודיו AI לניהול חיים, עבודה ותנועה",
             sub: "הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח, ומספקת פיד יזום כדי לקדם אותך ביום-יום.",
@@ -586,10 +600,14 @@
               notes: "לכידת פתקים",
               memory: "ייבוא זיכרון",
               feed: "פיד יזום",
+              login: "התחברות",
+              signup: "הרשמה",
             },
             statusChecking: "בודקים חיבור לשירות...",
             voiceReady: "מצב קולי: מוכן",
             voiceTapPrompt: "לחצו על כפתור הקלט הקולי כדי להתחיל צ׳ק-אין קולי.",
+            loginPrompt: "הזינו אימייל ואז לחצו Passkey או Google להתחברות מאובטחת ללא סיסמה.",
+            signupPrompt: "הזינו אימייל ואז לחצו 'רישום Passkey' או Google ליצירת חשבון מאובטח ללא סיסמה.",
             locale: "שפת שירות",
             authTitle: "חשבון משתמש והתאמה אישית",
             authGuest: "לא מחוברים. מומלץ להתחבר כדי לשמור זיכרון ארוך-טווח.",
@@ -658,6 +676,14 @@
               "Personal AI for movement, work, and life: concierge, response studio, adaptive survey, and proactive feed.",
           },
           studio: {
+            nav: {
+              home: "Homepage",
+              pricing: "Pricing",
+              theory: "Theory",
+              contact: "Contact",
+              login: "Log in",
+              signup: "Sign up",
+            },
             pill: "Atlas Masa AI",
             title: "AI Studio for Life, Work, and Mobility",
             sub: "Concierge is only one feature. This system builds long-term memory, proactive outputs, and daily execution support.",
@@ -678,10 +704,14 @@
               notes: "Notes capture",
               memory: "Memory import",
               feed: "Proactive feed",
+              login: "Log in",
+              signup: "Sign up",
             },
             statusChecking: "Checking service connection...",
             voiceReady: "Voice: ready",
             voiceTapPrompt: "Tap the voice input button to start a voice check-in.",
+            loginPrompt: "Enter your email, then use Passkey or Google for secure passwordless login.",
+            signupPrompt: "Enter your email, then use Passkey enroll or Google to create a secure passwordless account.",
             locale: "Service language",
             authTitle: "User account and personalization",
             authGuest: "Not signed in. Sign in to unlock long-term memory.",
@@ -1122,6 +1152,38 @@
           state.feature = "studio";
           renderFeature();
           if (shouldFocus) memoryImportJson.focus();
+          return;
+        }
+
+        if (preset === "login") {
+          state.feature = "concierge";
+          state.mode = "chat";
+          renderFeature();
+          renderMode();
+          if (shouldFocus) passkeyEmailInput.focus();
+
+          const email = getIdentityEmail();
+          if (userGesture && email) {
+            signInWithPasskey();
+          } else {
+            renderOutput(t("studio.loginPrompt"), ["auth", "passwordless", "login"]);
+          }
+          return;
+        }
+
+        if (preset === "signup") {
+          state.feature = "concierge";
+          state.mode = "chat";
+          renderFeature();
+          renderMode();
+          if (shouldFocus) passkeyEmailInput.focus();
+
+          const email = getIdentityEmail();
+          if (userGesture && email) {
+            enrollPasskey();
+          } else {
+            renderOutput(t("studio.signupPrompt"), ["auth", "passwordless", "signup"]);
+          }
           return;
         }
 
