@@ -25,7 +25,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.atlasmasa.macos
-        DEVELOPMENT_TEAM: ""
+        DEVELOPMENT_TEAM: BW93SGS88H
   AtlasMasaMacOSTests:
     type: bundle.unit-test
     platform: macOS
