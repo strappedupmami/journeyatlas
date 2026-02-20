@@ -253,30 +253,19 @@
     container.appendChild(head);
     container.appendChild(row);
 
-    const mountSwitcher = () => {
-      const mobile = !!window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
-      container.classList.remove("atlas-lang-switcher--floating", "atlas-lang-switcher--in-menu");
-
-      if (mobile && mobileMenuMount) {
-        mobileMenuMount.appendChild(container);
-        container.classList.add("atlas-lang-switcher--in-menu");
-        if (mobileMenuDetails) {
-          mobileMenuDetails.removeAttribute("open");
-        }
-        return;
+    container.classList.remove("atlas-lang-switcher--floating", "atlas-lang-switcher--in-menu");
+    if (mobileMenuMount) {
+      mobileMenuMount.appendChild(container);
+      container.classList.add("atlas-lang-switcher--in-menu");
+      if (mobileMenuDetails) {
+        mobileMenuDetails.removeAttribute("open");
       }
-
-      if (headerMount) {
-        headerMount.appendChild(container);
-        return;
-      }
-
+    } else if (headerMount) {
+      headerMount.appendChild(container);
+    } else {
       container.classList.add("atlas-lang-switcher--floating");
       document.body.appendChild(container);
-    };
-
-    mountSwitcher();
-    window.addEventListener("resize", mountSwitcher);
+    }
 
     if (mobileMenuMount && mobileMenuDetails) {
       mobileMenuMount.addEventListener("click", (event) => {

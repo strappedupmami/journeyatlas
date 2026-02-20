@@ -48,6 +48,7 @@ const MAX_NOTE_TAG_LEN: usize = 32;
 const MAX_REWRITE_INSTRUCTION_LEN: usize = 400;
 const MAX_MEMORY_IMPORT_ITEMS: usize = 250;
 const MAX_NOTES_PER_USER: usize = 5_000;
+const DEFAULT_SUBSCRIPTION_BYPASS_EMAILS: &str = "ceo@atlasmasa.com";
 
 #[derive(Clone)]
 #[allow(private_interfaces)]
@@ -2107,7 +2108,47 @@ async fn auth_me(State(state): State<ApiState>, headers: HeaderMap) -> impl Into
             .into_response();
     };
 
-    (StatusCode::OK, Json(serde_json::json!({ "user": user }))).into_response()
+    let bypass = is_subscription_bypass_email(user.email.as_str());
+    let active_subscription = if bypass {
+        true
+    } else {
+        user_has_active_subscription(&state, user.user_id.as_str())
+            .await
+            .unwrap_or(false)
+    };
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "user": user,
+            "subscription": {
+                "bypass": bypass,
+                "active": active_subscription,
+                "tier": if bypass { "owner_bypass" } else if active_subscription { "subscriber" } else { "standard" }
+            }
+        })),
+    )
+        .into_response()
+}
+
+async fn user_has_active_subscription(state: &ApiState, user_id: &str) -> Result<bool> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(false);
+    };
+
+    let row = sqlx::query("SELECT status FROM billing_subscriptions WHERE user_id = ?1 LIMIT 1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await?;
+
+    let status = row
+        .and_then(|value| value.try_get::<String, _>("status").ok())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    Ok(matches!(
+        status.as_str(),
+        "active" | "trialing" | "owner_bypass"
+    ))
 }
 
 async fn notes_list(
@@ -2406,23 +2447,46 @@ async fn billing_create_checkout_session(
     headers: HeaderMap,
     Json(_input): Json<BillingCheckoutRequest>,
 ) -> impl IntoResponse {
-    let Some(runtime) = state.billing_runtime.as_ref() else {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(serde_json::json!({
-                "error": "billing_unavailable",
-                "message": "Stripe billing is not configured"
-            })),
-        )
-            .into_response();
-    };
-
     let Some(user) = session_user_from_headers(&state, &headers) else {
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
                 "error": "not_authenticated",
                 "message": "sign in first"
+            })),
+        )
+            .into_response();
+    };
+
+    if is_subscription_bypass_email(user.email.as_str()) {
+        let now = chrono::Utc::now().to_rfc3339();
+        let billing = BillingStatusRecord {
+            user_id: user.user_id.clone(),
+            stripe_customer_id: None,
+            stripe_subscription_id: None,
+            status: "owner_bypass".to_string(),
+            current_period_end: None,
+            updated_at: now,
+        };
+        let _ = persist_billing_status_if_configured(&state, &billing).await;
+
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "checkout_url": "https://atlasmasa.com/concierge-local.html?billing=owner_bypass",
+                "checkout_session_id": "owner-bypass",
+                "bypass": true
+            })),
+        )
+            .into_response();
+    }
+
+    let Some(runtime) = state.billing_runtime.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "billing_unavailable",
+                "message": "Stripe billing is not configured"
             })),
         )
             .into_response();
@@ -4127,6 +4191,23 @@ fn normalize_tag(tag: &str) -> String {
         .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
         .collect::<String>()
         .to_lowercase()
+}
+
+fn is_subscription_bypass_email(email: &str) -> bool {
+    let target = email.trim().to_lowercase();
+    if target.is_empty() {
+        return false;
+    }
+
+    let configured = env::var("ATLAS_SUBSCRIPTION_BYPASS_EMAILS")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_SUBSCRIPTION_BYPASS_EMAILS.to_string());
+
+    configured
+        .split(',')
+        .map(|value| value.trim().to_lowercase())
+        .any(|value| !value.is_empty() && value == target)
 }
 
 fn sanitize_note_tags(tags: Vec<String>) -> Vec<String> {

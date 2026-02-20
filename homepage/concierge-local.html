@@ -227,6 +227,27 @@
         overflow: auto;
       }
 
+      @media (min-width: 981px) {
+        .brand__tag {
+          display: none;
+        }
+
+        .ai-quickbar__inner {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .ai-quickbar__inner::-webkit-scrollbar {
+          display: none;
+        }
+
+        .ai-quickbar__label {
+          display: none;
+        }
+      }
+
       @media (min-width: 1040px) {
         .concierge-grid {
           grid-template-columns: 1.1fr 0.9fr;
@@ -788,6 +809,11 @@
           billing: false,
           deep_personalization: true,
         },
+        subscription: {
+          bypass: false,
+          active: false,
+          tier: "standard",
+        },
         style: "beach",
         survey: {
           question: null,
@@ -965,7 +991,7 @@
 
         const host = window.location.hostname;
         if (host === "atlasmasa.com" || host === "www.atlasmasa.com") {
-          candidates.unshift("https://api.atlasmasa.com");
+          candidates.push("https://api.atlasmasa.com");
         }
 
         return [...new Set(candidates)];
@@ -1281,16 +1307,31 @@
         if (!state.user) {
           userStatus.textContent = t("studio.authGuest");
           signoutBtn.style.display = "none";
+          subscribeMonthlyBtn.disabled = false;
+          subscribeMonthlyBtn.style.opacity = "1";
           return;
         }
 
-        userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}`;
+        const subscriptionTag = state.subscription && state.subscription.bypass
+          ? state.locale === "he"
+            ? "Founder Access"
+            : "Founder Access"
+          : state.subscription && state.subscription.active
+          ? state.locale === "he"
+            ? "Subscription Active"
+            : "Subscription Active"
+          : "";
+        userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}${subscriptionTag ? ` • ${subscriptionTag}` : ""}`;
         signoutBtn.style.display = "inline-flex";
         if (passkeyEmailInput && state.user.email) {
           passkeyEmailInput.value = state.user.email;
         }
         if (state.user.trip_style) profileStyle.value = state.user.trip_style;
         if (state.user.risk_preference) riskPref.value = state.user.risk_preference;
+
+        const founderBypass = !!(state.subscription && state.subscription.bypass);
+        subscribeMonthlyBtn.disabled = founderBypass;
+        subscribeMonthlyBtn.style.opacity = founderBypass ? "0.62" : "1";
       }
 
       function escapeHtml(input) {
@@ -1553,7 +1594,7 @@
             `/v1/auth/google/start?return_to=${encodeURIComponent(path)}`,
             "GET",
             null,
-            true
+            false
           );
           if (result.status === 0) {
             renderOutput(
@@ -1582,7 +1623,7 @@
             `/v1/auth/apple/start?return_to=${encodeURIComponent(path)}`,
             "GET",
             null,
-            true
+            false
           );
           if (result.status === 0) {
             renderOutput(
@@ -1622,13 +1663,23 @@
           return;
         }
 
-        const start = await request("/v1/auth/passkey/login/start", "POST", { email });
+        const start = await request("/v1/auth/passkey/login/start", "POST", { email }, false);
         if (start.status === 0) {
           renderOutput(
             state.locale === "he"
               ? "שגיאת רשת: שירות Passkey לא נגיש כרגע."
               : "Network error: Passkey service is unreachable right now.",
             ["auth", "passkey", "network"],
+            start.payload
+          );
+          return;
+        }
+        if (start.status >= 500) {
+          renderOutput(
+            state.locale === "he"
+              ? "שירות ה-Passkey חווה תקלה זמנית בצד השרת (502/5xx). זה לא קשור לאימייל שלך. ננסה שוב בעוד רגע."
+              : "Passkey service is temporarily failing upstream (502/5xx). This is not your email issue. Please retry shortly.",
+            ["auth", "passkey", "upstream", "error"],
             start.payload
           );
           return;
@@ -1674,14 +1725,14 @@
         const finish = await request("/v1/auth/passkey/login/finish", "POST", {
           request_id: start.payload.request_id,
           credential: serializeAuthenticationCredential(credential),
-        });
+        }, false);
         if (!finish.ok) {
           renderOutput(`Passkey login failed (${finish.status})`, ["auth", "passkey", "error"], finish.payload);
           return;
         }
 
         state.user = finish.payload.user || null;
-        updateUserState();
+        await restoreSession();
         renderOutput(state.locale === "he" ? "התחברות Passkey הצליחה" : "Passkey sign-in complete", ["auth", "passkey"], finish.payload);
         await loadStudioPreferences();
         await loadNotes();
@@ -1704,13 +1755,23 @@
           email,
           display_name: displayName,
           locale: state.locale,
-        });
+        }, false);
         if (start.status === 0) {
           renderOutput(
             state.locale === "he"
               ? "שגיאת רשת: שירות רישום Passkey לא נגיש כרגע."
               : "Network error: Passkey enrollment service is unreachable right now.",
             ["auth", "passkey", "network"],
+            start.payload
+          );
+          return;
+        }
+        if (start.status >= 500) {
+          renderOutput(
+            state.locale === "he"
+              ? "רישום Passkey נכשל בגלל תקלה זמנית בשרת (502/5xx). זה לא קשור לאימייל שלך."
+              : "Passkey enrollment failed due to temporary upstream server issue (502/5xx). This is not your email issue.",
+            ["auth", "passkey", "upstream", "error"],
             start.payload
           );
           return;
@@ -1743,18 +1804,28 @@
         const finish = await request("/v1/auth/passkey/register/finish", "POST", {
           request_id: start.payload.request_id,
           credential: serializeRegistrationCredential(credential),
-        });
+        }, false);
         if (!finish.ok) {
           renderOutput(`Passkey registration failed (${finish.status})`, ["auth", "passkey", "error"], finish.payload);
           return;
         }
 
         renderOutput(state.locale === "he" ? "Passkey נרשם בהצלחה" : "Passkey enrolled successfully", ["auth", "passkey"], finish.payload);
+        await signInWithPasskey();
       }
 
       async function subscribeMonthly() {
         if (!state.user) {
           renderOutput(state.locale === "he" ? "התחבר קודם כדי להפעיל מנוי" : "Sign in first to start subscription", ["billing"]);
+          return;
+        }
+        if (state.subscription && state.subscription.bypass) {
+          renderOutput(
+            state.locale === "he"
+              ? "גישה מלאה פעילה בחשבון הבעלים. אין צורך בתשלום מנוי."
+              : "Full owner access is active on this account. No subscription payment is required.",
+            ["billing", "owner-bypass"]
+          );
           return;
         }
         const result = await request("/v1/billing/create_checkout_session", "POST", {});
@@ -1770,15 +1841,18 @@
           const result = await request("/v1/auth/me");
           if (result.ok && result.payload.user) {
             state.user = result.payload.user;
+            state.subscription = result.payload.subscription || state.subscription;
             if (passkeyEmailInput) {
               passkeyEmailInput.value = state.user.email || passkeyEmailInput.value;
             }
           } else {
             state.user = null;
+            state.subscription = { bypass: false, active: false, tier: "standard" };
           }
           updateUserState();
         } catch {
           state.user = null;
+          state.subscription = { bypass: false, active: false, tier: "standard" };
           updateUserState();
         }
       }
@@ -1788,6 +1862,7 @@
           await request("/v1/auth/logout", "POST", {});
         } catch (_) {}
         state.user = null;
+        state.subscription = { bypass: false, active: false, tier: "standard" };
         state.notes = [];
         state.activeNoteId = null;
         if (noteTitle) noteTitle.value = "";
@@ -2435,6 +2510,13 @@
           renderOutput(state.locale === "he" ? "המנוי החודשי הופעל בהצלחה." : "Monthly subscription activated successfully.", ["billing", "active"]);
         } else if (billing === "cancel") {
           renderOutput(state.locale === "he" ? "תהליך התשלום בוטל." : "Checkout was canceled.", ["billing", "canceled"]);
+        } else if (billing === "owner_bypass") {
+          renderOutput(
+            state.locale === "he"
+              ? "גישה מלאה בחשבון בעלים הופעלה ללא חיוב."
+              : "Owner full access activated with no subscription charge.",
+            ["billing", "owner-bypass"]
+          );
         }
       }
 
