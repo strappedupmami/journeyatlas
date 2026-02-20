@@ -277,7 +277,7 @@
           <a href="pricing.html" data-i18n="studio.nav.pricing">חבילות</a>
           <a href="vans-company-future.html" data-i18n="studio.nav.theory">תיאוריה</a>
           <a href="contact.html" data-i18n="studio.nav.contact">צור קשר</a>
-          <a class="nav__auth" href="signup.html?mode=login" data-i18n="studio.nav.login">התחברות</a>
+          <a class="nav__auth" href="signin.html" data-i18n="studio.nav.login">התחברות</a>
           <a class="nav__auth nav__auth--primary" href="signup.html" data-i18n="studio.nav.signup">הרשמה</a>
         </nav>
         <details class="nav nav--mobile">
@@ -287,7 +287,7 @@
             <a href="pricing.html" data-i18n="studio.nav.pricing">חבילות</a>
             <a href="vans-company-future.html" data-i18n="studio.nav.theory">תיאוריה</a>
             <a href="contact.html" data-i18n="studio.nav.contact">צור קשר</a>
-            <a href="signup.html?mode=login" data-i18n="studio.nav.login">התחברות</a>
+            <a href="signin.html" data-i18n="studio.nav.login">התחברות</a>
             <a href="signup.html" data-i18n="studio.nav.signup">הרשמה</a>
           </div>
         </details>
@@ -335,17 +335,11 @@
             </div>
 
             <div class="survey-card" style="margin-top:10px">
-              <h3 data-i18n="studio.authTitle">חשבון משתמש והתאמה אישית</h3>
+              <h3 data-i18n="studio.authTitle">גישה מאובטחת לחשבון</h3>
               <p id="user-status" class="subtle" data-i18n="studio.authGuest">לא מחוברים. מומלץ להתחבר כדי לשמור זיכרון ארוך-טווח.</p>
-              <div class="field">
-                <label for="passkey-email" data-i18n="studio.passkeyEmail">אימייל להתחברות עם Google/Passkey</label>
-                <input id="passkey-email" type="email" placeholder="name@atlasmasa.com" />
-              </div>
               <div class="actions">
-                <button class="btn btn--ghost" id="google-signin" type="button" data-i18n="studio.authGoogle">כניסה עם Google</button>
-                <button class="btn btn--ghost" id="apple-signin" type="button" data-i18n="studio.authApple">כניסה עם Apple</button>
-                <button class="btn btn--ghost" id="passkey-signin" type="button" data-i18n="studio.authPasskey">כניסה עם Passkey</button>
-                <button class="btn btn--ghost" id="passkey-enroll" type="button" data-i18n="studio.authPasskeyEnroll">הרשמה עם Passkey</button>
+                <a class="btn btn--ghost" href="signin.html" data-i18n="studio.authPortalSignin">Passwordless (more secure) Sign in</a>
+                <a class="btn btn--ghost" href="signup.html" data-i18n="studio.authPortalSignup">Passwordless (more secure) Sign up</a>
                 <button class="btn btn--primary" id="subscribe-monthly" type="button" data-i18n="studio.subscribeMonthly">מנוי חודשי (Apple Pay)</button>
                 <button class="btn btn--ghost" id="signout-btn" type="button" data-i18n="studio.authSignout" style="display:none">התנתקות</button>
               </div>
@@ -614,12 +608,13 @@
             statusChecking: "בודקים חיבור לשירות...",
             voiceReady: "מצב קולי: מוכן",
             voiceTapPrompt: "לחצו על כפתור הקלט הקולי כדי להתחיל צ׳ק-אין קולי.",
-            loginPrompt: "הזינו אימייל ואז לחצו Passkey או Google להתחברות מאובטחת ללא סיסמה.",
-            signupPrompt: "הזינו אימייל ואז לחצו 'רישום Passkey' או Google ליצירת חשבון מאובטח ללא סיסמה.",
+            loginPrompt: "נפתח עמוד התחברות מאובטח ללא סיסמה.",
+            signupPrompt: "נפתח עמוד הרשמה מאובטח ללא סיסמה.",
             locale: "שפת שירות",
-            authTitle: "חשבון משתמש והתאמה אישית",
+            authTitle: "גישה מאובטחת לחשבון",
             authGuest: "לא מחוברים. מומלץ להתחבר כדי לשמור זיכרון ארוך-טווח.",
-            passkeyEmail: "אימייל להתחברות עם Google/Passkey",
+            authPortalSignin: "Passwordless (more secure) Sign in",
+            authPortalSignup: "Passwordless (more secure) Sign up",
             authGoogle: "כניסה עם Google",
             authApple: "כניסה עם Apple",
             authPasskey: "כניסה עם Passkey",
@@ -718,12 +713,13 @@
             statusChecking: "Checking service connection...",
             voiceReady: "Voice: ready",
             voiceTapPrompt: "Tap the voice input button to start a voice check-in.",
-            loginPrompt: "Enter your email, then use Passkey or Google for secure passwordless login.",
-            signupPrompt: "Enter your email, then use Passkey enroll or Google to create a secure passwordless account.",
+            loginPrompt: "Opening secure passwordless sign-in page.",
+            signupPrompt: "Opening secure passwordless sign-up page.",
             locale: "Service language",
-            authTitle: "User account and personalization",
+            authTitle: "Secure account access",
             authGuest: "Not signed in. Sign in to unlock long-term memory.",
-            passkeyEmail: "Email for Google/Passkey sign-in",
+            authPortalSignin: "Passwordless (more secure) Sign in",
+            authPortalSignup: "Passwordless (more secure) Sign up",
             authGoogle: "Sign in with Google",
             authApple: "Sign in with Apple",
             authPasskey: "Sign in with Passkey",
@@ -844,7 +840,6 @@
       const passkeySigninBtn = document.getElementById("passkey-signin");
       const passkeyEnrollBtn = document.getElementById("passkey-enroll");
       const subscribeMonthlyBtn = document.getElementById("subscribe-monthly");
-      const passkeyEmailInput = document.getElementById("passkey-email");
       const signoutBtn = document.getElementById("signout-btn");
       const saveProfileBtn = document.getElementById("save-profile-btn");
       const surveyQuestion = document.getElementById("survey-question");
@@ -1255,34 +1250,22 @@
         }
 
         if (preset === "login") {
-          state.feature = "concierge";
-          state.mode = "chat";
-          renderFeature();
-          renderMode();
-          if (shouldFocus) passkeyEmailInput.focus();
-
-          const email = getIdentityEmail();
-          if (userGesture && email) {
-            signInWithPasskey();
-          } else {
-            renderOutput(t("studio.loginPrompt"), ["auth", "passwordless", "login"]);
+          const target = `signin.html?api_base=${encodeURIComponent(getApiBase())}`;
+          if (userGesture) {
+            window.location.href = target;
+            return;
           }
+          renderOutput(t("studio.loginPrompt"), ["auth", "passwordless", "login"]);
           return;
         }
 
         if (preset === "signup") {
-          state.feature = "concierge";
-          state.mode = "chat";
-          renderFeature();
-          renderMode();
-          if (shouldFocus) passkeyEmailInput.focus();
-
-          const email = getIdentityEmail();
-          if (userGesture && email) {
-            enrollPasskey();
-          } else {
-            renderOutput(t("studio.signupPrompt"), ["auth", "passwordless", "signup"]);
+          const target = `signup.html?api_base=${encodeURIComponent(getApiBase())}`;
+          if (userGesture) {
+            window.location.href = target;
+            return;
           }
+          renderOutput(t("studio.signupPrompt"), ["auth", "passwordless", "signup"]);
           return;
         }
 
@@ -1314,9 +1297,6 @@
           : "";
         userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}${subscriptionTag ? ` • ${subscriptionTag}` : ""}`;
         signoutBtn.style.display = "inline-flex";
-        if (passkeyEmailInput && state.user.email) {
-          passkeyEmailInput.value = state.user.email;
-        }
         const founderBypass = !!(state.subscription && state.subscription.bypass);
         subscribeMonthlyBtn.disabled = founderBypass;
         subscribeMonthlyBtn.style.opacity = founderBypass ? "0.62" : "1";
@@ -1511,7 +1491,13 @@
       }
 
       function getIdentityEmail() {
-        return (passkeyEmailInput && passkeyEmailInput.value ? passkeyEmailInput.value : "").trim().toLowerCase();
+        return (
+          state.user &&
+          typeof state.user.email === "string" &&
+          state.user.email.trim().length
+            ? state.user.email.trim().toLowerCase()
+            : ""
+        );
       }
 
       function fromBase64Url(value) {
@@ -1665,17 +1651,14 @@
       }
 
       async function signInWithPasskey() {
-        const email = getIdentityEmail();
-        if (!email) {
-          renderOutput(state.locale === "he" ? "יש להזין אימייל להתחברות עם Passkey" : "Enter email for passkey sign-in", ["auth", "passkey"]);
-          return;
-        }
         if (!window.PublicKeyCredential) {
           renderOutput(state.locale === "he" ? "הדפדפן לא תומך Passkeys" : "Browser does not support passkeys", ["auth", "passkey"]);
           return;
         }
 
-        const start = await request("/v1/auth/passkey/login/start", "POST", { email }, false);
+        const email = getIdentityEmail();
+        const startPayload = email ? { email } : {};
+        const start = await request("/v1/auth/passkey/login/start", "POST", startPayload, false);
         if (start.status === 0) {
           renderOutput(
             state.locale === "he"
@@ -1713,7 +1696,7 @@
           renderOutput(
             state.locale === "he"
               ? "לא נמצא Passkey פעיל למייל הזה. לחצו קודם על 'רישום Passkey'."
-              : "No passkey found for this email. Use 'Enroll Passkey' first.",
+              : "No passkey found yet. Use 'Passwordless (more secure) Sign up' first.",
             ["auth", "passkey", "enroll-required"],
             start.payload
           );
@@ -1752,21 +1735,20 @@
       }
 
       async function enrollPasskey() {
-        const email = getIdentityEmail();
-        if (!email) {
-          renderOutput(state.locale === "he" ? "יש להזין אימייל לרישום Passkey" : "Enter email to enroll a passkey", ["auth", "passkey"]);
-          return;
-        }
         if (!window.PublicKeyCredential) {
           renderOutput(state.locale === "he" ? "הדפדפן לא תומך Passkeys" : "Browser does not support passkeys", ["auth", "passkey"]);
           return;
         }
 
-        const displayName = state.user && state.user.name ? state.user.name : email;
-        const start = await request("/v1/auth/passkey/register/start", "POST", {
-          email,
+        const email = getIdentityEmail();
+        const displayName = state.user && state.user.name ? state.user.name : "Atlas Masa Member";
+        const startPayload = {
           display_name: displayName,
           locale: state.locale,
+        };
+        if (email) startPayload.email = email;
+        const start = await request("/v1/auth/passkey/register/start", "POST", {
+          ...startPayload,
         }, false);
         if (start.status === 0) {
           renderOutput(
@@ -1854,9 +1836,6 @@
           if (result.ok && result.payload.user) {
             state.user = result.payload.user;
             state.subscription = result.payload.subscription || state.subscription;
-            if (passkeyEmailInput) {
-              passkeyEmailInput.value = state.user.email || passkeyEmailInput.value;
-            }
           } else {
             state.user = null;
             state.subscription = { bypass: false, active: false, tier: "standard" };
@@ -2497,13 +2476,13 @@
           setPressed(styleSegment, "style", state.style);
         });
 
-        googleSigninBtn.addEventListener("click", startGoogleOAuth);
-        appleSigninBtn.addEventListener("click", startAppleOAuth);
-        passkeySigninBtn.addEventListener("click", signInWithPasskey);
-        passkeyEnrollBtn.addEventListener("click", enrollPasskey);
-        subscribeMonthlyBtn.addEventListener("click", subscribeMonthly);
-        signoutBtn.addEventListener("click", logout);
-        saveProfileBtn.addEventListener("click", saveProfile);
+        if (googleSigninBtn) googleSigninBtn.addEventListener("click", startGoogleOAuth);
+        if (appleSigninBtn) appleSigninBtn.addEventListener("click", startAppleOAuth);
+        if (passkeySigninBtn) passkeySigninBtn.addEventListener("click", signInWithPasskey);
+        if (passkeyEnrollBtn) passkeyEnrollBtn.addEventListener("click", enrollPasskey);
+        if (subscribeMonthlyBtn) subscribeMonthlyBtn.addEventListener("click", subscribeMonthly);
+        if (signoutBtn) signoutBtn.addEventListener("click", logout);
+        if (saveProfileBtn) saveProfileBtn.addEventListener("click", saveProfile);
         sendBtn.addEventListener("click", sendChat);
         voiceBtn.addEventListener("click", toggleVoiceInput);
         speakBtn.addEventListener("click", speakOutput);

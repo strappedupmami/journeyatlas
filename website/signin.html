@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#0b1220" />
-    <title>Atlas Masa | Sign Up</title>
+    <title>Atlas Masa | Sign In</title>
     <meta
       name="description"
-      content="Create your Atlas Masa account with Apple, Google, or Passwordless (more secure) passkey sign-up."
+      content="Sign in to Atlas Masa with Apple, Google, or Passwordless (more secure) passkey sign-in."
     />
     <link rel="stylesheet" href="styles.css" />
     <style>
@@ -214,7 +214,7 @@
       }
     </style>
   </head>
-  <body data-auth-mode="signup">
+  <body data-auth-mode="signin">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="auth-header">
@@ -238,19 +238,19 @@
           <a href="homepage.html">Homepage</a>
           <a href="pricing.html">Pricing</a>
           <a href="concierge-local.html">AI Studio</a>
-          <a href="signin.html">Sign in</a>
-          <a class="auth-nav__primary" href="signup.html">Sign up</a>
+          <a class="auth-nav__primary" href="signin.html">Sign in</a>
+          <a href="signup.html">Sign up</a>
         </nav>
       </div>
     </header>
 
     <main id="main" class="auth-shell">
       <div class="container auth-wrap">
-        <section class="auth-card" aria-label="Account signup">
+        <section class="auth-card" aria-label="Account signin">
           <span class="auth-kicker">Atlas Masa Access</span>
-          <h1 class="auth-title" id="auth-title">Create your account</h1>
+          <h1 class="auth-title" id="auth-title">Welcome back</h1>
           <p class="auth-subtitle" id="auth-subtitle">
-            Classic, secure account creation. Use Apple, Google, or Passwordless (more secure) sign up.
+            Classic, secure account access. Use Apple, Google, or Passwordless (more secure) sign in.
           </p>
 
           <div class="auth-stack">
@@ -269,8 +269,8 @@
               <span>Sign in with Google</span>
             </button>
 
-            <button class="auth-btn" id="passkey-signup-btn" type="button">Passwordless (more secure) Sign up</button>
             <button class="auth-btn" id="passkey-signin-btn" type="button">Passwordless (more secure) Sign in</button>
+            <button class="auth-btn" id="passkey-signup-btn" type="button">Passwordless (more secure) Sign up</button>
           </div>
 
           <p class="auth-hint">No email field, no passwords. Security is provider auth + passkeys + secure sessions.</p>

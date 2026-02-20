@@ -44,11 +44,16 @@ body{
   letter-spacing: .002em;
 }
 
-h1,h2,h3,
-.brand__name{
+h1,h2,h3{
   font-family: var(--font-head-he);
   letter-spacing: .01em;
   font-weight:700;
+}
+
+.brand__name{
+  font-family: var(--font-body-he);
+  font-weight: 800;
+  letter-spacing: .01em;
 }
 
 html[lang="he"] body{
@@ -59,6 +64,13 @@ html[lang="he"] h1,
 html[lang="he"] h2,
 html[lang="he"] h3,
 html[lang="he"] .brand__name{
+  font-family: var(--font-body-he);
+  letter-spacing: .01em;
+}
+
+html[lang="he"] h1,
+html[lang="he"] h2,
+html[lang="he"] h3{
   font-family: var(--font-head-he);
   letter-spacing: 0;
 }
@@ -82,6 +94,19 @@ html[lang="ru"] h3,
 html[lang="fr"] .brand__name,
 html[lang="ru"] .brand__name,
 html[lang="en"] .brand__name{
+  font-family: var(--font-body-latin);
+  letter-spacing: .01em;
+}
+
+html[lang="en"] h1,
+html[lang="en"] h2,
+html[lang="en"] h3,
+html[lang="fr"] h1,
+html[lang="fr"] h2,
+html[lang="fr"] h3,
+html[lang="ru"] h1,
+html[lang="ru"] h2,
+html[lang="ru"] h3{
   font-family: var(--font-head-latin);
   letter-spacing: .01em;
 }
@@ -95,6 +120,13 @@ html[lang="ar"] h1,
 html[lang="ar"] h2,
 html[lang="ar"] h3,
 html[lang="ar"] .brand__name{
+  font-family: var(--font-body-ar);
+  letter-spacing: 0;
+}
+
+html[lang="ar"] h1,
+html[lang="ar"] h2,
+html[lang="ar"] h3{
   font-family: var(--font-head-ar);
   letter-spacing: 0;
 }

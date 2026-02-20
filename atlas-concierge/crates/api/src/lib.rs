@@ -181,7 +181,7 @@ struct PasskeyRegistrationStateRecord {
 
 #[derive(Debug, Clone)]
 struct PasskeyAuthenticationStateRecord {
-    user_id: String,
+    user_id: Option<String>,
     state: PasskeyAuthentication,
     expires_at: chrono::DateTime<chrono::Utc>,
 }
@@ -402,7 +402,7 @@ struct BillingStatusRecord {
 
 #[derive(Debug, Clone, Deserialize)]
 struct PasskeyRegistrationStartRequest {
-    email: String,
+    email: Option<String>,
     display_name: Option<String>,
     locale: Option<String>,
 }
@@ -421,7 +421,7 @@ struct PasskeyRegistrationFinishRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 struct PasskeyLoginStartRequest {
-    email: String,
+    email: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1306,6 +1306,7 @@ async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQue
 
 async fn auth_passkey_register_start(
     State(state): State<ApiState>,
+    headers: HeaderMap,
     Json(input): Json<PasskeyRegistrationStartRequest>,
 ) -> impl IntoResponse {
     let Some(runtime) = state.webauthn_runtime.as_ref() else {
@@ -1319,30 +1320,26 @@ async fn auth_passkey_register_start(
             .into_response();
     };
 
-    let email = input.email.trim().to_lowercase();
-    if email.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": "invalid_email",
-                "message": "email is required"
-            })),
-        )
-            .into_response();
-    }
-
+    let requested_email = input
+        .email
+        .as_deref()
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty());
+    let display_name = input
+        .display_name
+        .clone()
+        .unwrap_or_else(|| "Atlas Masa User".to_string());
+    let locale = input.locale.clone().unwrap_or_else(|| "en".to_string());
     let now = chrono::Utc::now().to_rfc3339();
-    let mut user = find_or_create_user_by_email(
-        &state,
-        "passkey",
-        email,
-        input
-            .display_name
-            .unwrap_or_else(|| "Atlas Masa User".to_string()),
-        input.locale.unwrap_or_else(|| "en".to_string()),
-        now,
-    )
-    .await;
+
+    let mut user = if let Some(existing) = session_user_from_headers(&state, &headers) {
+        existing
+    } else {
+        let email = requested_email.unwrap_or_else(|| {
+            format!("passkey-{}@atlasmasa.local", uuid::Uuid::new_v4().simple())
+        });
+        find_or_create_user_by_email(&state, "passkey", email, display_name, locale, now).await
+    };
 
     if user.passkey_user_handle.is_none() {
         user.passkey_user_handle = Some(uuid::Uuid::new_v4().to_string());
@@ -1496,42 +1493,49 @@ async fn auth_passkey_login_start(
             .into_response();
     };
 
-    let email = input.email.trim().to_lowercase();
-    if email.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": "invalid_email"
-            })),
-        )
-            .into_response();
-    }
+    let requested_email = input
+        .email
+        .as_deref()
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty());
 
-    let Some(user) = state
-        .users
-        .read()
-        .values()
-        .find(|value| value.email == email)
-        .cloned()
-    else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "error": "user_not_found"
-            })),
-        )
-            .into_response();
+    let (user_id, passkeys) = if let Some(email) = requested_email {
+        let Some(user) = state
+            .users
+            .read()
+            .values()
+            .find(|value| value.email == email)
+            .cloned()
+        else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": "user_not_found"
+                })),
+            )
+                .into_response();
+        };
+
+        let passkeys = state
+            .passkeys_by_user
+            .read()
+            .get(&user.user_id)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|entry| entry.credential)
+            .collect::<Vec<_>>();
+        (Some(user.user_id), passkeys)
+    } else {
+        let passkeys = state
+            .passkeys_by_user
+            .read()
+            .values()
+            .flat_map(|entries| entries.iter().map(|entry| entry.credential.clone()))
+            .collect::<Vec<_>>();
+        (None, passkeys)
     };
 
-    let passkeys = state
-        .passkeys_by_user
-        .read()
-        .get(&user.user_id)
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|entry| entry.credential)
-        .collect::<Vec<_>>();
     if passkeys.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -1563,7 +1567,7 @@ async fn auth_passkey_login_start(
     state.passkey_authentications.write().insert(
         request_id.clone(),
         PasskeyAuthenticationStateRecord {
-            user_id: user.user_id,
+            user_id,
             state: auth_state,
             expires_at: chrono::Utc::now() + chrono::Duration::minutes(8),
         },
@@ -1633,9 +1637,19 @@ async fn auth_passkey_login_finish(
                 .into_response()
         }
     };
-    let _ = auth_result;
-
-    let Some(user) = state.users.read().get(&pending.user_id).cloned() else {
+    let resolved_user_id = pending.user_id.or_else(|| {
+        resolve_user_id_for_passkey_credential(&state, auth_result.cred_id().as_slice())
+    });
+    let Some(user_id) = resolved_user_id else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "user_not_found"
+            })),
+        )
+            .into_response();
+    };
+    let Some(user) = state.users.read().get(&user_id).cloned() else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({
@@ -1659,7 +1673,7 @@ async fn auth_passkey_login_finish(
         }
     };
 
-    mark_passkey_used(&state, user.user_id.as_str());
+    update_passkey_credential_usage(&state, user.user_id.as_str(), &auth_result);
     let _ = persist_passkeys_if_configured(&state, user.user_id.as_str()).await;
 
     let token = format!("session-{}", session_id);
@@ -5053,11 +5067,34 @@ async fn issue_session_for_user(state: &ApiState, user: &UserRecord) -> Result<S
     Ok(session_id)
 }
 
-fn mark_passkey_used(state: &ApiState, user_id: &str) {
+fn resolve_user_id_for_passkey_credential(state: &ApiState, cred_id: &[u8]) -> Option<String> {
+    state
+        .passkeys_by_user
+        .read()
+        .iter()
+        .find_map(|(user_id, entries)| {
+            if entries
+                .iter()
+                .any(|entry| entry.credential.cred_id().as_slice() == cred_id)
+            {
+                Some(user_id.clone())
+            } else {
+                None
+            }
+        })
+}
+
+fn update_passkey_credential_usage(
+    state: &ApiState,
+    user_id: &str,
+    auth_result: &AuthenticationResult,
+) {
     if let Some(entries) = state.passkeys_by_user.write().get_mut(user_id) {
         let now = chrono::Utc::now().to_rfc3339();
         for entry in entries.iter_mut() {
-            entry.last_used_at = Some(now.clone());
+            if entry.credential.update_credential(auth_result).is_some() {
+                entry.last_used_at = Some(now.clone());
+            }
         }
     }
 }
