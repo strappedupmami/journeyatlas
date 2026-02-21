@@ -1,4 +1,4 @@
-# Atlas Masa Production Gap Checklist
+# Atlas/אטלס Production Gap Checklist
 
 Last updated: 2026-02-20
 Owner: Principal Engineering (execution run)

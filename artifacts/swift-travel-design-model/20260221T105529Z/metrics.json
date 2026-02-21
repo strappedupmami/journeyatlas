@@ -1,0 +1,70 @@
+{
+  "test_size": 59,
+  "accuracy": 0.4576271186440678,
+  "per_label": {
+    "travel_design_execution": [
+      13,
+      14
+    ],
+    "travel_design_journey_ops": [
+      4,
+      9
+    ],
+    "travel_design_recovery": [
+      1,
+      9
+    ],
+    "travel_design_resilience": [
+      1,
+      6
+    ],
+    "travel_design_revenue": [
+      2,
+      6
+    ],
+    "travel_design_strategy": [
+      6,
+      12
+    ],
+    "travel_design_systems": [
+      0,
+      3
+    ]
+  },
+  "confusion": {
+    "travel_design_execution": {
+      "travel_design_strategy": 1,
+      "travel_design_execution": 13
+    },
+    "travel_design_journey_ops": {
+      "travel_design_journey_ops": 4,
+      "travel_design_execution": 3,
+      "travel_design_strategy": 2
+    },
+    "travel_design_recovery": {
+      "travel_design_strategy": 3,
+      "travel_design_resilience": 1,
+      "travel_design_execution": 4,
+      "travel_design_recovery": 1
+    },
+    "travel_design_resilience": {
+      "travel_design_strategy": 4,
+      "travel_design_resilience": 1,
+      "travel_design_execution": 1
+    },
+    "travel_design_revenue": {
+      "travel_design_revenue": 2,
+      "travel_design_strategy": 3,
+      "travel_design_execution": 1
+    },
+    "travel_design_strategy": {
+      "travel_design_execution": 6,
+      "travel_design_strategy": 6
+    },
+    "travel_design_systems": {
+      "travel_design_strategy": 3
+    }
+  },
+  "vocab_size_raw": 1400,
+  "vocab_size_pruned": 512
+}

@@ -1,4 +1,4 @@
-# Atlas Masa API Production Deploy (api.atlasmasa.com)
+# Atlas/אטלס API Production Deploy (api.atlasmasa.com)
 
 This checklist hardens the Rust API for production deployment with Google OAuth, Apple OAuth, passkeys, and monthly subscriptions.
 

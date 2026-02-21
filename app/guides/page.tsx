@@ -23,7 +23,7 @@ export default function GuidesHubPage() {
 
         <article className="notice-card">
           <h2>רוצים מסלול מותאם אישית?</h2>
-          <p>בכל הזמנה של אטלס מסע, תכנון הטיול כלול בחינם.</p>
+          <p>בכל הזמנה של אטלס, תכנון הטיול כלול בחינם.</p>
           <WhatsAppButton text="לקבלת תכנון חינם ב-WhatsApp" />
         </article>
       </div>

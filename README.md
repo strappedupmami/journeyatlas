@@ -1,4 +1,4 @@
-# אטלס מסע (Atlas Masa)
+# אטלס (Atlas/אטלס)
 
 Hebrew-first RTL website built with Next.js + TypeScript.
 
@@ -57,7 +57,7 @@ Run from project root:
 ```bash
 git init
 git add .
-git commit -m "Initial Atlas Masa RTL Next.js staging site"
+git commit -m "Initial Atlas/אטלס RTL Next.js staging site"
 git branch -M main
 git remote add origin https://github.com/<YOUR_USER>/<YOUR_REPO>.git
 git push -u origin main

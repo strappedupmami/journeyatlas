@@ -19,12 +19,12 @@ export function generateMetadata({ params }: GuidePageProps): Metadata {
 
   if (!guide) {
     return {
-      title: "מדריך לא נמצא | אטלס מסע"
+      title: "מדריך לא נמצא | אטלס"
     };
   }
 
   return {
-    title: `${guide.title} | אטלס מסע`,
+    title: `${guide.title} | אטלס`,
     description: guide.summary
   };
 }
@@ -77,7 +77,7 @@ export default function GuidePage({ params }: GuidePageProps) {
         <article className="notice-card">
           <h2>לא להיתקע בדרך</h2>
           <p>{guide.dontGetStuck}</p>
-          <p>תכנון טיול מלא כלול בחינם בכל הזמנה של אטלס מסע.</p>
+          <p>תכנון טיול מלא כלול בחינם בכל הזמנה של אטלס.</p>
           <WhatsAppButton text="לתיאום מסלול חינם ב-WhatsApp" />
         </article>
       </div>

@@ -1,0 +1,30 @@
+{
+  "run_id": "20260221T175410Z-emergency-crisis-v2",
+  "generated_at_utc": "2026-02-21T17:54:10.305771+00:00",
+  "dataset_path": "/Users/avrohom/Downloads/journeyatlas/atlas-concierge/kb/training/local_reasoner_training.jsonl",
+  "dataset_sha256": "3440818d78a44b96bf7b41684b23b3a579b389fdd50fb13d2e85e9535bc51eff",
+  "samples_total": 541,
+  "samples_synthetic": 137,
+  "labels": [
+    "travel_design_execution",
+    "travel_design_revenue",
+    "travel_design_resilience",
+    "travel_design_recovery",
+    "travel_design_strategy",
+    "travel_design_journey_ops",
+    "travel_design_systems",
+    "travel_design_emergency_command",
+    "travel_design_human_problem_solving",
+    "travel_design_tech_innovation"
+  ],
+  "max_vocab": 1000,
+  "min_token_freq": 1,
+  "prune_target_vocab": 800,
+  "prior_uniform_mix": 0.65,
+  "vocab_size_raw": 1000,
+  "vocab_size_pruned": 800,
+  "holdout_accuracy": 0.5625,
+  "holdout_size": 112,
+  "threshold_passed": true,
+  "model_name": "atlas-swift-travel-design-v1-20260221T175410Z-emergency-crisis-v2"
+}

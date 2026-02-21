@@ -1,6 +1,6 @@
-# Atlas Masa Website
+# Atlas/אטלס Website
 
-This folder contains website-specific assets and pages for Atlas Masa.
+This folder contains website-specific assets and pages for Atlas/אטלס.
 
 Included now:
 - Static production website content served by Vercel.

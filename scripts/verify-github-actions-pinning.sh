@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW_DIR="$ROOT_DIR/.github/workflows"
+ALLOWED_OWNERS_REGEX='^(actions|github)$'
 
 if [[ ! -d "$WORKFLOW_DIR" ]]; then
   echo "No workflow directory found; skipping pinning check."
@@ -17,6 +18,12 @@ while IFS= read -r use_ref; do
   [[ -z "$action_ref" ]] && continue
   [[ "$action_ref" == ./* ]] && continue
   [[ "$action_ref" == docker://* ]] && continue
+
+  owner="${action_ref%%/*}"
+  if [[ -z "$owner" || ! "$owner" =~ $ALLOWED_OWNERS_REGEX ]]; then
+    echo "ERROR: Workflow action owner is not allow-listed: $action_ref"
+    EXIT_CODE=1
+  fi
 
   if [[ ! "$action_ref" =~ @[0-9a-f]{40}$ ]]; then
     echo "ERROR: Workflow action must be SHA pinned: $action_ref"

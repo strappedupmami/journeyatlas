@@ -1,4 +1,4 @@
-# Atlas Masa Release Readiness Report
+# Atlas/אטלס Release Readiness Report
 
 Date: 2026-02-21
 Repository: `/Users/avrohom/Downloads/journeyatlas`
@@ -127,7 +127,7 @@ Set these in Railway service variables for the API service:
 ### WebAuthn/passkey
 - `ATLAS_WEBAUTHN_RP_ID=atlasmasa.com`
 - `ATLAS_WEBAUTHN_ORIGIN=https://atlasmasa.com`
-- `ATLAS_WEBAUTHN_RP_NAME=Atlas Masa`
+- `ATLAS_WEBAUTHN_RP_NAME=Atlas/אטלס`
 
 ### Billing/Stripe
 - `ATLAS_STRIPE_SECRET_KEY=<stripe secret>`

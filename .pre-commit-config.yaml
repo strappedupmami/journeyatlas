@@ -30,3 +30,9 @@ repos:
         entry: ./scripts/verify-github-actions-pinning.sh
         language: system
         pass_filenames: false
+
+      - id: verify-workflow-trust-boundaries
+        name: verify-workflow-trust-boundaries
+        entry: ./scripts/verify-workflow-trust-boundaries.sh
+        language: system
+        pass_filenames: false

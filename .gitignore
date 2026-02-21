@@ -38,3 +38,7 @@ DerivedData/
 
 # local model artifacts
 /artifacts/local-reasoner/
+
+# local build artifacts
+/.derived/
+scripts/__pycache__/

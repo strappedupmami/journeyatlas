@@ -17,13 +17,13 @@ targets:
     info:
       path: AtlasMasaIOS/Info.plist
       properties:
-        CFBundleDisplayName: Atlas Masa
+        CFBundleDisplayName: Atlas/אטלס
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSFaceIDUsageDescription: Use Face ID to authenticate passkeys and protect your Atlas Masa account.
+        NSFaceIDUsageDescription: Use Face ID to authenticate passkeys and protect your Atlas/אטלס account.
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: AtlasMasaIOS/AtlasMasaIOS.entitlements

@@ -1,11 +1,11 @@
 {
   "he": {
     "meta": {
-      "title": "תיאוריית הניידות | אטלס מסע",
+      "title": "תיאוריית הניידות | אטלס",
       "description": "מסמך חזון: סביבת עבודה מקצועית, קרוואן מודרני, וטבע במערכת אחת."
     },
     "page": {
-      "title": "תיאוריית הניידות של אטלס מסע",
+      "title": "תיאוריית הניידות של אטלס",
       "sub": "שילוב בין סביבת עבודה מקצועית, חוויית קרוואן מודרנית, וזמן טבע רציף - עם תכנון הנדסי אמיתי.",
       "pillarsTitle": "7 עקרונות ליבה",
       "p1": "Dock point אחיד בכל תחנה: USB-C, HDMI, חשמל וקישוריות.",
@@ -18,7 +18,7 @@
       "architectureTitle": "ארכיטקטורת המערכת",
       "architectureText": "24V backbone, המרות נקודתיות ל-USB-C PD ול-12V, וידאו ב-USB-C/HDMI, ומודולים חוזרים לייצור זול וסקיילבילי.",
       "cleanTechTitle": "שכבת ניקוי עצמי מתוכננת מהבניות המוקדמות",
-      "cleanTechText": "אטלס מסע מתכננת לשלב ציפויים פוטוקטליטיים ותאורת אקטיבציה ייעודית מוקדם ככל האפשר, כולל שימוש באורכי גל נחוצים בלבד להפעלה, בכפוף לבטיחות, תקינה ועלות-תועלת.",
+      "cleanTechText": "אטלס מתכננת לשלב ציפויים פוטוקטליטיים ותאורת אקטיבציה ייעודית מוקדם ככל האפשר, כולל שימוש באורכי גל נחוצים בלבד להפעלה, בכפוף לבטיחות, תקינה ועלות-תועלת.",
       "roadmapTitle": "Now vs Future",
       "nowTitle": "Now: בנייה על ואנים קיימים",
       "nowText": "מסכים, שולחנות, קישוריות, תחנות עבודה, ניהול לוגיסטיקה ישראלי אמיתי, והטמעת ניקוי עצמי בשלבים המוקדמים.",
@@ -31,7 +31,7 @@
       "ctaSecondary": "צור קשר לשותפות/השקעה"
     },
     "common": {
-      "brandName": "אטלס מסע",
+      "brandName": "אטלס",
       "brandTag": "תשתית מסע ניידת",
       "nav": {
         "home": "דף הבית",
@@ -47,11 +47,11 @@
   },
   "en": {
     "meta": {
-      "title": "Mobility Theory | Atlas Masa",
+      "title": "Mobility Theory | Atlas/אטלס",
       "description": "Vision document: professional work environment, modern caravan luxury, and nature in one integrated system."
     },
     "page": {
-      "title": "Atlas Masa Mobility Theory",
+      "title": "Atlas/אטלס Mobility Theory",
       "sub": "Blend professional work, modern caravan luxury, and nature time into one healthy and productive lifestyle.",
       "pillarsTitle": "7 Core Principles",
       "p1": "Standard dock point at every station: USB-C, HDMI, power, and connectivity.",
@@ -64,7 +64,7 @@
       "architectureTitle": "System Architecture",
       "architectureText": "24V backbone, local USB-C PD and 12V conversion, USB-C/HDMI video paths, and repeatable modules for low-cost scale.",
       "cleanTechTitle": "Self-Cleaning Layer Planned from Earliest Builds",
-      "cleanTechText": "Atlas Masa plans to integrate photocatalytic coatings and dedicated activation lighting as early as feasible, using only required operational wavelengths, subject to safety, compliance, and cost-effectiveness.",
+      "cleanTechText": "Atlas/אטלס plans to integrate photocatalytic coatings and dedicated activation lighting as early as feasible, using only required operational wavelengths, subject to safety, compliance, and cost-effectiveness.",
       "roadmapTitle": "Now vs Future",
       "nowTitle": "Now: Existing Van Platforms",
       "nowText": "Screens, tables, connectivity, workstation modules, practical Israel-specific operations, and early self-cleaning deployment.",
@@ -77,7 +77,7 @@
       "ctaSecondary": "Contact for partnership/investment"
     },
     "common": {
-      "brandName": "Atlas Masa",
+      "brandName": "Atlas/אטלס",
       "brandTag": "Movement-first travel infrastructure",
       "nav": {
         "home": "Home",
@@ -93,11 +93,11 @@
   },
   "ar": {
     "meta": {
-      "title": "نظرية التنقل | Atlas Masa",
+      "title": "نظرية التنقل | Atlas/אטלס",
       "description": "وثيقة رؤية: بيئة عمل احترافية وكرفان حديث وطبيعة في منظومة واحدة."
     },
     "page": {
-      "title": "نظرية التنقل في Atlas Masa",
+      "title": "نظرية التنقل في Atlas/אטלס",
       "sub": "دمج بيئة عمل احترافية مع كرفان حديث فاخر ووقت في الطبيعة في أسلوب حياة واحد.",
       "pillarsTitle": "7 مبادئ أساسية",
       "p1": "نقطة توصيل موحدة بكل محطة: USB-C وHDMI وطاقة واتصال.",
@@ -110,7 +110,7 @@
       "architectureTitle": "هندسة النظام",
       "architectureText": "عمود 24V، تحويلات محلية لـUSB-C PD و12V، مسارات فيديو USB-C/HDMI، ووحدات قابلة للتكرار.",
       "cleanTechTitle": "طبقة تنظيف ذاتي مخططة منذ البنيات المبكرة",
-      "cleanTechText": "تخطط Atlas Masa لدمج طلاءات فوتوكاتاليتية وإضاءة تفعيل مخصصة في أقرب وقت ممكن، باستخدام الأطوال الموجية التشغيلية المطلوبة فقط، مع مراعاة السلامة والامتثال وجدوى التكلفة.",
+      "cleanTechText": "تخطط Atlas/אטלס لدمج طلاءات فوتوكاتاليتية وإضاءة تفعيل مخصصة في أقرب وقت ممكن، باستخدام الأطوال الموجية التشغيلية المطلوبة فقط، مع مراعاة السلامة والامتثال وجدوى التكلفة.",
       "roadmapTitle": "الآن مقابل المستقبل",
       "nowTitle": "Now: منصات فان موجودة",
       "nowText": "شاشات وطاولات واتصال ووحدات عمل وتشغيل عملي داخل إسرائيل، مع نشر مبكر للتنظيف الذاتي.",
@@ -123,7 +123,7 @@
       "ctaSecondary": "تواصل للشراكة/الاستثمار"
     },
     "common": {
-      "brandName": "Atlas Masa",
+      "brandName": "Atlas/אטלס",
       "brandTag": "بنية تنقل مبنية على الحركة",
       "nav": {
         "home": "الرئيسية",
@@ -139,11 +139,11 @@
   },
   "ru": {
     "meta": {
-      "title": "Теория мобильности | Atlas Masa",
+      "title": "Теория мобильности | Atlas/אטלס",
       "description": "Документ видения: профессиональная работа, современный караван и природа в одной системе."
     },
     "page": {
-      "title": "Теория мобильности Atlas Masa",
+      "title": "Теория мобильности Atlas/אטלס",
       "sub": "Объединить профессиональную работу, современный караван и природу в единый продуктивный стиль жизни.",
       "pillarsTitle": "7 ключевых принципов",
       "p1": "Единая dock-точка: USB-C, HDMI, питание, связь.",
@@ -156,7 +156,7 @@
       "architectureTitle": "Архитектура системы",
       "architectureText": "24V backbone, локальные модули USB-C PD/12V, видео USB-C/HDMI, повторяемые модульные интерфейсы.",
       "cleanTechTitle": "Слой самоочистки запланирован с ранних сборок",
-      "cleanTechText": "Atlas Masa планирует как можно раньше интегрировать фотокаталитические покрытия и выделенное освещение активации, используя только необходимые рабочие длины волн, с учетом безопасности, соответствия и экономической целесообразности.",
+      "cleanTechText": "Atlas/אטלס планирует как можно раньше интегрировать фотокаталитические покрытия и выделенное освещение активации, используя только необходимые рабочие длины волн, с учетом безопасности, соответствия и экономической целесообразности.",
       "roadmapTitle": "Сейчас и будущее",
       "nowTitle": "Now: существующие платформы",
       "nowText": "Экраны, столы, связь, модульные рабочие зоны, практичная операционка и раннее внедрение самоочистки.",
@@ -169,7 +169,7 @@
       "ctaSecondary": "Связаться по партнерству/инвестициям"
     },
     "common": {
-      "brandName": "Atlas Masa",
+      "brandName": "Atlas/אטלס",
       "brandTag": "Инфраструктура путешествий",
       "nav": {
         "home": "Главная",
@@ -185,11 +185,11 @@
   },
   "fr": {
     "meta": {
-      "title": "Théorie de mobilité | Atlas Masa",
+      "title": "Théorie de mobilité | Atlas/אטלס",
       "description": "Document de vision: environnement pro, caravane moderne et nature dans un seul système."
     },
     "page": {
-      "title": "Théorie de mobilité Atlas Masa",
+      "title": "Théorie de mobilité Atlas/אטלס",
       "sub": "Fusionner environnement de travail professionnel, caravane moderne luxueuse et nature en un mode de vie productif.",
       "pillarsTitle": "7 principes clés",
       "p1": "Dock point standard à chaque poste: USB-C, HDMI, alimentation, connectivité.",
@@ -202,7 +202,7 @@
       "architectureTitle": "Architecture système",
       "architectureText": "Backbone 24V, conversion locale USB-C PD/12V, vidéo USB-C/HDMI et modules répétables.",
       "cleanTechTitle": "Couche auto-nettoyante planifiée dès les premières builds",
-      "cleanTechText": "Atlas Masa prévoit d'intégrer des revêtements photocatalytiques et un éclairage d'activation dédié le plus tôt possible, en utilisant uniquement les longueurs d'onde opérationnelles requises, sous contraintes sécurité, conformité et coût.",
+      "cleanTechText": "Atlas/אטלס prévoit d'intégrer des revêtements photocatalytiques et un éclairage d'activation dédié le plus tôt possible, en utilisant uniquement les longueurs d'onde opérationnelles requises, sous contraintes sécurité, conformité et coût.",
       "roadmapTitle": "Now vs Future",
       "nowTitle": "Now: plateformes existantes",
       "nowText": "Écrans, tables, connectivité, modules de travail, opérations concrètes et déploiement auto-nettoyant précoce.",
@@ -215,7 +215,7 @@
       "ctaSecondary": "Contacter pour partenariat/investissement"
     },
     "common": {
-      "brandName": "Atlas Masa",
+      "brandName": "Atlas/אטלס",
       "brandTag": "Infrastructure voyage orientée mouvement",
       "nav": {
         "home": "Accueil",

@@ -1,4 +1,4 @@
-# Atlas Masa TestFlight Quickstart (iOS + macOS)
+# Atlas/אטלס TestFlight Quickstart (iOS + macOS)
 
 Use this checklist to get first internal builds into TestFlight quickly.
 
@@ -7,13 +7,13 @@ Use this checklist to get first internal builds into TestFlight quickly.
 From **Certificates, Identifiers & Profiles -> Identifiers -> +**:
 
 1. Create iOS App ID
-   - Description: `Atlas Masa iOS`
+   - Description: `Atlas/אטלס iOS`
    - Bundle ID (Explicit): `com.atlasmasa.ios`
    - Enable capabilities:
      - `Sign in with Apple`
      - `In-App Purchase` (for later subscription work)
 2. Create macOS App ID
-   - Description: `Atlas Masa macOS`
+   - Description: `Atlas/אטלס macOS`
    - Bundle ID (Explicit): `com.atlasmasa.macos`
    - Enable capabilities:
      - `Sign in with Apple`
@@ -23,7 +23,7 @@ From **Certificates, Identifiers & Profiles -> Identifiers -> +**:
 
 From **Identifiers -> + -> Services IDs**:
 
-- Description: `Atlas Masa Web`
+- Description: `Atlas/אטלס Web`
 - Identifier: `com.atlasmasa.web`
 - Enable `Sign in with Apple`
 - Configure web domain/return URL later when `api.atlasmasa.com` is live.
@@ -42,12 +42,12 @@ From **Keys -> +**:
 From **App Store Connect -> My Apps -> + New App**:
 
 1. Create iOS app record
-   - Name: `Atlas Masa`
+   - Name: `Atlas/אטלס`
    - Primary Language: choose your default
    - Bundle ID: `com.atlasmasa.ios`
    - SKU: `atlasmasa-ios-001`
 2. Create macOS app record
-   - Name: `Atlas Masa Desktop`
+   - Name: `Atlas/אטלס Desktop`
    - Bundle ID: `com.atlasmasa.macos`
    - SKU: `atlasmasa-macos-001`
 

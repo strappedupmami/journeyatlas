@@ -1,4 +1,4 @@
-# Atlas Masa macOS App
+# Atlas/אטלס macOS App
 
 Native Swift Life OS desktop app for deep planning and execution.
 
@@ -38,7 +38,7 @@ Override at runtime via `UserDefaults` key:
 - `atlas.api.base`
 
 ## Local model training
-Train/update the on-device local reasoner from project data:
+Train/update the on-device travel-design local model from project data:
 
 ```bash
 cd /Users/avrohom/Downloads/journeyatlas

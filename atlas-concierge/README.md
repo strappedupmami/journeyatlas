@@ -1,6 +1,6 @@
 # Atlas Concierge (Rust)
 
-Concierge-grade AI problem solver backend for the Atlas Masa ecosystem.
+Concierge-grade AI problem solver backend for the Atlas/אטלס ecosystem.
 
 ## Core design
 - Rules-first deterministic planner

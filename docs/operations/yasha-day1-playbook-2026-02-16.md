@@ -76,6 +76,6 @@ cargo run -p atlas-api
 
 ## Optional evening task
 Record outline for founder story (not full shoot):
-1. Why Atlas Masa exists
+1. Why Atlas/אטלס exists
 2. What problem "חופש בלי מלונות" solves
 3. Why no-smoking and legal water/grey rules matter

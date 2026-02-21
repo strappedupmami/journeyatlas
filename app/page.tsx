@@ -13,7 +13,7 @@ export default function HomePage() {
       <section className="hero-section">
         <div className="container hero-grid">
           <div>
-            <p className="kicker">אטלס מסע</p>
+            <p className="kicker">אטלס</p>
             <h1>
               {BRAND_TAGLINE}
               <span>{BRAND_SUBTITLE}</span>

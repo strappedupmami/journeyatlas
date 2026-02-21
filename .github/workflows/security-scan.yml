@@ -24,7 +24,16 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
         with:
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Verify lockfile policy
+        run: ./scripts/verify-lockfiles.sh sync-check
+
+      - name: Verify actions are SHA-pinned
+        run: ./scripts/verify-github-actions-pinning.sh
+
+      - name: Verify workflow trust boundaries
+        run: ./scripts/verify-workflow-trust-boundaries.sh
 
       - name: Setup Node
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8

@@ -17,7 +17,7 @@ targets:
     info:
       path: AtlasMasaMacOS/Info.plist
       properties:
-        CFBundleDisplayName: Atlas Masa Desktop
+        CFBundleDisplayName: Atlas/אטלס Desktop
         LSApplicationCategoryType: public.app-category.business
         ITSAppUsesNonExemptEncryption: false
     entitlements:

@@ -47,7 +47,7 @@ pub fn compose_chat_reply(
             )],
         ),
         (Intent::Policy, Locale::He) => (
-            "מדיניות אטלס מסע בקצרה: ללא עישון, ריקון מים אפורים רק בנקודות מורשות, ולינה בהתאם לחוק המקומי. אם תרצה, אבנה לך גרסה ללקוח או גרסה פנימית לצוות.".to_string(),
+            "מדיניות אטלס בקצרה: ללא עישון, ריקון מים אפורים רק בנקודות מורשות, ולינה בהתאם לחוק המקומי. אם תרצה, אבנה לך גרסה ללקוח או גרסה פנימית לצוות.".to_string(),
             vec![action("policy_summary", "גרסת לקוח למדיניות", json!({ "audience": "customer" }))],
         ),
         (Intent::Pricing, Locale::He) => (
@@ -108,7 +108,7 @@ pub fn compose_chat_reply(
             "input_echo": user_text,
             "retrieved_snippets": top_snippets,
             "brand": {
-                "company": "אטלס מסע",
+                "company": "אטלס",
                 "promise": "חופשה בלי מלונות",
                 "packages": ["מסע חווייתי", "מנוי מסע"],
                 "travel_help_included_free": true

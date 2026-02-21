@@ -5,7 +5,7 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="container header-inner">
-        <Link href="/" className="brand-link" aria-label="אטלס מסע - עמוד הבית">
+        <Link href="/" className="brand-link" aria-label="אטלס - עמוד הבית">
           <span className="brand-title">{BRAND_NAME}</span>
           <span className="brand-badge">RTL</span>
         </Link>

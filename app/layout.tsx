@@ -5,7 +5,7 @@ import { SITE_DESCRIPTION, SITE_INDEXABLE } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "אטלס מסע | חופשה בלי מלונות",
+  title: "אטלס | חופשה בלי מלונות",
   description: SITE_DESCRIPTION,
   robots: {
     index: SITE_INDEXABLE,

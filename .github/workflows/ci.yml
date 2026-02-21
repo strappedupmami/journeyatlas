@@ -24,13 +24,19 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
         with:
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Verify lockfile policy
-        run: ./scripts/verify-lockfiles.sh presence
+        run: ./scripts/verify-lockfiles.sh sync-check
 
       - name: Verify actions are SHA-pinned
         run: ./scripts/verify-github-actions-pinning.sh
+
+      - name: Verify workflow trust boundaries
+        run: ./scripts/verify-workflow-trust-boundaries.sh
+
+      - name: Verify dependency bot PR scope
+        run: ./scripts/verify-dependency-pr-scope.sh
 
   rust-ci:
     name: rust-ci

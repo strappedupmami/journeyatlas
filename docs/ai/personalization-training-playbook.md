@@ -1,10 +1,10 @@
-# Atlas Masa AI Personalization Training Playbook
+# Atlas/אטלס AI Personalization Training Playbook
 
 This document defines a production-safe path for long-term, precise personalization without training directly on raw private conversation archives.
 
 ## 1) Training strategy
 
-Atlas Masa uses a layered memory strategy:
+Atlas/אטלס uses a layered memory strategy:
 - **Structured profile memory**: style, risk, language, preferences.
 - **Adaptive survey memory**: dynamic answers for daily/mid/long-horizon planning.
 - **Execution memory**: user notes and imported memory events.
