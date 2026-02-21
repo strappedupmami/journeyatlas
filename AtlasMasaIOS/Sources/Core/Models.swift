@@ -382,9 +382,47 @@ struct ResearchCitation: Codable, Identifiable, Hashable {
 
 struct ResearchExecutionStream: Codable, Identifiable, Hashable {
     let id: String
+    let domain: String
     let title: String
     let executionRecommendation: String
     let whyItWorks: String
+    let confidence: Double
+    let citations: [ResearchCitation]
+}
+
+enum WorkspaceLane: String, Codable, CaseIterable, Identifiable {
+    case emergencyCommand = "emergency_command"
+    case wealthOperations = "wealth_operations"
+    case mobilityOps = "mobility_ops"
+    case deepWork = "deep_work"
+    case innovation = "innovation"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .emergencyCommand:
+            return "Emergency Command Workspace"
+        case .wealthOperations:
+            return "Wealth Operations Workspace"
+        case .mobilityOps:
+            return "Mobility Operations Workspace"
+        case .deepWork:
+            return "Cognitive Performance Workspace"
+        case .innovation:
+            return "Innovation Systems Workspace"
+        }
+    }
+}
+
+struct WorkspacePlan: Codable, Identifiable, Hashable {
+    let id: String
+    let lane: WorkspaceLane
+    let title: String
+    let objective: String
+    let nextActionNow: String
+    let protocolChecklist: [String]
+    let evidenceSummary: String
     let confidence: Double
     let citations: [ResearchCitation]
 }
