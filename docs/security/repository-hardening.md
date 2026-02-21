@@ -75,13 +75,15 @@ Current controls in Rust API:
 - HttpOnly secure session cookies with domain scoping
 - CSRF origin checks for cookie-authenticated write requests
 - PKCE + state validation for Google OAuth
+- Apple Sign In + passkey passwordless auth surface
+- legacy `/v1/auth/social_login` route retired (returns 410)
 - Passkey/WebAuthn sign-in support
 - strict security headers middleware
-- per-IP rate limiting
+- per-IP rate limiting, including dedicated auth start/finish abuse limits
 
 ## 5) Operational rules
 
 - Never commit raw tokens, API keys, or OAuth secrets.
 - Rotate credentials immediately after accidental disclosure.
 - Treat every CI secret as compromised if fork policy or workflow permissions are changed.
-- Keep `ATLAS_ALLOW_LEGACY_SOCIAL_LOGIN=false` in production.
+- Keep auth surface strictly passwordless: Google OAuth, Apple Sign In, and passkeys only.

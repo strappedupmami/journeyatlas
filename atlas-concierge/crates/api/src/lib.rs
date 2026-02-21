@@ -57,6 +57,7 @@ pub struct ApiState {
     pub metrics: Arc<AppMetrics>,
     pub api_key: String,
     pub limiter: IpRateLimiter,
+    pub auth_limiter: IpRateLimiter,
     pub http_client: Client,
     pub db_pool: Option<SqlitePool>,
     pub users: Arc<RwLock<HashMap<String, UserRecord>>>,
@@ -78,7 +79,7 @@ pub struct ApiState {
     pub company_status: CompanyStatusRecord,
     pub session_ttl: Duration,
     pub cookie_name: String,
-    pub cookie_domain: Option<String>,
+    pub cookie_domain: String,
     pub cookie_secure: bool,
     pub cookie_same_site: String,
 }
@@ -184,14 +185,6 @@ struct PasskeyAuthenticationStateRecord {
     user_id: Option<String>,
     state: PasskeyAuthentication,
     expires_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-struct SocialLoginRequest {
-    provider: String,
-    email: String,
-    name: Option<String>,
-    locale: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -585,16 +578,9 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
     let cookie_domain = env::var("ATLAS_SESSION_COOKIE_DOMAIN")
         .ok()
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-    let cookie_secure = env::var("ATLAS_COOKIE_SECURE")
-        .ok()
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
-        .unwrap_or(false);
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "localhost".to_string());
+    let cookie_secure = true;
     let cookie_same_site = sanitize_enum_value(
         env::var("ATLAS_COOKIE_SAMESITE")
             .ok()
@@ -603,6 +589,26 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         &["strict", "lax", "none"],
         "strict",
     );
+    let api_rate_limit_window = Duration::from_secs(
+        env::var("ATLAS_API_RATE_LIMIT_WINDOW_SECONDS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(60),
+    );
+    let api_rate_limit_max = env::var("ATLAS_API_RATE_LIMIT_MAX")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(80);
+    let auth_rate_limit_window = Duration::from_secs(
+        env::var("ATLAS_AUTH_RATE_LIMIT_WINDOW_SECONDS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(60),
+    );
+    let auth_rate_limit_max = env::var("ATLAS_AUTH_RATE_LIMIT_MAX")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(12);
     let allowed_origins = parse_allowed_origins();
     let google_oauth = build_google_oauth_config();
     let apple_oauth = build_apple_oauth_config();
@@ -614,7 +620,8 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         agent,
         metrics,
         api_key,
-        limiter: IpRateLimiter::new(Duration::from_secs(60), 80),
+        limiter: IpRateLimiter::new(api_rate_limit_window, api_rate_limit_max),
+        auth_limiter: IpRateLimiter::new(auth_rate_limit_window, auth_rate_limit_max),
         http_client: Client::builder()
             .connect_timeout(Duration::from_secs(6))
             .timeout(Duration::from_secs(20))
@@ -1013,7 +1020,7 @@ async fn auth_google_callback(
         state.session_ttl.as_secs(),
         state.cookie_secure,
         state.cookie_same_site.as_str(),
-        state.cookie_domain.as_deref(),
+        state.cookie_domain.as_str(),
     );
     if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
         response
@@ -1301,7 +1308,7 @@ async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQue
         state.session_ttl.as_secs(),
         state.cookie_secure,
         state.cookie_same_site.as_str(),
-        state.cookie_domain.as_deref(),
+        state.cookie_domain.as_str(),
     );
     if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
         response
@@ -1701,7 +1708,7 @@ async fn auth_passkey_login_finish(
         state.session_ttl.as_secs(),
         state.cookie_secure,
         state.cookie_same_site.as_str(),
-        state.cookie_domain.as_deref(),
+        state.cookie_domain.as_str(),
     );
     if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
         response
@@ -1920,96 +1927,21 @@ async fn chat(
     }
 }
 
-async fn social_login(
-    State(state): State<ApiState>,
-    Json(input): Json<SocialLoginRequest>,
-) -> impl IntoResponse {
-    if !legacy_social_login_enabled() {
-        return (
-            StatusCode::GONE,
-            Json(serde_json::json!({
-                "error": "legacy_social_login_disabled",
-                "message": "Use /v1/auth/google/start or passkey endpoints"
-            })),
-        )
-            .into_response();
-    }
-
-    if input.email.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": "invalid_email",
-                "message": "email is required"
-            })),
-        )
-            .into_response();
-    }
-
-    let provider = input.provider.trim().to_lowercase();
-    if provider != "google" && provider != "apple" {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": "invalid_provider",
-                "message": "provider must be google or apple"
-            })),
-        )
-            .into_response();
-    }
-
-    let email = input.email.trim().to_lowercase();
-    let now = chrono::Utc::now().to_rfc3339();
-    let user = find_or_create_user_by_email(
-        &state,
-        provider.as_str(),
-        email,
-        input.name.unwrap_or_else(|| "Atlas Masa User".to_string()),
-        input.locale.unwrap_or_else(|| "he".to_string()),
-        now,
+async fn social_login(State(_state): State<ApiState>) -> impl IntoResponse {
+    (
+        StatusCode::GONE,
+        Json(serde_json::json!({
+            "error": "legacy_auth_retired",
+            "message": "Legacy /v1/auth/social_login is permanently disabled in strict passwordless mode.",
+            "allowed_methods": [
+                "/v1/auth/google/start",
+                "/v1/auth/apple/start",
+                "/v1/auth/passkey/register/start",
+                "/v1/auth/passkey/login/start"
+            ]
+        })),
     )
-    .await;
-
-    let session_id = match issue_session_for_user(&state, &user).await {
-        Ok(value) => value,
-        Err(error) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "session_issue_failed",
-                    "message": error.to_string()
-                })),
-            )
-                .into_response()
-        }
-    };
-    let expires_at =
-        chrono::Utc::now() + chrono::Duration::seconds(state.session_ttl.as_secs() as i64);
-
-    let token = format!("session-{}", session_id);
-    let mut response = (
-        StatusCode::OK,
-        Json(AuthResponse {
-            token,
-            user,
-            session_expires_at: expires_at.to_rfc3339(),
-        }),
-    )
-        .into_response();
-    let cookie_value = build_session_cookie(
-        &state.cookie_name,
-        session_id.as_str(),
-        state.session_ttl.as_secs(),
-        state.cookie_secure,
-        state.cookie_same_site.as_str(),
-        state.cookie_domain.as_deref(),
-    );
-    if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
-        response
-            .headers_mut()
-            .insert(header::SET_COOKIE, header_value);
-    }
-    response
+        .into_response()
 }
 
 async fn auth_logout(State(state): State<ApiState>, headers: HeaderMap) -> impl IntoResponse {
@@ -2029,7 +1961,7 @@ async fn auth_logout(State(state): State<ApiState>, headers: HeaderMap) -> impl 
         &state.cookie_name,
         state.cookie_secure,
         state.cookie_same_site.as_str(),
-        state.cookie_domain.as_deref(),
+        state.cookie_domain.as_str(),
     );
     if let Ok(header_value) = HeaderValue::from_str(&clear_cookie) {
         response
@@ -3409,7 +3341,7 @@ fn build_session_cookie(
     max_age_seconds: u64,
     secure: bool,
     same_site: &str,
-    domain: Option<&str>,
+    domain: &str,
 ) -> String {
     let mut segments = vec![
         format!("{cookie_name}={session_id}"),
@@ -3421,18 +3353,11 @@ fn build_session_cookie(
     if secure {
         segments.push("Secure".to_string());
     }
-    if let Some(domain) = domain {
-        segments.push(format!("Domain={domain}"));
-    }
+    segments.push(format!("Domain={domain}"));
     segments.join("; ")
 }
 
-fn build_clear_cookie(
-    cookie_name: &str,
-    secure: bool,
-    same_site: &str,
-    domain: Option<&str>,
-) -> String {
+fn build_clear_cookie(cookie_name: &str, secure: bool, same_site: &str, domain: &str) -> String {
     let mut segments = vec![
         format!("{cookie_name}="),
         "Path=/".to_string(),
@@ -3444,9 +3369,7 @@ fn build_clear_cookie(
     if secure {
         segments.push("Secure".to_string());
     }
-    if let Some(domain) = domain {
-        segments.push(format!("Domain={domain}"));
-    }
+    segments.push(format!("Domain={domain}"));
     segments.join("; ")
 }
 
@@ -4548,18 +4471,6 @@ fn is_public_endpoint(path: &str) -> bool {
     )
 }
 
-fn legacy_social_login_enabled() -> bool {
-    env::var("ATLAS_ALLOW_LEGACY_SOCIAL_LOGIN")
-        .ok()
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
-        .unwrap_or(false)
-}
-
 async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {
     sqlx::query(
         r#"
@@ -5356,23 +5267,30 @@ async fn rate_limit_middleware(
     request: Request<Body>,
     next: Next,
 ) -> Response {
-    if request.method() == Method::OPTIONS || is_public_endpoint(request.uri().path()) {
+    if request.method() == Method::OPTIONS {
         return next.run(request).await;
     }
 
-    let ip = request
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|value| value.to_str().ok())
-        .map(|value| {
-            value
-                .split(',')
-                .next()
-                .unwrap_or("unknown")
-                .trim()
-                .to_string()
-        })
-        .unwrap_or_else(|| "local".to_string());
+    let path = request.uri().path().to_string();
+    let ip = request_ip(&request);
+
+    if is_auth_rate_limited_endpoint(path.as_str()) {
+        let auth_key = format!("auth:{}:{}", path, ip);
+        if !state.auth_limiter.allow(&auth_key) {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({
+                    "error": "auth_rate_limited",
+                    "message": "too many authentication attempts from this IP. wait and retry."
+                })),
+            )
+                .into_response();
+        }
+    }
+
+    if is_public_endpoint(path.as_str()) {
+        return next.run(request).await;
+    }
 
     if !state.limiter.allow(&ip) {
         return (
@@ -5393,21 +5311,14 @@ async fn csrf_origin_middleware(
     request: Request<Body>,
     next: Next,
 ) -> Response {
-    let path = request.uri().path().to_string();
     if request.method() == Method::GET
         || request.method() == Method::HEAD
         || request.method() == Method::OPTIONS
-        || is_public_endpoint(path.as_str())
     {
         return next.run(request).await;
     }
 
-    let has_cookie_session = request
-        .headers()
-        .get(header::COOKIE)
-        .and_then(|value| value.to_str().ok())
-        .map(|cookie| cookie.contains(state.cookie_name.as_str()))
-        .unwrap_or(false);
+    let has_cookie_session = read_cookie_value(request.headers(), &state.cookie_name).is_some();
     if !has_cookie_session {
         return next.run(request).await;
     }
@@ -5446,6 +5357,36 @@ async fn csrf_origin_middleware(
     next.run(request).await
 }
 
+fn is_auth_rate_limited_endpoint(path: &str) -> bool {
+    matches!(
+        path,
+        "/v1/auth/google/start"
+            | "/v1/auth/google/callback"
+            | "/v1/auth/apple/start"
+            | "/v1/auth/apple/callback"
+            | "/v1/auth/passkey/register/start"
+            | "/v1/auth/passkey/register/finish"
+            | "/v1/auth/passkey/login/start"
+            | "/v1/auth/passkey/login/finish"
+    )
+}
+
+fn request_ip(request: &Request<Body>) -> String {
+    request
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| {
+            value
+                .split(',')
+                .next()
+                .unwrap_or("unknown")
+                .trim()
+                .to_string()
+        })
+        .unwrap_or_else(|| "local".to_string())
+}
+
 async fn security_headers_middleware(
     State(state): State<ApiState>,
     request: Request<Body>,
@@ -5481,4 +5422,35 @@ async fn security_headers_middleware(
     }
 
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_clear_cookie, build_session_cookie};
+
+    #[test]
+    fn session_cookie_is_secure_and_domain_scoped() {
+        let cookie = build_session_cookie(
+            "atlas_session",
+            "session123",
+            3600,
+            true,
+            "strict",
+            "atlasmasa.com",
+        );
+        assert!(cookie.contains("HttpOnly"));
+        assert!(cookie.contains("Secure"));
+        assert!(cookie.contains("SameSite=Strict"));
+        assert!(cookie.contains("Domain=atlasmasa.com"));
+    }
+
+    #[test]
+    fn clear_cookie_preserves_security_attributes() {
+        let cookie = build_clear_cookie("atlas_session", true, "lax", "atlasmasa.com");
+        assert!(cookie.contains("HttpOnly"));
+        assert!(cookie.contains("Secure"));
+        assert!(cookie.contains("SameSite=Lax"));
+        assert!(cookie.contains("Domain=atlasmasa.com"));
+        assert!(cookie.contains("Max-Age=0"));
+    }
 }
