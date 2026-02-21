@@ -35,3 +35,6 @@ DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcuserdatad/
 *.xcuserstate
+
+# local model artifacts
+/artifacts/local-reasoner/

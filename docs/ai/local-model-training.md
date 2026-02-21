@@ -47,6 +47,9 @@ This command will:
   - `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/LocalReasoningEngine.swift`
 - write a report at:
   - `/Users/avrohom/Downloads/journeyatlas/docs/ai/local-reasoner-model-report.md`
+- write versioned artifacts at:
+  - `/Users/avrohom/Downloads/journeyatlas/artifacts/local-reasoner/<run_id>/`
+  - plus `/Users/avrohom/Downloads/journeyatlas/artifacts/local-reasoner/latest.json`
 
 ## 3) Run continuously (day/night)
 
@@ -67,6 +70,17 @@ Check holdout accuracy in:
 
 If accuracy drops, add better labeled prompts before shipping.
 
+Default quality gate:
+- minimum holdout accuracy: `55%`
+- if below threshold, run artifacts are still produced, but Swift model injection is blocked.
+
+Override only if explicitly needed:
+
+```bash
+cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge
+cargo run -p atlas-cli -- model train-local-reasoner --allow-below-threshold
+```
+
 ## 5) Feeding more Atlas data safely
 
 Add only user-approved, non-secret data into the JSONL dataset.
@@ -77,4 +91,3 @@ Recommended data sources for this local model:
 - execution-loop notes (daily/mid/long horizon)
 - mobility/travel ops prompts
 - reliability/safety incidents and recovery prompts
-
