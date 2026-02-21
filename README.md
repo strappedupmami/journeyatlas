@@ -16,7 +16,7 @@ Native Swift Life OS app for movement-based living/work execution.
 - Mobility/van rental intent capture for planning alignment
 - Auth access shell: Apple, Google placeholder, passwordless local flow
 - Tiering model in-app:
-  - Tier 1 local reasoning (trial)
+  - Tier 1 local reasoning
   - Tier 2 cloud reasoning mode switch
 
 ## Project generation
@@ -36,3 +36,18 @@ Default API base: `https://api.atlasmasa.com`
 
 Override at runtime via `UserDefaults` key:
 - `atlas.api.base`
+
+## Local model training
+Train/update the on-device local reasoner from project data:
+
+```bash
+cd /Users/avrohom/Downloads/journeyatlas
+./scripts/train-local-model-loop.sh
+```
+
+Continuous retraining loop:
+
+```bash
+cd /Users/avrohom/Downloads/journeyatlas
+RUN_FOREVER=1 INTERVAL_SECONDS=1800 ./scripts/train-local-model-loop.sh
+```
