@@ -65,6 +65,7 @@ const MAX_FEEDBACK_TAGS: usize = 20;
 const MAX_FEEDBACK_TAG_LEN: usize = 40;
 const DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS: u64 = 300;
 const DEFAULT_SUBSCRIPTION_BYPASS_EMAILS: &str = "ceo@atlasmasa.com";
+const FREE_TRIAL_DURATION_DAYS: i64 = 90;
 
 #[derive(Clone)]
 #[allow(private_interfaces)]
@@ -508,6 +509,19 @@ struct BillingStatusRecord {
     status: String,
     current_period_end: Option<String>,
     updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SubscriptionAccessRecord {
+    bypass: bool,
+    active: bool,
+    tier: String,
+    trial_active: bool,
+    trial_started_at: Option<String>,
+    trial_ends_at: Option<String>,
+    trial_days_remaining: u32,
+    cloud_compute_enabled: bool,
+    cloud_storage_enabled: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2111,7 +2125,43 @@ async fn chat(
                     .as_ref()
                     .and_then(|user_id| state.users.read().get(user_id).cloned())
             });
-            if state.openai_runtime.is_some() {
+            let subscription_access = if let Some(user) = premium_user.as_ref() {
+                Some(subscription_access_for_user(&state, user).await)
+            } else {
+                None
+            };
+            let cloud_compute_enabled = subscription_access
+                .as_ref()
+                .map(|subscription| subscription.cloud_compute_enabled)
+                .unwrap_or(false);
+
+            if let Some(payload_obj) = response.json_payload.as_object_mut() {
+                let reason = if cloud_compute_enabled {
+                    "enabled"
+                } else if let Some(subscription) = subscription_access.as_ref() {
+                    if subscription.trial_active {
+                        "trial_local_compute_only"
+                    } else {
+                        "subscription_required_for_cloud_compute"
+                    }
+                } else {
+                    "sign_in_required_for_cloud_compute"
+                };
+                payload_obj.insert(
+                    "cloud_compute".to_string(),
+                    serde_json::json!({
+                        "enabled": cloud_compute_enabled,
+                        "reason": reason,
+                        "storage_enabled": true,
+                        "trial_days_remaining": subscription_access.as_ref().map(|item| item.trial_days_remaining).unwrap_or(0),
+                    }),
+                );
+                if let Some(subscription) = subscription_access.as_ref() {
+                    payload_obj.insert("subscription".to_string(), serde_json::json!(subscription));
+                }
+            }
+
+            if state.openai_runtime.is_some() && cloud_compute_enabled {
                 let survey_state = premium_user
                     .as_ref()
                     .and_then(|user| state.survey_states.read().get(&user.user_id).cloned());
@@ -2163,6 +2213,10 @@ async fn chat(
                                 .unwrap_or_default()),
                         );
                     }
+                }
+            } else if state.openai_runtime.is_some() {
+                if let Some(payload_obj) = response.json_payload.as_object_mut() {
+                    payload_obj.insert("ai_backend".to_string(), serde_json::json!("local_only"));
                 }
             }
 
@@ -2330,27 +2384,88 @@ async fn auth_me(State(state): State<ApiState>, headers: HeaderMap) -> impl Into
             .into_response();
     };
 
-    let bypass = is_subscription_bypass_email(user.email.as_str());
-    let active_subscription = if bypass {
-        true
-    } else {
-        user_has_active_subscription(&state, user.user_id.as_str())
-            .await
-            .unwrap_or(false)
-    };
+    let subscription = subscription_access_for_user(&state, &user).await;
 
     (
         StatusCode::OK,
         Json(serde_json::json!({
             "user": user,
-            "subscription": {
-                "bypass": bypass,
-                "active": active_subscription,
-                "tier": if bypass { "owner_bypass" } else if active_subscription { "subscriber" } else { "standard" }
-            }
+            "subscription": subscription
         })),
     )
         .into_response()
+}
+
+fn user_trial_window(
+    user: &UserRecord,
+    now: chrono::DateTime<chrono::Utc>,
+) -> (
+    chrono::DateTime<chrono::Utc>,
+    chrono::DateTime<chrono::Utc>,
+    bool,
+    u32,
+) {
+    let started_at = parse_or_default_utc(Some(user.created_at.as_str()), now);
+    let ends_at = started_at + chrono::Duration::days(FREE_TRIAL_DURATION_DAYS);
+    let is_active = now < ends_at;
+    let seconds_remaining = (ends_at - now).num_seconds().max(0);
+    let days_remaining = if seconds_remaining == 0 {
+        0
+    } else {
+        ((seconds_remaining + 86_399) / 86_400) as u32
+    };
+    (started_at, ends_at, is_active, days_remaining)
+}
+
+async fn subscription_access_for_user(
+    state: &ApiState,
+    user: &UserRecord,
+) -> SubscriptionAccessRecord {
+    let bypass = is_subscription_bypass_email(user.email.as_str());
+    let active_subscription = if bypass {
+        true
+    } else {
+        user_has_active_subscription(state, user.user_id.as_str())
+            .await
+            .unwrap_or(false)
+    };
+    let now = chrono::Utc::now();
+    let (trial_started_at, trial_ends_at, trial_active, trial_days_remaining) =
+        if !bypass && !active_subscription {
+            user_trial_window(user, now)
+        } else {
+            (now, now, false, 0)
+        };
+
+    let tier = if bypass {
+        "owner_bypass"
+    } else if active_subscription {
+        "subscriber"
+    } else if trial_active {
+        "local_trial"
+    } else {
+        "standard"
+    };
+
+    SubscriptionAccessRecord {
+        bypass,
+        active: active_subscription,
+        tier: tier.to_string(),
+        trial_active,
+        trial_started_at: if trial_active {
+            Some(trial_started_at.to_rfc3339())
+        } else {
+            None
+        },
+        trial_ends_at: if trial_active {
+            Some(trial_ends_at.to_rfc3339())
+        } else {
+            None
+        },
+        trial_days_remaining,
+        cloud_compute_enabled: bypass || active_subscription,
+        cloud_storage_enabled: true,
+    }
 }
 
 async fn user_has_active_subscription(state: &ApiState, user_id: &str) -> Result<bool> {
@@ -2519,6 +2634,39 @@ async fn note_rewrite(
         )
             .into_response();
     };
+
+    let Some(user) = state.users.read().get(&user_id).cloned() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "user_not_found"
+            })),
+        )
+            .into_response();
+    };
+    let subscription = subscription_access_for_user(&state, &user).await;
+    if !subscription.cloud_compute_enabled {
+        let (error, message) = if subscription.trial_active {
+            (
+                "cloud_compute_disabled_in_trial",
+                "3-month trial includes cloud storage but excludes cloud compute. Upgrade to unlock cloud note rewrite.",
+            )
+        } else {
+            (
+                "subscription_required_for_cloud_compute",
+                "Cloud note rewrite requires an active subscription.",
+            )
+        };
+        return (
+            StatusCode::PAYMENT_REQUIRED,
+            Json(serde_json::json!({
+                "error": error,
+                "message": message,
+                "subscription": subscription
+            })),
+        )
+            .into_response();
+    }
 
     let instruction = sanitize_limited_text(
         input
@@ -7706,9 +7854,9 @@ mod tests {
     use super::{
         build_clear_cookie, build_session_cookie, build_test_stripe_signature,
         ingest_memory_records_if_opted_in, prioritize_execution_tasks, request_origin_from_headers,
-        retrieve_memory_context_from_records, schedule_minutes_offset,
+        retrieve_memory_context_from_records, schedule_minutes_offset, user_trial_window,
         verify_stripe_webhook_signature, ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
-        DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
+        UserRecord, DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
     };
     use axum::http::{header, HeaderMap, HeaderValue};
     use chrono::Duration;
@@ -7947,5 +8095,49 @@ mod tests {
             request_origin_from_headers(&headers).as_deref(),
             Some("https://www.atlasmasa.com")
         );
+    }
+
+    #[test]
+    fn free_trial_window_is_active_with_positive_remaining_days() {
+        let now = chrono::Utc::now();
+        let user = UserRecord {
+            user_id: "user-1".to_string(),
+            provider: "passkey".to_string(),
+            email: "trial@atlasmasa.com".to_string(),
+            name: "Trial User".to_string(),
+            locale: "en".to_string(),
+            trip_style: None,
+            risk_preference: None,
+            memory_opt_in: true,
+            passkey_user_handle: None,
+            created_at: (now - Duration::days(7)).to_rfc3339(),
+            updated_at: now.to_rfc3339(),
+        };
+
+        let (_start, _end, active, remaining_days) = user_trial_window(&user, now);
+        assert!(active);
+        assert!(remaining_days > 0);
+    }
+
+    #[test]
+    fn free_trial_window_expires_after_ninety_days() {
+        let now = chrono::Utc::now();
+        let user = UserRecord {
+            user_id: "user-2".to_string(),
+            provider: "passkey".to_string(),
+            email: "expired@atlasmasa.com".to_string(),
+            name: "Expired Trial User".to_string(),
+            locale: "en".to_string(),
+            trip_style: None,
+            risk_preference: None,
+            memory_opt_in: true,
+            passkey_user_handle: None,
+            created_at: (now - Duration::days(120)).to_rfc3339(),
+            updated_at: now.to_rfc3339(),
+        };
+
+        let (_start, _end, active, remaining_days) = user_trial_window(&user, now);
+        assert!(!active);
+        assert_eq!(remaining_days, 0);
     }
 }

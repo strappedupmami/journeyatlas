@@ -985,6 +985,12 @@
           bypass: false,
           active: false,
           tier: "standard",
+          trial_active: false,
+          trial_started_at: null,
+          trial_ends_at: null,
+          trial_days_remaining: 0,
+          cloud_compute_enabled: false,
+          cloud_storage_enabled: true,
         },
         style: "beach",
         survey: {
@@ -1549,20 +1555,33 @@
           return;
         }
 
-        const subscriptionTag = state.subscription && state.subscription.bypass
+        const founderBypass = !!(state.subscription && state.subscription.bypass);
+        const hasActiveSubscription = !!(state.subscription && state.subscription.active);
+        const trialActive = !!(state.subscription && state.subscription.trial_active);
+        const trialDaysRemaining = Number((state.subscription && state.subscription.trial_days_remaining) || 0);
+        const cloudComputeEnabled = !!(state.subscription && state.subscription.cloud_compute_enabled);
+        const subscriptionTag = founderBypass
+          ? "Founder Access"
+          : hasActiveSubscription
+          ? "Subscription Active"
+          : trialActive
           ? state.locale === "he"
-            ? "Founder Access"
-            : "Founder Access"
-          : state.subscription && state.subscription.active
-          ? state.locale === "he"
-            ? "Subscription Active"
-            : "Subscription Active"
+            ? `3-Month Trial • ${trialDaysRemaining}d left`
+            : `3-Month Trial • ${trialDaysRemaining}d left`
           : "";
         userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}${subscriptionTag ? ` • ${subscriptionTag}` : ""}`;
         signoutBtn.style.display = "inline-flex";
-        const founderBypass = !!(state.subscription && state.subscription.bypass);
-        const hasActiveSubscription = !!(state.subscription && state.subscription.active);
         const showSubscriptionCta = !founderBypass && !hasActiveSubscription;
+        subscribeMonthlyBtn.textContent = trialActive
+          ? state.locale === "he"
+            ? "שדרוג לחשיבה בענן (Apple Pay)"
+            : "Upgrade to Cloud Reasoning (Apple Pay)"
+          : t("studio.subscribeMonthly");
+        subscribeMonthlyBtn.title = trialActive && !cloudComputeEnabled
+          ? state.locale === "he"
+            ? "במסלול הניסיון יש אחסון ענן בלבד. שדרגו כדי לפתוח חישוב ענן."
+            : "Trial includes cloud storage only. Upgrade to unlock cloud compute."
+          : "";
         subscribeMonthlyBtn.style.display = showSubscriptionCta ? "inline-flex" : "none";
         subscribeMonthlyBtn.disabled = !showSubscriptionCta;
         subscribeMonthlyBtn.style.opacity = showSubscriptionCta ? "1" : "0.62";
@@ -2228,10 +2247,23 @@
           const result = await request("/v1/auth/me");
           if (result.ok && result.payload.user) {
             state.user = result.payload.user;
-            state.subscription = result.payload.subscription || state.subscription;
+            state.subscription = {
+              ...state.subscription,
+              ...(result.payload.subscription || {}),
+            };
           } else {
             state.user = null;
-            state.subscription = { bypass: false, active: false, tier: "standard" };
+            state.subscription = {
+              bypass: false,
+              active: false,
+              tier: "standard",
+              trial_active: false,
+              trial_started_at: null,
+              trial_ends_at: null,
+              trial_days_remaining: 0,
+              cloud_compute_enabled: false,
+              cloud_storage_enabled: true,
+            };
             const params = new URLSearchParams(window.location.search);
             if (params.get("auth") === "success" && result.status === 401) {
               const apiBase = (result.base || "").toLowerCase();
@@ -2253,7 +2285,17 @@
           updateUserState();
         } catch {
           state.user = null;
-          state.subscription = { bypass: false, active: false, tier: "standard" };
+          state.subscription = {
+            bypass: false,
+            active: false,
+            tier: "standard",
+            trial_active: false,
+            trial_started_at: null,
+            trial_ends_at: null,
+            trial_days_remaining: 0,
+            cloud_compute_enabled: false,
+            cloud_storage_enabled: true,
+          };
           updateUserState();
         }
       }
@@ -2263,7 +2305,17 @@
           await request("/v1/auth/logout", "POST", {});
         } catch (_) {}
         state.user = null;
-        state.subscription = { bypass: false, active: false, tier: "standard" };
+        state.subscription = {
+          bypass: false,
+          active: false,
+          tier: "standard",
+          trial_active: false,
+          trial_started_at: null,
+          trial_ends_at: null,
+          trial_days_remaining: 0,
+          cloud_compute_enabled: false,
+          cloud_storage_enabled: true,
+        };
         state.notes = [];
         state.activeNoteId = null;
         state.executionControls = {
