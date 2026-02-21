@@ -1,0 +1,26 @@
+{
+  "run_id": "20260221T113146Z",
+  "generated_at_utc": "2026-02-21T11:31:46.026346+00:00",
+  "dataset_path": "/Users/avrohom/Downloads/journeyatlas/atlas-concierge/kb/training/local_reasoner_training.jsonl",
+  "dataset_sha256": "b35597c0bb561b04247972b05acd57e61193b254fa0fccdb78e6fd4d3404a81c",
+  "samples_total": 360,
+  "samples_synthetic": 98,
+  "labels": [
+    "travel_design_execution",
+    "travel_design_revenue",
+    "travel_design_resilience",
+    "travel_design_recovery",
+    "travel_design_strategy",
+    "travel_design_journey_ops",
+    "travel_design_systems"
+  ],
+  "max_vocab": 1000,
+  "min_token_freq": 1,
+  "prune_target_vocab": 800,
+  "vocab_size_raw": 1000,
+  "vocab_size_pruned": 800,
+  "holdout_accuracy": 0.5540540540540541,
+  "holdout_size": 74,
+  "threshold_passed": true,
+  "model_name": "atlas-swift-travel-design-v1-20260221T113146Z"
+}
