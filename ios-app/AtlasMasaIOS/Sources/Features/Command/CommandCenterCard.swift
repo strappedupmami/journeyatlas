@@ -21,7 +21,7 @@ struct CommandCenterCard: View {
                     .foregroundStyle(AtlasTheme.textSecondary)
 
                 if session.selectedTier == .localTrial {
-                    Text("Trial remaining: \(session.trialDaysRemaining) days")
+                    Text("Local-first mode: execution runs on device and persists across restarts.")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(AtlasTheme.accentWarm)
                 }

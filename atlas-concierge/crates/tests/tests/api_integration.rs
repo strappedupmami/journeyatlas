@@ -52,7 +52,7 @@ async fn chat_requires_api_key() {
 }
 
 #[tokio::test]
-async fn chat_allows_first_party_origin_without_api_key() {
+async fn chat_requires_signin_for_first_party_origin_without_api_key() {
     let app = build_app(kb_root()).await.expect("app should build");
 
     let request = Request::builder()
@@ -69,7 +69,13 @@ async fn chat_allows_first_party_origin_without_api_key() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        parsed.get("error").and_then(|value| value.as_str()),
+        Some("not_authenticated")
+    );
 }
 
 #[tokio::test]

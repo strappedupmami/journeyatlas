@@ -985,12 +985,8 @@
           bypass: false,
           active: false,
           tier: "standard",
-          trial_active: false,
-          trial_started_at: null,
-          trial_ends_at: null,
-          trial_days_remaining: 0,
           cloud_compute_enabled: false,
-          cloud_storage_enabled: true,
+          cloud_storage_enabled: false,
         },
         style: "beach",
         survey: {
@@ -1557,31 +1553,16 @@
 
         const founderBypass = !!(state.subscription && state.subscription.bypass);
         const hasActiveSubscription = !!(state.subscription && state.subscription.active);
-        const trialActive = !!(state.subscription && state.subscription.trial_active);
-        const trialDaysRemaining = Number((state.subscription && state.subscription.trial_days_remaining) || 0);
-        const cloudComputeEnabled = !!(state.subscription && state.subscription.cloud_compute_enabled);
         const subscriptionTag = founderBypass
           ? "Founder Access"
           : hasActiveSubscription
           ? "Subscription Active"
-          : trialActive
-          ? state.locale === "he"
-            ? `3-Month Trial • ${trialDaysRemaining}d left`
-            : `3-Month Trial • ${trialDaysRemaining}d left`
           : "";
         userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}${subscriptionTag ? ` • ${subscriptionTag}` : ""}`;
         signoutBtn.style.display = "inline-flex";
         const showSubscriptionCta = !founderBypass && !hasActiveSubscription;
-        subscribeMonthlyBtn.textContent = trialActive
-          ? state.locale === "he"
-            ? "שדרוג לחשיבה בענן (Apple Pay)"
-            : "Upgrade to Cloud Reasoning (Apple Pay)"
-          : t("studio.subscribeMonthly");
-        subscribeMonthlyBtn.title = trialActive && !cloudComputeEnabled
-          ? state.locale === "he"
-            ? "במסלול הניסיון יש אחסון ענן בלבד. שדרגו כדי לפתוח חישוב ענן."
-            : "Trial includes cloud storage only. Upgrade to unlock cloud compute."
-          : "";
+        subscribeMonthlyBtn.textContent = t("studio.subscribeMonthly");
+        subscribeMonthlyBtn.title = "";
         subscribeMonthlyBtn.style.display = showSubscriptionCta ? "inline-flex" : "none";
         subscribeMonthlyBtn.disabled = !showSubscriptionCta;
         subscribeMonthlyBtn.style.opacity = showSubscriptionCta ? "1" : "0.62";
@@ -2257,12 +2238,8 @@
               bypass: false,
               active: false,
               tier: "standard",
-              trial_active: false,
-              trial_started_at: null,
-              trial_ends_at: null,
-              trial_days_remaining: 0,
               cloud_compute_enabled: false,
-              cloud_storage_enabled: true,
+              cloud_storage_enabled: false,
             };
             const params = new URLSearchParams(window.location.search);
             if (params.get("auth") === "success" && result.status === 401) {
@@ -2289,12 +2266,8 @@
             bypass: false,
             active: false,
             tier: "standard",
-            trial_active: false,
-            trial_started_at: null,
-            trial_ends_at: null,
-            trial_days_remaining: 0,
             cloud_compute_enabled: false,
-            cloud_storage_enabled: true,
+            cloud_storage_enabled: false,
           };
           updateUserState();
         }
@@ -2309,12 +2282,8 @@
           bypass: false,
           active: false,
           tier: "standard",
-          trial_active: false,
-          trial_started_at: null,
-          trial_ends_at: null,
-          trial_days_remaining: 0,
           cloud_compute_enabled: false,
-          cloud_storage_enabled: true,
+          cloud_storage_enabled: false,
         };
         state.notes = [];
         state.activeNoteId = null;

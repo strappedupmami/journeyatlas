@@ -65,7 +65,6 @@ const MAX_FEEDBACK_TAGS: usize = 20;
 const MAX_FEEDBACK_TAG_LEN: usize = 40;
 const DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS: u64 = 300;
 const DEFAULT_SUBSCRIPTION_BYPASS_EMAILS: &str = "ceo@atlasmasa.com";
-const FREE_TRIAL_DURATION_DAYS: i64 = 90;
 
 #[derive(Clone)]
 #[allow(private_interfaces)]
@@ -516,10 +515,6 @@ struct SubscriptionAccessRecord {
     bypass: bool,
     active: bool,
     tier: String,
-    trial_active: bool,
-    trial_started_at: Option<String>,
-    trial_ends_at: Option<String>,
-    trial_days_remaining: u32,
     cloud_compute_enabled: bool,
     cloud_storage_enabled: bool,
 }
@@ -2138,12 +2133,8 @@ async fn chat(
             if let Some(payload_obj) = response.json_payload.as_object_mut() {
                 let reason = if cloud_compute_enabled {
                     "enabled"
-                } else if let Some(subscription) = subscription_access.as_ref() {
-                    if subscription.trial_active {
-                        "trial_local_compute_only"
-                    } else {
-                        "subscription_required_for_cloud_compute"
-                    }
+                } else if subscription_access.is_some() {
+                    "subscription_required_for_cloud_compute"
                 } else {
                     "sign_in_required_for_cloud_compute"
                 };
@@ -2152,8 +2143,10 @@ async fn chat(
                     serde_json::json!({
                         "enabled": cloud_compute_enabled,
                         "reason": reason,
-                        "storage_enabled": true,
-                        "trial_days_remaining": subscription_access.as_ref().map(|item| item.trial_days_remaining).unwrap_or(0),
+                        "storage_enabled": subscription_access
+                            .as_ref()
+                            .map(|item| item.cloud_storage_enabled)
+                            .unwrap_or(false),
                     }),
                 );
                 if let Some(subscription) = subscription_access.as_ref() {
@@ -2396,27 +2389,6 @@ async fn auth_me(State(state): State<ApiState>, headers: HeaderMap) -> impl Into
         .into_response()
 }
 
-fn user_trial_window(
-    user: &UserRecord,
-    now: chrono::DateTime<chrono::Utc>,
-) -> (
-    chrono::DateTime<chrono::Utc>,
-    chrono::DateTime<chrono::Utc>,
-    bool,
-    u32,
-) {
-    let started_at = parse_or_default_utc(Some(user.created_at.as_str()), now);
-    let ends_at = started_at + chrono::Duration::days(FREE_TRIAL_DURATION_DAYS);
-    let is_active = now < ends_at;
-    let seconds_remaining = (ends_at - now).num_seconds().max(0);
-    let days_remaining = if seconds_remaining == 0 {
-        0
-    } else {
-        ((seconds_remaining + 86_399) / 86_400) as u32
-    };
-    (started_at, ends_at, is_active, days_remaining)
-}
-
 async fn subscription_access_for_user(
     state: &ApiState,
     user: &UserRecord,
@@ -2429,20 +2401,10 @@ async fn subscription_access_for_user(
             .await
             .unwrap_or(false)
     };
-    let now = chrono::Utc::now();
-    let (trial_started_at, trial_ends_at, trial_active, trial_days_remaining) =
-        if !bypass && !active_subscription {
-            user_trial_window(user, now)
-        } else {
-            (now, now, false, 0)
-        };
-
     let tier = if bypass {
         "owner_bypass"
     } else if active_subscription {
         "subscriber"
-    } else if trial_active {
-        "local_trial"
     } else {
         "standard"
     };
@@ -2451,20 +2413,8 @@ async fn subscription_access_for_user(
         bypass,
         active: active_subscription,
         tier: tier.to_string(),
-        trial_active,
-        trial_started_at: if trial_active {
-            Some(trial_started_at.to_rfc3339())
-        } else {
-            None
-        },
-        trial_ends_at: if trial_active {
-            Some(trial_ends_at.to_rfc3339())
-        } else {
-            None
-        },
-        trial_days_remaining,
         cloud_compute_enabled: bypass || active_subscription,
-        cloud_storage_enabled: true,
+        cloud_storage_enabled: bypass || active_subscription,
     }
 }
 
@@ -2482,10 +2432,7 @@ async fn user_has_active_subscription(state: &ApiState, user_id: &str) -> Result
         .and_then(|value| value.try_get::<String, _>("status").ok())
         .unwrap_or_default()
         .to_ascii_lowercase();
-    Ok(matches!(
-        status.as_str(),
-        "active" | "trialing" | "owner_bypass"
-    ))
+    Ok(matches!(status.as_str(), "active" | "owner_bypass"))
 }
 
 async fn notes_list(
@@ -2646,22 +2593,11 @@ async fn note_rewrite(
     };
     let subscription = subscription_access_for_user(&state, &user).await;
     if !subscription.cloud_compute_enabled {
-        let (error, message) = if subscription.trial_active {
-            (
-                "cloud_compute_disabled_in_trial",
-                "3-month trial includes cloud storage but excludes cloud compute. Upgrade to unlock cloud note rewrite.",
-            )
-        } else {
-            (
-                "subscription_required_for_cloud_compute",
-                "Cloud note rewrite requires an active subscription.",
-            )
-        };
         return (
             StatusCode::PAYMENT_REQUIRED,
             Json(serde_json::json!({
-                "error": error,
-                "message": message,
+                "error": "subscription_required_for_cloud_compute",
+                "message": "Cloud note rewrite requires an active subscription.",
                 "subscription": subscription
             })),
         )
@@ -4522,7 +4458,8 @@ async fn api_key_middleware(
     request: Request<Body>,
     next: Next,
 ) -> Response {
-    if request.method() == Method::OPTIONS || is_public_endpoint(request.uri().path()) {
+    let path = request.uri().path().to_string();
+    if request.method() == Method::OPTIONS || is_public_endpoint(path.as_str()) {
         return next.run(request).await;
     }
 
@@ -4531,25 +4468,62 @@ async fn api_key_middleware(
         .get("x-api-key")
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default();
+    let has_service_api_key = header_key == state.api_key;
 
-    if header_key == state.api_key {
+    if has_service_api_key {
         return next.run(request).await;
     }
 
     // Browser-origin requests from first-party allowed origins are accepted
     // without x-api-key. This avoids embedding secrets in static web assets.
-    if request_origin_is_allowed(&state, request.headers()) {
-        return next.run(request).await;
+    if !request_origin_is_allowed(&state, request.headers()) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "unauthorized",
+                "message": "missing or invalid x-api-key, and request origin is not allowed"
+            })),
+        )
+            .into_response();
     }
 
-    (
-        StatusCode::UNAUTHORIZED,
-        Json(serde_json::json!({
-            "error": "unauthorized",
-            "message": "missing or invalid x-api-key, and request origin is not allowed"
-        })),
-    )
-        .into_response()
+    let (needs_cloud_storage, needs_cloud_compute) = cloud_requirements_for_endpoint(path.as_str());
+    if needs_cloud_storage || needs_cloud_compute {
+        let Some(user) = session_user_from_headers(&state, request.headers()) else {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first to access cloud features"
+                })),
+            )
+                .into_response();
+        };
+
+        let subscription = subscription_access_for_user(&state, &user).await;
+        let storage_ok = !needs_cloud_storage || subscription.cloud_storage_enabled;
+        let compute_ok = !needs_cloud_compute || subscription.cloud_compute_enabled;
+        if !storage_ok || !compute_ok {
+            let reason = if needs_cloud_storage && needs_cloud_compute {
+                "cloud_storage_and_compute_require_subscription"
+            } else if needs_cloud_storage {
+                "cloud_storage_requires_subscription"
+            } else {
+                "cloud_compute_requires_subscription"
+            };
+            return (
+                StatusCode::PAYMENT_REQUIRED,
+                Json(serde_json::json!({
+                    "error": reason,
+                    "message": "This cloud feature is available on the paid subscription plan.",
+                    "subscription": subscription
+                })),
+            )
+                .into_response();
+        }
+    }
+
+    next.run(request).await
 }
 
 fn session_user_from_headers(state: &ApiState, headers: &HeaderMap) -> Option<UserRecord> {
@@ -6677,6 +6651,44 @@ fn bool_from_jsonish(value: &serde_json::Value) -> Option<bool> {
     })
 }
 
+fn cloud_requirements_for_endpoint(path: &str) -> (bool, bool) {
+    let needs_cloud_storage = matches!(
+        path,
+        "/v1/profile/upsert"
+            | "/v1/notes"
+            | "/v1/notes/upsert"
+            | "/v1/notes/rewrite"
+            | "/v1/memory/import"
+            | "/v1/memory/records"
+            | "/v1/memory/upsert"
+            | "/v1/memory/delete"
+            | "/v1/memory/clear"
+            | "/v1/studio/preferences"
+            | "/v1/survey/next"
+            | "/v1/survey/answer"
+            | "/v1/feed/proactive"
+            | "/v1/execution/checkin"
+            | "/v1/execution/refresh"
+            | "/v1/execution/controls"
+            | "/v1/feedback/submit"
+            | "/v1/actions/reminder"
+            | "/v1/actions/alarm"
+    ) || path.starts_with("/v1/feedback/employee/");
+
+    let needs_cloud_compute = matches!(
+        path,
+        "/v1/chat"
+            | "/v1/plan_trip"
+            | "/v1/notes/rewrite"
+            | "/v1/feed/proactive"
+            | "/v1/execution/refresh"
+            | "/v1/actions/reminder"
+            | "/v1/actions/alarm"
+    );
+
+    (needs_cloud_storage, needs_cloud_compute)
+}
+
 fn is_public_endpoint(path: &str) -> bool {
     matches!(
         path,
@@ -7853,10 +7865,11 @@ async fn security_headers_middleware(
 mod tests {
     use super::{
         build_clear_cookie, build_session_cookie, build_test_stripe_signature,
-        ingest_memory_records_if_opted_in, prioritize_execution_tasks, request_origin_from_headers,
-        retrieve_memory_context_from_records, schedule_minutes_offset, user_trial_window,
+        cloud_requirements_for_endpoint, ingest_memory_records_if_opted_in,
+        prioritize_execution_tasks, request_origin_from_headers,
+        retrieve_memory_context_from_records, schedule_minutes_offset,
         verify_stripe_webhook_signature, ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
-        UserRecord, DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
+        DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
     };
     use axum::http::{header, HeaderMap, HeaderValue};
     use chrono::Duration;
@@ -8098,46 +8111,19 @@ mod tests {
     }
 
     #[test]
-    fn free_trial_window_is_active_with_positive_remaining_days() {
-        let now = chrono::Utc::now();
-        let user = UserRecord {
-            user_id: "user-1".to_string(),
-            provider: "passkey".to_string(),
-            email: "trial@atlasmasa.com".to_string(),
-            name: "Trial User".to_string(),
-            locale: "en".to_string(),
-            trip_style: None,
-            risk_preference: None,
-            memory_opt_in: true,
-            passkey_user_handle: None,
-            created_at: (now - Duration::days(7)).to_rfc3339(),
-            updated_at: now.to_rfc3339(),
-        };
-
-        let (_start, _end, active, remaining_days) = user_trial_window(&user, now);
-        assert!(active);
-        assert!(remaining_days > 0);
-    }
-
-    #[test]
-    fn free_trial_window_expires_after_ninety_days() {
-        let now = chrono::Utc::now();
-        let user = UserRecord {
-            user_id: "user-2".to_string(),
-            provider: "passkey".to_string(),
-            email: "expired@atlasmasa.com".to_string(),
-            name: "Expired Trial User".to_string(),
-            locale: "en".to_string(),
-            trip_style: None,
-            risk_preference: None,
-            memory_opt_in: true,
-            passkey_user_handle: None,
-            created_at: (now - Duration::days(120)).to_rfc3339(),
-            updated_at: now.to_rfc3339(),
-        };
-
-        let (_start, _end, active, remaining_days) = user_trial_window(&user, now);
-        assert!(!active);
-        assert_eq!(remaining_days, 0);
+    fn cloud_requirements_classify_paths_correctly() {
+        assert_eq!(cloud_requirements_for_endpoint("/v1/chat"), (false, true));
+        assert_eq!(
+            cloud_requirements_for_endpoint("/v1/notes/upsert"),
+            (true, false)
+        );
+        assert_eq!(
+            cloud_requirements_for_endpoint("/v1/feed/proactive"),
+            (true, true)
+        );
+        assert_eq!(
+            cloud_requirements_for_endpoint("/v1/auth/me"),
+            (false, false)
+        );
     }
 }
