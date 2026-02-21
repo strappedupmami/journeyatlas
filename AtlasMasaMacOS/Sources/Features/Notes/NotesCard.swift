@@ -9,6 +9,15 @@ struct NotesCard: View {
             subtitle: "Long-term personalization memory for life/work/mobility decisions"
         ) {
             AtlasPanel(heading: "Capture note", caption: "High-signal context from your real day") {
+                Toggle(isOn: Binding(
+                    get: { session.memoryCollectionEnabled },
+                    set: { session.setMemoryCollectionEnabled($0) }
+                )) {
+                    Text("Enable long-term memory collection")
+                        .foregroundStyle(AtlasTheme.textPrimary)
+                }
+                .tint(AtlasTheme.accentWarm)
+
                 TextField("Note title", text: $session.pendingNoteTitle)
                     .atlasFieldStyle()
                 TextField("What happened, what matters, what must be acted on?", text: $session.pendingNoteContent, axis: .vertical)
@@ -20,6 +29,7 @@ struct NotesCard: View {
                         Task { await session.saveNote() }
                     }
                     .buttonStyle(AtlasPrimaryButtonStyle())
+                    .disabled(!session.memoryCollectionEnabled)
 
                     Button("Reload from API") {
                         Task { await session.loadNotes() }
