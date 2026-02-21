@@ -4,7 +4,7 @@ import Foundation
 @MainActor
 final class SessionStore: ObservableObject {
     @Published var health: HealthResponse?
-    @Published var systemOutput: [String] = ["Booting Atlas Masa Life OS (Swift local tier)..."]
+    @Published var systemOutput: [String] = ["Booting Atlas/אטלס Travel Design OS (Swift local tier)..."]
     @Published var survey: SurveyNextResponse?
     @Published var feedItems: [FeedItem] = []
     @Published var notes: [UserNote] = []
@@ -27,6 +27,8 @@ final class SessionStore: ObservableObject {
     @Published var checkInBlockers = ""
     @Published var executionActions: [ExecutionAction] = []
     @Published var memoryInsights: [MemoryInsight] = []
+    @Published var tailoredOffers: [TailoredOffer] = []
+    @Published var researchStreams: [ResearchExecutionStream] = []
 
     @Published var pendingFeedback = ""
     @Published var feedbackOfferEnabled = true
@@ -43,13 +45,17 @@ final class SessionStore: ObservableObject {
     private let queueStorageLegacyKey = "atlas_ios_prompt_queue_v2"
     private let queueFileName = "prompt-queue-v3.json"
     private let queueBackupFileName = "prompt-queue-v3.bak.json"
-    private let stateStorageKey = "atlas_ios_state_v2"
+    private let stateStorageLegacyKey = "atlas_ios_state_v2"
+    private let stateFileName = "session-state-v3.json"
+    private let stateBackupFileName = "session-state-v3.bak.json"
+    private static let checkpointFormatter = ISO8601DateFormatter()
 
     init(api: APIClient = APIClient()) {
         self.api = api
         restoreStateFromDisk()
         loadPromptQueueFromDisk()
         recoverInterruptedQueueItemsAfterRestart()
+        startPromptQueueWorker()
     }
 
     func bootstrap() async {
@@ -261,6 +267,8 @@ final class SessionStore: ObservableObject {
         promptQueue = []
         executionActions = []
         memoryInsights = []
+        tailoredOffers = []
+        researchStreams = []
         feedItems = []
         persistPromptQueueToDisk()
         persistStateToDisk()
@@ -336,22 +344,78 @@ final class SessionStore: ObservableObject {
             }
 
             promptQueue[index].status = .running
+            promptQueue[index].startedAt = promptQueue[index].startedAt ?? Date()
+            promptQueue[index].completedAt = nil
+            promptQueue[index].lastCheckpointAt = Date()
+            promptQueue[index].progress = max(promptQueue[index].progress ?? 0.0, 0.05)
+            promptQueue[index].checkpointNote = "Starting local reasoning pass."
             promptQueue[index].errorMessage = nil
             persistPromptQueueToDisk()
 
             let item = promptQueue[index]
-            let output = await localReasoning.reason(prompt: item.prompt, notes: notes)
+            let checkpointInterval = queueCheckpointIntervalNanoseconds()
+            let checkpointTask = Task.detached { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: checkpointInterval)
+                    await MainActor.run {
+                        self?.checkpointRunningQueueItem(
+                            id: item.id,
+                            note: "Checkpoint saved during local processing."
+                        )
+                    }
+                }
+            }
+            let boundedPrompt = String(item.prompt.prefix(1800))
+            let boundedNotes = Array(notes.prefix(24))
+            let output = await localReasoning.reason(prompt: boundedPrompt, notes: boundedNotes)
+            checkpointTask.cancel()
             promptQueue[index].status = .done
             promptQueue[index].completedAt = Date()
+            promptQueue[index].lastCheckpointAt = Date()
+            promptQueue[index].progress = 1.0
+            promptQueue[index].checkpointNote = "Completed and saved."
             promptQueue[index].output = output
             promptQueue[index].errorMessage = nil
             persistPromptQueueToDisk()
             appendOutput("Local reasoning completed. Next action: \(output.nextAction)")
+
+            let cooldown = queueCooldownNanoseconds()
+            if cooldown > 0 {
+                try? await Task.sleep(nanoseconds: cooldown)
+            }
         }
 
         queueWorkerTask = nil
         rebuildInsightsAndExecutionPlan()
         feedItems = localFeedFromExecutionPlan()
+    }
+
+    private func checkpointRunningQueueItem(id: String, note: String) {
+        guard let idx = promptQueue.firstIndex(where: { $0.id == id }) else { return }
+        guard promptQueue[idx].status == .running else { return }
+        let current = promptQueue[idx].progress ?? 0.05
+        promptQueue[idx].progress = min(0.95, current + 0.07)
+        promptQueue[idx].lastCheckpointAt = Date()
+        promptQueue[idx].checkpointNote = note
+        persistPromptQueueToDisk()
+    }
+
+    private func queueCheckpointIntervalNanoseconds() -> UInt64 {
+        isResourceConstrained() ? 3_500_000_000 : 2_000_000_000
+    }
+
+    private func queueCooldownNanoseconds() -> UInt64 {
+        isResourceConstrained() ? 1_600_000_000 : 300_000_000
+    }
+
+    private func isResourceConstrained() -> Bool {
+        let processInfo = ProcessInfo.processInfo
+        let lowPower = processInfo.isLowPowerModeEnabled
+        let thermal = processInfo.thermalState
+        if thermal == .serious || thermal == .critical {
+            return true
+        }
+        return lowPower
     }
 
     private func rebuildInsightsAndExecutionPlan() {
@@ -373,6 +437,8 @@ final class SessionStore: ObservableObject {
         memoryInsights = insights
 
         executionActions = buildExecutionActions()
+        tailoredOffers = buildTailoredOffers()
+        researchStreams = buildResearchExecutionStreams()
         feedItems = localFeedFromExecutionPlan()
     }
 
@@ -446,10 +512,168 @@ final class SessionStore: ObservableObject {
                 id: action.id,
                 title: action.title,
                 summary: action.details,
-                whyNow: "\(action.horizon) alignment · \(selectedTier.title)",
+                whyNow: "\(action.horizon) travel design alignment · \(selectedTier.title)",
                 priority: action.priority == 1 ? "critical" : (action.priority == 2 ? "high" : "normal")
             )
         }
+    }
+
+    private func buildTailoredOffers() -> [TailoredOffer] {
+        var offers: [TailoredOffer] = []
+        let combinedIntent = combinedIntentText()
+        let needsRecovery = checkInEnergy <= 2 || containsAny(checkInMood, ["stress", "burnout", "anxious", "exhaust"])
+        let needsRevenuePush = containsAny(combinedIntent, ["revenue", "cash", "client", "sales", "income", "money", "profit"])
+        let needsMobilityOps = vanRentalNeeded
+            || containsAny(combinedIntent, ["travel", "route", "van", "mobility", "camp", "fleet", "caravan"])
+            || (Int(annualDistanceKM) ?? 0) >= 50_000
+        let needsResilience = containsAny(combinedIntent, ["risk", "emergency", "safety", "fallback", "continuity", "breakdown"])
+        let surveyDepth = survey?.progress.answered ?? 0
+
+        if surveyDepth < 24 {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-survey-depth",
+                    category: .productivitySystems,
+                    type: .feature,
+                    title: "Deep Profile Calibration",
+                    summary: "Complete the adaptive survey so Atlas can lock your true operating profile.",
+                    rationale: "You are still in onboarding depth mode (\(surveyDepth)/24).",
+                    priority: 1,
+                    callToAction: "Finish the deep survey"
+                )
+            )
+        }
+
+        if needsRevenuePush {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-revenue-ops",
+                    category: .wealthOperations,
+                    type: .feature,
+                    title: "Revenue Sprint Orchestrator",
+                    summary: "Convert goals and notes into same-day client, pricing, and deal-closing actions.",
+                    rationale: "Detected revenue-focused intent in your profile and recent context.",
+                    priority: 1,
+                    callToAction: "Run revenue sprint"
+                )
+            )
+        }
+
+        if needsMobilityOps {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-mobility-enterprise",
+                    category: .travelMobility,
+                    type: .rental,
+                    title: "Mobility Ops + Atlas Vehicle Matching",
+                    summary: "Align vehicle rental/spec, route legality, and service points for heavy-usage travel.",
+                    rationale: "Travel intensity and mobility signals suggest high ops value.",
+                    priority: 2,
+                    callToAction: "Open mobility planning"
+                )
+            )
+        }
+
+        if needsRecovery {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-recovery-mode",
+                    category: .resilienceSafety,
+                    type: .feature,
+                    title: "Recovery + Cognitive Load Mode",
+                    summary: "Switch to low-friction planning with shorter decisions and protective daily pacing.",
+                    rationale: "Current energy/mood suggests overload risk.",
+                    priority: 1,
+                    callToAction: "Activate recovery mode"
+                )
+            )
+        }
+
+        if needsResilience {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-resilience-stack",
+                    category: .resilienceSafety,
+                    type: .service,
+                    title: "Continuity Stack Planning",
+                    summary: "Build backup paths for power, comms, navigation, legal overnight stops, and incident response.",
+                    rationale: "Risk and continuity signals detected in your notes/check-in.",
+                    priority: 2,
+                    callToAction: "Build continuity checklist"
+                )
+            )
+        }
+
+        if selectedTier == .localTrial {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-cloud-pro",
+                    category: .localIntelligence,
+                    type: .membership,
+                    title: "Cloud Reasoning Upgrade",
+                    summary: "Keep local reasoning as default and unlock cloud depth only when needed for heavier workloads.",
+                    rationale: "You are currently operating on local-only tier.",
+                    priority: 3,
+                    callToAction: "Compare plans"
+                )
+            )
+        }
+
+        if offers.isEmpty {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-core-atlas",
+                    category: .productivitySystems,
+                    type: .feature,
+                    title: "Atlas Execution Core",
+                    summary: "Daily check-in, adaptive survey, memory capture, and queue-based reasoning in one workflow.",
+                    rationale: "Baseline package when limited intent signals are present.",
+                    priority: 3,
+                    callToAction: "Open command center"
+                )
+            )
+        }
+
+        return offers
+            .sorted { lhs, rhs in
+                if lhs.priority == rhs.priority {
+                    return lhs.title < rhs.title
+                }
+                return lhs.priority < rhs.priority
+            }
+            .prefix(4)
+            .map { $0 }
+    }
+
+    private func buildResearchExecutionStreams() -> [ResearchExecutionStream] {
+        let context = combinedIntentText()
+        if context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return []
+        }
+        return AtlasResearchEngine.shared.buildExecutionStreams(context: context, maxItems: 4)
+    }
+
+    private func combinedIntentText() -> String {
+        let noteText = notes
+            .prefix(6)
+            .map { "\($0.title) \($0.content)" }
+            .joined(separator: " ")
+        return [
+            dailyPriority,
+            midTermGoal,
+            longTermVision,
+            checkInBlockers,
+            checkInMood,
+            workspaceMode,
+            noteText
+        ]
+        .joined(separator: " ")
+        .lowercased()
+    }
+
+    private func containsAny(_ value: String, _ needles: [String]) -> Bool {
+        let lower = value.lowercased()
+        return needles.contains { lower.contains($0) }
     }
 
     private func markSignedIn(provider: AuthProvider, accountName: String) {
@@ -479,7 +703,11 @@ final class SessionStore: ObservableObject {
             }
 
             let tempURL = primaryURL.appendingPathExtension("tmp")
-            try data.write(to: tempURL, options: [.atomic])
+            var writeOptions: Data.WritingOptions = [.atomic]
+#if os(iOS)
+            writeOptions.insert(.completeFileProtection)
+#endif
+            try data.write(to: tempURL, options: writeOptions)
             if fileManager.fileExists(atPath: primaryURL.path) {
                 _ = try fileManager.replaceItemAt(primaryURL, withItemAt: tempURL)
             } else {
@@ -527,7 +755,12 @@ final class SessionStore: ObservableObject {
             if promptQueue[idx].status == .running {
                 promptQueue[idx].status = .queued
                 promptQueue[idx].completedAt = nil
-                promptQueue[idx].errorMessage = "Recovered after restart. Resuming queue."
+                let checkpointLabel = promptQueue[idx].lastCheckpointAt
+                    .map { Self.checkpointFormatter.string(from: $0) }
+                    ?? "unknown"
+                promptQueue[idx].errorMessage =
+                    "Recovered after restart. Resuming from last checkpoint at \(checkpointLabel)."
+                promptQueue[idx].checkpointNote = "Recovered after restart."
                 recovered += 1
             }
         }
@@ -570,12 +803,58 @@ final class SessionStore: ObservableObject {
 
         let encoder = JSONEncoder()
         guard let data = try? encoder.encode(state) else { return }
-        UserDefaults.standard.set(data, forKey: stateStorageKey)
+
+        guard let primaryURL = stateFileURL(fileName: stateFileName) else { return }
+
+        let backupURL = stateFileURL(fileName: stateBackupFileName)
+        do {
+            let fileManager = FileManager.default
+            let dir = primaryURL.deletingLastPathComponent()
+            if !fileManager.fileExists(atPath: dir.path) {
+                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+            }
+
+            if let backupURL, fileManager.fileExists(atPath: primaryURL.path) {
+                _ = try? fileManager.removeItem(at: backupURL)
+                try? fileManager.copyItem(at: primaryURL, to: backupURL)
+            }
+
+            let tempURL = primaryURL.appendingPathExtension("tmp")
+            var writeOptions: Data.WritingOptions = [.atomic]
+#if os(iOS)
+            writeOptions.insert(.completeFileProtection)
+#endif
+            try data.write(to: tempURL, options: writeOptions)
+            if fileManager.fileExists(atPath: primaryURL.path) {
+                _ = try fileManager.replaceItemAt(primaryURL, withItemAt: tempURL)
+            } else {
+                try fileManager.moveItem(at: tempURL, to: primaryURL)
+            }
+        } catch {
+            return
+        }
     }
 
     private func restoreStateFromDisk() {
-        guard let data = UserDefaults.standard.data(forKey: stateStorageKey) else { return }
         let decoder = JSONDecoder()
+        let stateData: Data? = {
+            if let primaryURL = stateFileURL(fileName: stateFileName),
+               let data = try? Data(contentsOf: primaryURL)
+            {
+                return data
+            }
+            if let backupURL = stateFileURL(fileName: stateBackupFileName),
+               let data = try? Data(contentsOf: backupURL)
+            {
+                return data
+            }
+            if let legacy = UserDefaults.standard.data(forKey: stateStorageLegacyKey) {
+                UserDefaults.standard.removeObject(forKey: stateStorageLegacyKey)
+                return legacy
+            }
+            return nil
+        }()
+        guard let data = stateData else { return }
         guard let state = try? decoder.decode(PersistedState.self, from: data) else { return }
 
         isSignedIn = state.isSignedIn
@@ -595,6 +874,16 @@ final class SessionStore: ObservableObject {
         annualDistanceKM = state.annualDistanceKM
         workspaceMode = state.workspaceMode
         notes = state.notes
+    }
+
+    private func stateFileURL(fileName: String) -> URL? {
+        let fm = FileManager.default
+        guard let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return base
+            .appendingPathComponent("AtlasMasaIOS", isDirectory: true)
+            .appendingPathComponent(fileName, isDirectory: false)
     }
 }
 

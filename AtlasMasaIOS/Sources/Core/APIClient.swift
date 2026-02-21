@@ -2,12 +2,15 @@ import Foundation
 
 enum APIError: Error, LocalizedError {
     case invalidResponse
+    case insecureTransport
     case server(status: Int, message: String)
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
             return "Invalid server response"
+        case .insecureTransport:
+            return "Blocked insecure API transport. Use HTTPS (HTTP only allowed on localhost)."
         case let .server(status, message):
             return "Server error (\(status)): \(message)"
         }
@@ -18,7 +21,7 @@ struct APIClient {
     private let baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL = AppEnvironment.apiBaseURL, session: URLSession = .shared) {
+    init(baseURL: URL = AppEnvironment.apiBaseURL, session: URLSession = APIClient.makeSecureSession()) {
         self.baseURL = baseURL
         self.session = session
     }
@@ -85,9 +88,13 @@ struct APIClient {
         guard let url = URL(string: path, relativeTo: baseURL) else {
             throw APIError.invalidResponse
         }
+        guard Self.isSecureTransport(url: url) else {
+            throw APIError.insecureTransport
+        }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 20
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONEncoder().encode(body)
@@ -103,5 +110,32 @@ struct APIClient {
             throw APIError.server(status: http.statusCode, message: String(data: data, encoding: .utf8) ?? "Unknown error")
         }
         return try JSONDecoder().decode(type, from: data)
+    }
+
+    private static func makeSecureSession() -> URLSession {
+        let config = URLSessionConfiguration.default
+        config.requestCachePolicy = .useProtocolCachePolicy
+        config.httpCookieStorage = HTTPCookieStorage.shared
+        config.httpShouldSetCookies = true
+        config.httpMaximumConnectionsPerHost = 4
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 20
+        config.timeoutIntervalForResource = 45
+        if #available(iOS 13.0, macOS 10.15, *) {
+            config.tlsMinimumSupportedProtocolVersion = .TLSv12
+        }
+        return URLSession(configuration: config)
+    }
+
+    private static func isSecureTransport(url: URL) -> Bool {
+        let scheme = (url.scheme ?? "").lowercased()
+        if scheme == "https" {
+            return true
+        }
+        if scheme == "http" {
+            let host = (url.host ?? "").lowercased()
+            return host == "localhost" || host == "127.0.0.1"
+        }
+        return false
     }
 }
