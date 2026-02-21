@@ -2684,14 +2684,18 @@
           }
 
           const reminder = result.payload;
-          if (reminder.app === "google_calendar") {
-            window.open(reminder.google_calendar_url, "_blank", "noopener");
-          } else if (reminder.app === "shortcuts") {
-            window.location.href = reminder.shortcuts_url;
+          const primaryUrl = reminder.primary_url || reminder.google_calendar_url || reminder.shortcuts_url || "";
+          const launched = launchActionTarget(primaryUrl);
+          if (reminder.ics_content) {
+            downloadTextFile(reminder.ics_content, reminder.ics_filename || "atlas-reminder.ics", "text/calendar");
           }
 
-          downloadTextFile(reminder.ics_content, reminder.ics_filename || "atlas-reminder.ics", "text/calendar");
-          renderOutput(state.locale === "he" ? "נוצרה תזכורת + קובץ יומן" : "Reminder generated + calendar file", ["reminder", reminder.app], reminder);
+          const message =
+            reminder.user_message ||
+            (state.locale === "he"
+              ? "ווב לא יכול לכתוב תזכורת ישירות ללא אישור משתמש. נפתחה פעולה רלוונטית + קובץ ICS."
+              : "Web cannot write reminders directly without user confirmation. A best-effort app handoff plus ICS fallback was prepared.");
+          renderOutput(message, ["reminder", reminder.app, launched ? "launch-attempted" : "launch-unavailable"], reminder);
           return;
         }
 
@@ -2709,12 +2713,14 @@
           }
 
           const alarm = result.payload;
-          if (alarm.app === "shortcuts") {
-            window.location.href = alarm.shortcuts_url;
-          } else {
-            window.location.href = alarm.clock_url;
-          }
-          renderOutput(state.locale === "he" ? "נפתחה הגדרת אזעקה" : "Alarm setup opened", ["alarm", alarm.app], alarm);
+          const primaryUrl = alarm.primary_url || alarm.shortcuts_url || alarm.clock_url || "";
+          const launched = launchActionTarget(primaryUrl);
+          const message =
+            alarm.user_message ||
+            (state.locale === "he"
+              ? "ווב לא יכול ליצור אזעקות ישירות. נפתחה פעולה נתמכת עם הוראות השלמה ידנית."
+              : "Web cannot create alarms directly. A supported handoff was triggered with manual fallback guidance.");
+          renderOutput(message, ["alarm", alarm.app, launched ? "launch-attempted" : "launch-unavailable"], alarm);
           return;
         }
 
@@ -2730,6 +2736,24 @@
 
         if (action.payload && action.payload.text) {
           messageEl.value = action.payload.text;
+        }
+      }
+
+      function launchActionTarget(url) {
+        if (!url) return false;
+        try {
+          const lower = String(url).toLowerCase();
+          const isCustomScheme = lower.startsWith("shortcuts://") || lower.startsWith("clock://") || lower.startsWith("intent://");
+          if (isCustomScheme) {
+            window.location.href = url;
+            return true;
+          }
+          const opened = window.open(url, "_blank", "noopener");
+          if (opened) return true;
+          window.location.href = url;
+          return true;
+        } catch (_err) {
+          return false;
         }
       }
 

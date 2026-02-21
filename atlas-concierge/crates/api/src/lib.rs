@@ -53,6 +53,13 @@ const MAX_MEMORY_RECORDS_PER_USER: usize = 3_000;
 const DEFAULT_MEMORY_RETRIEVAL_LIMIT: usize = 12;
 const MAX_MEMORY_RETRIEVAL_LIMIT: usize = 64;
 const TRANSIENT_MEMORY_TTL_DAYS: i64 = 14;
+const MAX_REMINDER_TITLE_LEN: usize = 180;
+const MAX_REMINDER_DETAILS_LEN: usize = 1_500;
+const MAX_REMINDER_DETAILS_FOR_URL: usize = 480;
+const MAX_ALARM_LABEL_LEN: usize = 120;
+const MIN_REMINDER_DURATION_MINUTES: u32 = 5;
+const MAX_REMINDER_DURATION_MINUTES: u32 = 8 * 60;
+const MAX_SHORTCUTS_URL_LEN: usize = 1_900;
 const DEFAULT_SUBSCRIPTION_BYPASS_EMAILS: &str = "ceo@atlasmasa.com";
 
 #[derive(Clone)]
@@ -432,12 +439,30 @@ struct ReminderActionRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct ActionTelemetry {
+    trace_id: String,
+    action: String,
+    success: bool,
+    app: Option<String>,
+    supports_direct_write: bool,
+    fallback_used: bool,
+    primary_target: Option<String>,
+    warnings: Vec<String>,
+    generated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ReminderActionResponse {
     app: String,
     google_calendar_url: String,
     ics_filename: String,
     ics_content: String,
     shortcuts_url: String,
+    primary_url: Option<String>,
+    supports_direct_write: bool,
+    fallback_used: bool,
+    user_message: String,
+    telemetry: ActionTelemetry,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -453,7 +478,12 @@ struct AlarmActionResponse {
     app: String,
     clock_url: String,
     shortcuts_url: String,
+    primary_url: Option<String>,
+    supports_direct_write: bool,
+    fallback_used: bool,
+    user_message: String,
     fallback_instructions: String,
+    telemetry: ActionTelemetry,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -3769,23 +3799,165 @@ async fn feedback_for_employee(
         .into_response()
 }
 
+fn build_action_telemetry(
+    action: &str,
+    success: bool,
+    app: Option<&str>,
+    supports_direct_write: bool,
+    fallback_used: bool,
+    primary_target: Option<String>,
+    warnings: Vec<String>,
+) -> ActionTelemetry {
+    ActionTelemetry {
+        trace_id: uuid::Uuid::new_v4().to_string(),
+        action: action.to_string(),
+        success,
+        app: app.map(|value| value.to_string()),
+        supports_direct_write,
+        fallback_used,
+        primary_target,
+        warnings,
+        generated_at: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+fn action_error_response(
+    status: StatusCode,
+    action: &str,
+    error: &str,
+    message: &str,
+    app: Option<&str>,
+) -> Response {
+    let telemetry = build_action_telemetry(
+        action,
+        false,
+        app,
+        false,
+        false,
+        None,
+        vec![error.to_string()],
+    );
+    (
+        status,
+        Json(serde_json::json!({
+            "error": error,
+            "message": message,
+            "telemetry": telemetry,
+        })),
+    )
+        .into_response()
+}
+
+fn build_google_calendar_url(
+    title: &str,
+    details: &str,
+    start: chrono::DateTime<chrono::Utc>,
+    end: chrono::DateTime<chrono::Utc>,
+) -> (String, bool) {
+    let details_for_url = sanitize_limited_text(details, MAX_REMINDER_DETAILS_FOR_URL);
+    let details_truncated = details_for_url != details;
+    let url = format!(
+        "https://calendar.google.com/calendar/render?action=TEMPLATE&text={}&details={}&dates={}/{}&ctz=UTC&sf=true&output=xml",
+        pct_encode(title),
+        pct_encode(details_for_url.as_str()),
+        start.format("%Y%m%dT%H%M%SZ"),
+        end.format("%Y%m%dT%H%M%SZ")
+    );
+    (url, details_truncated)
+}
+
+fn build_shortcuts_url(shortcut_name: &str, payload: &str) -> Option<String> {
+    let url = format!(
+        "shortcuts://run-shortcut?name={}&input=text&text={}",
+        pct_encode(shortcut_name),
+        pct_encode(payload)
+    );
+    if url.len() > MAX_SHORTCUTS_URL_LEN {
+        None
+    } else {
+        Some(url)
+    }
+}
+
+fn build_shortcuts_url_with_fallback(
+    shortcut_name: &str,
+    full_payload: &str,
+    compact_payload: &str,
+) -> (Option<String>, bool) {
+    if let Some(url) = build_shortcuts_url(shortcut_name, full_payload) {
+        return (Some(url), false);
+    }
+    (build_shortcuts_url(shortcut_name, compact_payload), true)
+}
+
+fn sanitize_alarm_days(days: Option<Vec<String>>) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    let incoming = days.unwrap_or_else(|| {
+        vec![
+            "Sun".to_string(),
+            "Mon".to_string(),
+            "Tue".to_string(),
+            "Wed".to_string(),
+            "Thu".to_string(),
+        ]
+    });
+    for day in incoming {
+        let lower = day.trim().to_lowercase();
+        let normalized = match lower.as_str() {
+            "sun" | "sunday" => Some("Sun"),
+            "mon" | "monday" => Some("Mon"),
+            "tue" | "tues" | "tuesday" => Some("Tue"),
+            "wed" | "wednesday" => Some("Wed"),
+            "thu" | "thurs" | "thursday" => Some("Thu"),
+            "fri" | "friday" => Some("Fri"),
+            "sat" | "saturday" => Some("Sat"),
+            _ => None,
+        };
+        if let Some(value) = normalized {
+            if seen.insert(value) {
+                out.push(value.to_string());
+            }
+        }
+    }
+    if out.is_empty() {
+        vec![
+            "Sun".to_string(),
+            "Mon".to_string(),
+            "Tue".to_string(),
+            "Wed".to_string(),
+            "Thu".to_string(),
+        ]
+    } else {
+        out
+    }
+}
+
 async fn action_reminder(
     State(state): State<ApiState>,
     headers: HeaderMap,
     Json(input): Json<ReminderActionRequest>,
 ) -> impl IntoResponse {
     if input.title.trim().is_empty() {
-        return (
+        return action_error_response(
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": "invalid_title",
-                "message": "title is required"
-            })),
-        )
-            .into_response();
+            "reminder",
+            "invalid_title",
+            "title is required",
+            None,
+        );
     }
 
     let user_id = resolve_user_id_or_guest(&state, &headers, None);
+    let locale = state
+        .users
+        .read()
+        .get(&user_id)
+        .map(|user| {
+            sanitize_enum_value(user.locale.as_str(), &["he", "en", "ar", "ru", "fr"], "en")
+        })
+        .unwrap_or_else(|| "en".to_string());
+    let is_he = locale == "he";
     let prefs = state
         .studio_preferences
         .read()
@@ -3808,40 +3980,152 @@ async fn action_reminder(
         "google_calendar",
     );
 
+    let mut warnings = Vec::new();
+    let title = sanitize_limited_text(input.title.trim(), MAX_REMINDER_TITLE_LEN);
+    if title.is_empty() {
+        return action_error_response(
+            StatusCode::BAD_REQUEST,
+            "reminder",
+            "invalid_title",
+            "title is required",
+            Some(app.as_str()),
+        );
+    }
+    let details = sanitize_limited_text(
+        input.details.unwrap_or_default().as_str(),
+        MAX_REMINDER_DETAILS_LEN,
+    );
+    let requested_duration = input.duration_minutes.unwrap_or(30);
+    let duration_minutes =
+        requested_duration.clamp(MIN_REMINDER_DURATION_MINUTES, MAX_REMINDER_DURATION_MINUTES);
+    if duration_minutes != requested_duration {
+        warnings.push("duration_minutes_clamped".to_string());
+    }
+
     let start = parse_or_default_utc(
         input.due_at_utc.as_deref(),
         chrono::Utc::now() + chrono::Duration::hours(2),
     );
-    let end = start + chrono::Duration::minutes(input.duration_minutes.unwrap_or(30) as i64);
-
-    let title = input.title.trim();
-    let details = input.details.unwrap_or_default();
-    let google_calendar_url = format!(
-        "https://calendar.google.com/calendar/render?action=TEMPLATE&text={}&details={}&dates={}/{}",
-        pct_encode(title),
-        pct_encode(details.as_str()),
-        start.format("%Y%m%dT%H%M%SZ"),
-        end.format("%Y%m%dT%H%M%SZ")
-    );
+    let end = start + chrono::Duration::minutes(duration_minutes as i64);
+    let (google_calendar_url, details_truncated) =
+        build_google_calendar_url(title.as_str(), details.as_str(), start, end);
+    if details_truncated {
+        warnings.push("details_truncated_for_google_calendar_url".to_string());
+    }
 
     let ics_content = format!(
-        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//AtlasMasa//Reminder//EN\r\nBEGIN:VEVENT\r\nUID:{}\r\nDTSTAMP:{}\r\nDTSTART:{}\r\nDTEND:{}\r\nSUMMARY:{}\r\nDESCRIPTION:{}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//AtlasMasa//Reminder//EN\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nUID:{}\r\nDTSTAMP:{}\r\nDTSTART:{}\r\nDTEND:{}\r\nSUMMARY:{}\r\nDESCRIPTION:{}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
         uuid::Uuid::new_v4(),
         chrono::Utc::now().format("%Y%m%dT%H%M%SZ"),
         start.format("%Y%m%dT%H%M%SZ"),
         end.format("%Y%m%dT%H%M%SZ"),
-        escape_ics(title),
+        escape_ics(title.as_str()),
         escape_ics(details.as_str())
     );
     let shortcuts_payload = format!(
-        "Title: {}\nWhen: {}\nDetails: {}",
+        "Action: Create reminder\nTitle: {}\nWhen (UTC): {}\nDuration (minutes): {}\nDetails: {}",
         title,
         start.to_rfc3339(),
+        duration_minutes,
         details
     );
-    let shortcuts_url = format!(
-        "shortcuts://run-shortcut?name=AtlasMasaReminder&input=text&text={}",
-        pct_encode(&shortcuts_payload)
+    let shortcuts_compact_payload = format!(
+        "Create reminder: {} at {} UTC for {} minutes",
+        title,
+        start.format("%Y-%m-%d %H:%M"),
+        duration_minutes
+    );
+    let (shortcuts_url, shortcuts_compact_used) = build_shortcuts_url_with_fallback(
+        "AtlasMasaReminder",
+        &shortcuts_payload,
+        &shortcuts_compact_payload,
+    );
+    if shortcuts_compact_used {
+        warnings.push("shortcuts_compact_payload_used".to_string());
+    }
+    if shortcuts_url.is_none() {
+        warnings.push("shortcuts_url_unavailable".to_string());
+    }
+    let todoist_url = format!(
+        "https://todoist.com/app/add?content={}&description={}&date={}",
+        pct_encode(title.as_str()),
+        pct_encode(details.as_str()),
+        pct_encode(start.format("%Y-%m-%d %H:%M").to_string().as_str())
+    );
+
+    warnings.push("web_auto_write_requires_user_confirmation".to_string());
+
+    let (primary_url, user_message) = match app.as_str() {
+        "google_calendar" => (
+            Some(google_calendar_url.clone()),
+            if is_he {
+                "ווב לא כותב ישירות ליומן. נפתחה טיוטת אירוע ב-Google Calendar; אשרו שמירה. קובץ ICS זמין כגיבוי."
+                    .to_string()
+            } else {
+                "Web cannot write directly to calendar providers. A prefilled Google Calendar draft was opened; confirm save. ICS fallback is included."
+                    .to_string()
+            },
+        ),
+        "shortcuts" => (
+            shortcuts_url.clone(),
+            if is_he {
+                if shortcuts_url.is_some() {
+                    "ווב לא כותב ישירות לתזכורות. נשלח קישור ל-Shortcuts; אם לא זמין, השתמשו בקובץ ICS."
+                        .to_string()
+                } else {
+                    "לא ניתן לייצר קישור Shortcuts בטוח כרגע. השתמשו בקובץ ICS כגיבוי.".to_string()
+                }
+            } else if shortcuts_url.is_some() {
+                "Web cannot write directly to reminders. Shortcuts deep link is ready; if unavailable, use the ICS fallback."
+                    .to_string()
+            } else {
+                "A safe Shortcuts deep link could not be generated. Use the ICS fallback file."
+                    .to_string()
+            },
+        ),
+        "todoist" => (
+            Some(todoist_url),
+            if is_he {
+                "ווב לא יכול ליצור משימות Todoist ישירות ללא אישור ידני. נפתחה טיוטה + גיבוי ICS."
+                    .to_string()
+            } else {
+                "Web cannot directly write into Todoist without user confirmation. Opened a task draft plus ICS fallback."
+                    .to_string()
+            },
+        ),
+        "notion" => (
+            Some("https://www.notion.so".to_string()),
+            if is_he {
+                "ווב לא יכול לכתוב ישירות ל-Notion. נפתחה סביבת Notion וקובץ ICS זמין לגיבוי."
+                    .to_string()
+            } else {
+                "Web cannot directly write into Notion. Opened Notion and provided ICS fallback."
+                    .to_string()
+            },
+        ),
+        _ => (
+            shortcuts_url
+                .clone()
+                .or_else(|| Some(google_calendar_url.clone())),
+            if is_he {
+                "ווב לא מאפשר כתיבה ישירה ל-Apple Reminders. ננסה לפתוח קיצור דרך; לחלופין השתמשו בקובץ ICS."
+                    .to_string()
+            } else {
+                "Web cannot directly write to Apple Reminders. We attempt a Shortcuts handoff; otherwise use the ICS fallback."
+                    .to_string()
+            },
+        ),
+    };
+    let fallback_used = true;
+
+    let telemetry = build_action_telemetry(
+        "reminder",
+        true,
+        Some(app.as_str()),
+        false,
+        fallback_used,
+        primary_url.clone(),
+        warnings,
     );
 
     (
@@ -3851,7 +4135,12 @@ async fn action_reminder(
             google_calendar_url,
             ics_filename: "atlas-masa-reminder.ics".to_string(),
             ics_content,
-            shortcuts_url,
+            shortcuts_url: shortcuts_url.clone().unwrap_or_default(),
+            primary_url,
+            supports_direct_write: false,
+            fallback_used,
+            user_message,
+            telemetry,
         }),
     )
         .into_response()
@@ -3863,28 +4152,35 @@ async fn action_alarm(
     Json(input): Json<AlarmActionRequest>,
 ) -> impl IntoResponse {
     if input.label.trim().is_empty() {
-        return (
+        return action_error_response(
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": "invalid_label",
-                "message": "label is required"
-            })),
-        )
-            .into_response();
+            "alarm",
+            "invalid_label",
+            "label is required",
+            None,
+        );
     }
 
     if !is_valid_hhmm(&input.time_local) {
-        return (
+        return action_error_response(
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": "invalid_time",
-                "message": "time_local must be HH:MM"
-            })),
-        )
-            .into_response();
+            "alarm",
+            "invalid_time",
+            "time_local must be HH:MM",
+            None,
+        );
     }
 
     let user_id = resolve_user_id_or_guest(&state, &headers, None);
+    let locale = state
+        .users
+        .read()
+        .get(&user_id)
+        .map(|user| {
+            sanitize_enum_value(user.locale.as_str(), &["he", "en", "ar", "ru", "fr"], "en")
+        })
+        .unwrap_or_else(|| "en".to_string());
+    let is_he = locale == "he";
     let prefs = state
         .studio_preferences
         .read()
@@ -3900,35 +4196,119 @@ async fn action_alarm(
         "apple_clock",
     );
 
-    let days = input.days.unwrap_or_else(|| {
-        vec![
-            "Sun".to_string(),
-            "Mon".to_string(),
-            "Tue".to_string(),
-            "Wed".to_string(),
-            "Thu".to_string(),
-        ]
-    });
+    let mut warnings = Vec::new();
+    let label = sanitize_limited_text(input.label.trim(), MAX_ALARM_LABEL_LEN);
+    if label.is_empty() {
+        return action_error_response(
+            StatusCode::BAD_REQUEST,
+            "alarm",
+            "invalid_label",
+            "label is required",
+            Some(app.as_str()),
+        );
+    }
+    let days = sanitize_alarm_days(input.days);
     let payload = format!(
         "Label: {}\nTime: {}\nDays: {}",
-        input.label.trim(),
+        label,
         input.time_local.trim(),
         days.join(",")
     );
-    let shortcuts_url = format!(
-        "shortcuts://run-shortcut?name=AtlasMasaAlarm&input=text&text={}",
-        pct_encode(&payload)
+    let compact_payload = format!(
+        "Set alarm {} at {} ({})",
+        label,
+        input.time_local.trim(),
+        days.join(",")
     );
+    let (shortcuts_url, shortcuts_compact_used) =
+        build_shortcuts_url_with_fallback("AtlasMasaAlarm", &payload, &compact_payload);
+    if shortcuts_compact_used {
+        warnings.push("shortcuts_compact_payload_used".to_string());
+    }
+    if shortcuts_url.is_none() {
+        warnings.push("shortcuts_url_unavailable".to_string());
+    }
+    warnings.push("web_auto_write_requires_user_confirmation".to_string());
+
+    let clock_url = if app == "google_clock" {
+        "intent://alarms#Intent;package=com.google.android.deskclock;end".to_string()
+    } else {
+        "clock://".to_string()
+    };
+    let primary_url = match app.as_str() {
+        "shortcuts" => shortcuts_url.clone().or_else(|| Some(clock_url.clone())),
+        "google_clock" | "apple_clock" => Some(clock_url.clone()),
+        _ => Some(clock_url.clone()),
+    };
+
+    let days_label = days.join(", ");
+    let user_message = match app.as_str() {
+        "shortcuts" => {
+            if is_he {
+                "ווב לא יוצר אזעקות אוטומטית. נשלח קישור Shortcuts; אם הוא לא נפתח, צרו אזעקה ידנית באפליקציית השעון."
+                    .to_string()
+            } else {
+                "Web cannot create alarms directly. A Shortcuts deep link was prepared; if unavailable, create it manually in Clock."
+                    .to_string()
+            }
+        }
+        "google_clock" => {
+            if is_he {
+                "ווב לא מגדיר אזעקה ישירה. ננסה לפתוח Google Clock דרך intent; אם נחסם בדפדפן, הגדירו ידנית."
+                    .to_string()
+            } else {
+                "Web cannot set Google Clock alarms directly. We attempt an intent launch; if blocked by browser, set it manually."
+                    .to_string()
+            }
+        }
+        _ => {
+            if is_he {
+                "ווב לא יכול ליצור אזעקות ישירות. נפתח קישור לאפליקציית השעון עם הוראות השלמה ידנית."
+                    .to_string()
+            } else {
+                "Web cannot create alarms directly. Clock launch is attempted with manual fallback guidance."
+                    .to_string()
+            }
+        }
+    };
+    let telemetry = build_action_telemetry(
+        "alarm",
+        true,
+        Some(app.as_str()),
+        false,
+        true,
+        primary_url.clone(),
+        warnings,
+    );
+
+    let fallback_instructions = if is_he {
+        format!(
+            "אם האוטומציה לא הופעלה, פתחו ידנית את אפליקציית השעון והגדירו אזעקה: '{}' בשעה {} בימים {}.",
+            label,
+            input.time_local.trim(),
+            days_label
+        )
+    } else {
+        format!(
+            "If automation does not trigger, open your Clock app manually and create alarm '{}' at {} on {}.",
+            label,
+            input.time_local.trim(),
+            days_label
+        )
+    };
 
     (
         StatusCode::OK,
         Json(AlarmActionResponse {
             app,
-            clock_url: "clock://".to_string(),
-            shortcuts_url,
-            fallback_instructions:
-                "Open your Clock app and paste the suggested label/time if automation is unavailable."
-                    .to_string(),
+            clock_url,
+            shortcuts_url: shortcuts_url.unwrap_or_default(),
+            primary_url,
+            supports_direct_write: false,
+            fallback_used: true,
+            user_message,
+            fallback_instructions,
+            telemetry,
         }),
     )
         .into_response()
