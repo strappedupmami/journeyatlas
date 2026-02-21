@@ -35,6 +35,14 @@ struct APIClient {
         return try await get(path: "/v1/auth/apple/start?return_to=\(escaped)")
     }
 
+    func authMe() async throws -> AuthMeResponse {
+        try await get(path: "/v1/auth/me")
+    }
+
+    func logout() async throws {
+        _ = try await postRaw(path: "/v1/auth/logout", body: EmptyPayload())
+    }
+
     func surveyNext() async throws -> SurveyNextResponse {
         try await get(path: "/v1/survey/next")
     }
@@ -45,6 +53,10 @@ struct APIClient {
 
     func feedProactive() async throws -> ProactiveFeedResponse {
         try await get(path: "/v1/feed/proactive")
+    }
+
+    func submitExecutionCheckin(payload: ExecutionCheckinPayload) async throws -> ExecutionCheckinResponse {
+        try await post(path: "/v1/execution/checkin", body: payload)
     }
 
     func notesList() async throws -> NotesListResponse {
@@ -139,3 +151,5 @@ struct APIClient {
         return false
     }
 }
+
+private struct EmptyPayload: Encodable {}
