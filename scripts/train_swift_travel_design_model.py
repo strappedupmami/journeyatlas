@@ -28,6 +28,9 @@ TRAVEL_DESIGN_LABELS = [
     "travel_design_strategy",
     "travel_design_journey_ops",
     "travel_design_systems",
+    "travel_design_emergency_command",
+    "travel_design_human_problem_solving",
+    "travel_design_tech_innovation",
 ]
 
 LEGACY_LABEL_MAP = {
@@ -38,6 +41,14 @@ LEGACY_LABEL_MAP = {
     "strategy_long_horizon": "travel_design_strategy",
     "travel_ops": "travel_design_journey_ops",
     "technical_debug": "travel_design_systems",
+    "emergency_response": "travel_design_emergency_command",
+    "crisis_planning": "travel_design_emergency_command",
+    "crisis_management": "travel_design_emergency_command",
+    "incident_command": "travel_design_emergency_command",
+    "human_problem_solving": "travel_design_human_problem_solving",
+    "problem_solving_human": "travel_design_human_problem_solving",
+    "tech_innovation": "travel_design_tech_innovation",
+    "innovation_tech": "travel_design_tech_innovation",
 }
 
 LABEL_BRIEF = {
@@ -48,6 +59,9 @@ LABEL_BRIEF = {
     "travel_design_strategy": "Travel design long-horizon architecture lane",
     "travel_design_journey_ops": "Travel design journey logistics lane",
     "travel_design_systems": "Travel design systems diagnostics lane",
+    "travel_design_emergency_command": "Travel design emergency command lane",
+    "travel_design_human_problem_solving": "Travel design human problem-solving optimization lane",
+    "travel_design_tech_innovation": "Travel design technology innovation systems lane",
 }
 
 DEFAULT_NEXT_ACTION = {
@@ -58,6 +72,9 @@ DEFAULT_NEXT_ACTION = {
     "travel_design_strategy": "Design the next strategic milestone and include a weekly novelty-plus-reflection review loop.",
     "travel_design_journey_ops": "Design route legality, one novel segment, and a familiar overnight fallback before movement.",
     "travel_design_systems": "Design a narrow diagnostic test, isolate root cause, and patch with verification.",
+    "travel_design_emergency_command": "Design an emergency command protocol now: triage, stabilize, communicate, and route to safe harbor.",
+    "travel_design_human_problem_solving": "Design biological and environmental conditions for high cognition, then run one deliberate problem-solving drill.",
+    "travel_design_tech_innovation": "Design one digital-physical innovation experiment with explicit safety constraints and measurable outcomes.",
 }
 
 SEED_KEYWORDS = {
@@ -183,6 +200,63 @@ SEED_KEYWORDS = {
         "ניפוי",
         "תיקון",
     ],
+    "travel_design_emergency_command": [
+        "emergency",
+        "crisis",
+        "triage",
+        "incident",
+        "command",
+        "evacuation",
+        "response",
+        "containment",
+        "rescue",
+        "safe_harbor",
+        "חירום",
+        "משבר",
+        "טריאז",
+        "פיקוד",
+        "פינוי",
+        "חילוץ",
+        "ייצוב",
+    ],
+    "travel_design_human_problem_solving": [
+        "problem_solving",
+        "human_factors",
+        "cognitive_flexibility",
+        "metacognition",
+        "decision_quality",
+        "biological_conditions",
+        "environmental_conditions",
+        "attention",
+        "sleep",
+        "recovery",
+        "פתרון_בעיות",
+        "גורמי_אנוש",
+        "גמישות_קוגניטיבית",
+        "מטא_קוגניציה",
+        "קבלת_החלטות",
+        "תנאים_ביולוגיים",
+        "תנאים_סביבתיים",
+    ],
+    "travel_design_tech_innovation": [
+        "innovation",
+        "systems_thinking",
+        "rapid_prototyping",
+        "simulation",
+        "hardware",
+        "software",
+        "digital",
+        "physical",
+        "reliability_engineering",
+        "experimentation",
+        "חדשנות",
+        "מערכות",
+        "אב_טיפוס",
+        "סימולציה",
+        "הנדסה",
+        "דיגיטלי",
+        "פיזי",
+    ],
 }
 
 SYNTHETIC_PROMPTS = {
@@ -241,6 +315,27 @@ SYNTHETIC_PROMPTS = {
         "Need diagnostics-first patch process with rollback safety.",
         "נתח תקלה בשיטת בידוד משתנים, אימות לוגים, ותיקון הפיך.",
         "שמור על סטנדרט הנדסי: בדיקה, תיקוף, ותיעוד לפני פריסה מחדש.",
+    ],
+    "travel_design_emergency_command": [
+        "Emergency command brief: define triage, containment, communication, and extraction in order.",
+        "Crisis planning request: prepare immediate response and 24-hour continuity plan.",
+        "Emergency management mode: assign roles, escalation thresholds, and safe-harbor routing.",
+        "תרחיש חירום: בנה פקודת מצב ברורה עם טריאז', ייצוב, תקשורת ופינוי.",
+        "במשבר תפעולי דרוש נוהל פיקוד קצר עם אחריות, לוחות זמנים, ונתיב חילוץ.",
+    ],
+    "travel_design_human_problem_solving": [
+        "Human problem-solving brief: optimize biological and environmental conditions before complex decisions.",
+        "Design a cognitive performance protocol for stress, uncertainty, and high-stakes judgment.",
+        "Build adaptive skill growth with deliberate drills, reflection, and metacognitive review.",
+        "שפר יכולת פתרון בעיות אנושית: שינה, עומס קוגניטיבי, סביבת עבודה ורפלקציה.",
+        "בנה שגרת גורמי אנוש לפתרון בעיות מורכבות תחת לחץ.",
+    ],
+    "travel_design_tech_innovation": [
+        "Tech innovation brief: design a digital + physical prototype loop with reliability gates.",
+        "Create an innovation protocol that moves from hypothesis to safe field validation quickly.",
+        "Need systems-level problem solving for product architecture across software and hardware.",
+        "תכנן חדשנות טכנולוגית דיגיטלית-פיזית עם ניסוי מהיר ובקרת סיכונים.",
+        "בנה מסלול פיתוח הנדסי: הנחת יסוד, אב טיפוס, מדידה, שיפור.",
     ],
 }
 
@@ -324,6 +419,41 @@ def generated_synthetic_prompts(label: str) -> List[str]:
     ]
 
 
+def rebalance_rows(rows: List[Dict], min_per_label: int, max_per_label: int) -> List[Dict]:
+    buckets: Dict[str, List[Dict]] = defaultdict(list)
+    for row in rows:
+        buckets[row["label"]].append(row)
+
+    rebalanced: List[Dict] = []
+    for label in TRAVEL_DESIGN_LABELS:
+        bucket = buckets.get(label, [])
+        if not bucket:
+            continue
+        trimmed = bucket[: max(1, max_per_label)]
+        rebalanced.extend(trimmed)
+
+        needed = max(0, min_per_label - len(trimmed))
+        if needed == 0:
+            continue
+
+        synthetic_pool = list(SYNTHETIC_PROMPTS.get(label, []))
+        synthetic_pool.extend(generated_synthetic_prompts(label))
+        if not synthetic_pool:
+            synthetic_pool = [f"Travel design {label.replace('travel_design_', '').replace('_', ' ')} protocol."]
+
+        for idx in range(needed):
+            prompt = synthetic_pool[idx % len(synthetic_pool)]
+            rebalanced.append(
+                {
+                    "prompt": prompt,
+                    "label": label,
+                    "next_action": DEFAULT_NEXT_ACTION[label],
+                    "line": -2,
+                }
+            )
+    return rebalanced
+
+
 def collect_labels(rows: List[Dict]) -> List[str]:
     seen = {row["label"] for row in rows}
     labels = [label for label in TRAVEL_DESIGN_LABELS if label in seen]
@@ -401,7 +531,12 @@ def prune_vocabulary(vocabulary: List[str], token_freq: Dict[str, int], importan
     return kept
 
 
-def train_weights(rows: List[Dict], labels: List[str], vocabulary: List[str]) -> Tuple[List[float], List[List[float]]]:
+def train_weights(
+    rows: List[Dict],
+    labels: List[str],
+    vocabulary: List[str],
+    prior_uniform_mix: float,
+) -> Tuple[List[float], List[List[float]]]:
     label_index = {label: idx for idx, label in enumerate(labels)}
     vocab_index = {token: idx for idx, token in enumerate(vocabulary)}
     label_count = len(labels)
@@ -423,7 +558,13 @@ def train_weights(rows: List[Dict], labels: List[str], vocabulary: List[str]) ->
 
     total_docs = max(1, len(rows))
     prior_denom = total_docs + label_count
-    log_priors = [math.log((count + 1) / prior_denom) for count in doc_counts]
+    observed_priors = [math.log((count + 1) / prior_denom) for count in doc_counts]
+    uniform_prior = math.log(1.0 / max(1, label_count))
+    prior_uniform_mix = min(1.0, max(0.0, prior_uniform_mix))
+    log_priors = [
+        (1.0 - prior_uniform_mix) * observed + prior_uniform_mix * uniform_prior
+        for observed in observed_priors
+    ]
 
     log_likelihoods = [[0.0] * vocab_size for _ in range(label_count)]
     for li in range(label_count):
@@ -506,7 +647,14 @@ def collect_next_actions(rows: List[Dict], labels: List[str]) -> List[str]:
     return actions
 
 
-def evaluate_model(rows: List[Dict], labels: List[str], max_vocab: int, min_token_freq: int, prune_target_vocab: int):
+def evaluate_model(
+    rows: List[Dict],
+    labels: List[str],
+    max_vocab: int,
+    min_token_freq: int,
+    prune_target_vocab: int,
+    prior_uniform_mix: float,
+):
     train_rows, test_rows = split_train_test(rows)
     if not test_rows:
         return {
@@ -521,7 +669,7 @@ def evaluate_model(rows: List[Dict], labels: List[str], max_vocab: int, min_toke
     vocab_raw, freq = build_vocabulary(train_rows, max_vocab=max_vocab, min_token_freq=min_token_freq)
     importance = compute_token_importance(train_rows, labels, vocab_raw)
     vocab = prune_vocabulary(vocab_raw, token_freq=freq, importance=importance, target=prune_target_vocab)
-    log_priors, log_likelihoods = train_weights(train_rows, labels, vocab)
+    log_priors, log_likelihoods = train_weights(train_rows, labels, vocab, prior_uniform_mix=prior_uniform_mix)
     keyword_hints = collect_keyword_hints(train_rows, labels)
 
     correct = 0
@@ -585,6 +733,7 @@ def write_report(
     max_vocab: int,
     min_token_freq: int,
     prune_target_vocab: int,
+    prior_uniform_mix: float,
     eval_summary: Dict,
     min_holdout_accuracy: float,
 ):
@@ -608,6 +757,7 @@ def write_report(
             f"- Vocab before pruning: {eval_summary['vocab_size_raw']}",
             f"- Vocab after pruning: {eval_summary['vocab_size_pruned']}",
             f"- Prune target vocab: {prune_target_vocab}",
+            f"- Prior uniform mix: {prior_uniform_mix:.2f}",
             f"- Holdout accuracy: {eval_summary['accuracy'] * 100:.2f}% (test size: {eval_summary['test_size']})",
             "",
             f"- Holdout threshold: {min_holdout_accuracy * 100:.2f}%",
@@ -662,6 +812,9 @@ def main():
     parser.add_argument("--artifact-dir", default=str(DEFAULT_ARTIFACT_DIR))
     parser.add_argument("--run-tag", default="")
     parser.add_argument("--min-holdout-accuracy", type=float, default=0.55)
+    parser.add_argument("--prior-uniform-mix", type=float, default=0.65)
+    parser.add_argument("--min-per-label", type=int, default=48)
+    parser.add_argument("--max-per-label", type=int, default=72)
     parser.add_argument("--allow-below-threshold", action="store_true")
     parser.add_argument("--skip-inject", action="store_true")
     args = parser.parse_args()
@@ -680,6 +833,11 @@ def main():
         raise RuntimeError(f"dataset too small ({len(rows)} rows), need at least 20")
 
     rows, synthetic_count = add_synthetic(rows)
+    rows = rebalance_rows(
+        rows,
+        min_per_label=max(1, args.min_per_label),
+        max_per_label=max(max(1, args.min_per_label), args.max_per_label),
+    )
     labels = collect_labels(rows)
 
     eval_summary = evaluate_model(
@@ -688,6 +846,7 @@ def main():
         max_vocab=max(1, args.max_vocab),
         min_token_freq=max(1, args.min_token_freq),
         prune_target_vocab=max(1, args.prune_target_vocab),
+        prior_uniform_mix=args.prior_uniform_mix,
     )
 
     vocab_raw, freq = build_vocabulary(rows, max_vocab=max(1, args.max_vocab), min_token_freq=max(1, args.min_token_freq))
@@ -696,7 +855,7 @@ def main():
     if not vocabulary:
         raise RuntimeError("pruned vocabulary is empty")
 
-    log_priors, log_likelihoods = train_weights(rows, labels, vocabulary)
+    log_priors, log_likelihoods = train_weights(rows, labels, vocabulary, prior_uniform_mix=args.prior_uniform_mix)
     keyword_hints = collect_keyword_hints(rows, labels)
     next_actions = collect_next_actions(rows, labels)
     label_briefs = [LABEL_BRIEF.get(label, label.replace("_", " ")) for label in labels]
@@ -738,6 +897,7 @@ def main():
         "max_vocab": args.max_vocab,
         "min_token_freq": args.min_token_freq,
         "prune_target_vocab": args.prune_target_vocab,
+        "prior_uniform_mix": args.prior_uniform_mix,
         "vocab_size_raw": len(vocab_raw),
         "vocab_size_pruned": len(vocabulary),
         "holdout_accuracy": eval_summary["accuracy"],
@@ -774,6 +934,7 @@ def main():
         max_vocab=args.max_vocab,
         min_token_freq=args.min_token_freq,
         prune_target_vocab=args.prune_target_vocab,
+        prior_uniform_mix=args.prior_uniform_mix,
         eval_summary=eval_summary,
         min_holdout_accuracy=args.min_holdout_accuracy,
     )

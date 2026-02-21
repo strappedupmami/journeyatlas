@@ -15,6 +15,7 @@ struct AtlasResearchEngineModel {
         let tokens = tokenize(context)
         guard !tokens.isEmpty else { return [] }
         let prefersHebrew = containsHebrew(context)
+        let emergencyMode = isEmergencyContext(context)
 
         let scored = papers
             .map { paper in
@@ -36,10 +37,14 @@ struct AtlasResearchEngineModel {
                 sourceURL: paper.sourceURL
             )
             let lane = travelDesignLane(for: paper.domain, prefersHebrew: prefersHebrew)
+            let titlePrefix = streamTitlePrefix(prefersHebrew: prefersHebrew, emergencyMode: emergencyMode)
+            let recommendation = emergencyMode
+                ? emergencyRecommendation(base: paper.actionHint, prefersHebrew: prefersHebrew)
+                : paper.actionHint
             return ResearchExecutionStream(
                 id: "stream-\(paper.id)",
-                title: prefersHebrew ? "מסלול תכנון מסע: \(lane)" : "Travel Design lane: \(lane)",
-                executionRecommendation: paper.actionHint,
+                title: "\(titlePrefix): \(lane)",
+                executionRecommendation: recommendation,
                 whyItWorks: paper.actionableInsight,
                 confidence: min(0.99, max(0.35, score)),
                 citations: [citation]
@@ -79,6 +84,68 @@ struct AtlasResearchEngineModel {
                 "חוסן",
                 "בטיחות",
             ]) ? 0.35 : 0
+        case "emergency-response", "emergency-preparedness", "emergency-management", "crisis-management", "crisis-planning", "incident-command":
+            return containsAny(lower, [
+                "emergency",
+                "crisis",
+                "incident",
+                "triage",
+                "escalation",
+                "rescue",
+                "evacuation",
+                "containment",
+                "fallback",
+                "command",
+                "חירום",
+                "משבר",
+                "אירוע",
+                "טריאז",
+                "חילוץ",
+                "פינוי",
+                "פיקוד",
+                "הסלמה",
+                "מענה",
+            ]) ? 0.45 : 0
+        case "human-problem-solving", "human-performance", "biological-performance", "environmental-performance", "problem-solving":
+            return containsAny(lower, [
+                "problem solving",
+                "cognitive",
+                "metacognition",
+                "focus",
+                "sleep",
+                "environment",
+                "uncertainty",
+                "fatigue",
+                "decision quality",
+                "human factors",
+                "פתרון בעיות",
+                "קוגניטיבי",
+                "מטא קוגניציה",
+                "גורמי אנוש",
+                "שינה",
+                "סביבה",
+                "ביצועים",
+            ]) ? 0.4 : 0
+        case "technology-innovation", "systems-innovation", "digital-innovation", "physical-innovation", "innovation":
+            return containsAny(lower, [
+                "innovation",
+                "prototype",
+                "simulation",
+                "hardware",
+                "software",
+                "digital",
+                "physical",
+                "systems design",
+                "engineering",
+                "experimentation",
+                "חדשנות",
+                "אב טיפוס",
+                "סימולציה",
+                "הנדסה",
+                "מערכות",
+                "דיגיטלי",
+                "פיזי",
+            ]) ? 0.4 : 0
         case "recovery", "health":
             return containsAny(lower, [
                 "burnout",
@@ -114,6 +181,12 @@ struct AtlasResearchEngineModel {
                 return "עיצוב תפעול מסע"
             case "safety", "resilience":
                 return "עיצוב חוסן ובטיחות"
+            case "emergency-response", "emergency-preparedness", "emergency-management", "crisis-management", "crisis-planning", "incident-command":
+                return "עיצוב פיקוד חירום וניהול משבר"
+            case "human-problem-solving", "human-performance", "biological-performance", "environmental-performance", "problem-solving":
+                return "עיצוב יכולת פתרון בעיות אנושית"
+            case "technology-innovation", "systems-innovation", "digital-innovation", "physical-innovation", "innovation":
+                return "עיצוב חדשנות טכנולוגית"
             case "recovery", "health", "wellbeing":
                 return "עיצוב התאוששות ותפקוד"
             case "execution", "productivity":
@@ -131,6 +204,12 @@ struct AtlasResearchEngineModel {
             return "Journey Operations Design"
         case "safety", "resilience":
             return "Continuity and Safety Design"
+        case "emergency-response", "emergency-preparedness", "emergency-management", "crisis-management", "crisis-planning", "incident-command":
+            return "Emergency Command Design"
+        case "human-problem-solving", "human-performance", "biological-performance", "environmental-performance", "problem-solving":
+            return "Human Problem-Solving Design"
+        case "technology-innovation", "systems-innovation", "digital-innovation", "physical-innovation", "innovation":
+            return "Technology Innovation Design"
         case "recovery", "health", "wellbeing":
             return "Recovery Design"
         case "execution", "productivity":
@@ -148,6 +227,41 @@ struct AtlasResearchEngineModel {
 
     private func containsHebrew(_ text: String) -> Bool {
         text.range(of: "[\\u0590-\\u05FF]", options: .regularExpression) != nil
+    }
+
+    private func isEmergencyContext(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return containsAny(lower, [
+            "emergency",
+            "crisis",
+            "incident",
+            "triage",
+            "evacuate",
+            "rescue",
+            "urgent",
+            "life threatening",
+            "חירום",
+            "משבר",
+            "אירוע",
+            "דחוף",
+            "פיקוד",
+            "חילוץ",
+            "פינוי",
+        ])
+    }
+
+    private func streamTitlePrefix(prefersHebrew: Bool, emergencyMode: Bool) -> String {
+        if prefersHebrew {
+            return emergencyMode ? "מסלול פיקוד חירום" : "מסלול תכנון מסע"
+        }
+        return emergencyMode ? "Emergency command lane" : "Travel Design lane"
+    }
+
+    private func emergencyRecommendation(base: String, prefersHebrew: Bool) -> String {
+        if prefersHebrew {
+            return "עכשיו: טריאז', ייצוב, תקשורת, והפעלה לפי נוהל חירום. \(base)"
+        }
+        return "Immediate order: triage, stabilize, communicate, and execute emergency protocol. \(base)"
     }
 
     private func tokenize(_ input: String) -> Set<String> {
