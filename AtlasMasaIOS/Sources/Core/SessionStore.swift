@@ -1,5 +1,7 @@
 import AuthenticationServices
+import CryptoKit
 import Foundation
+import Security
 
 @MainActor
 final class SessionStore: ObservableObject {
@@ -33,6 +35,7 @@ final class SessionStore: ObservableObject {
     @Published var tailoredOffers: [TailoredOffer] = []
     @Published var researchStreams: [ResearchExecutionStream] = []
     @Published var learningPackage: AdaptiveLearningPackage?
+    @Published var memoryCollectionEnabled = true
 
     @Published var pendingFeedback = ""
     @Published var feedbackOfferEnabled = true
@@ -236,6 +239,10 @@ final class SessionStore: ObservableObject {
     }
 
     func saveNote() async {
+        guard memoryCollectionEnabled else {
+            appendOutput("Memory capture is disabled. Re-enable memory collection before saving notes.")
+            return
+        }
         let title = pendingNoteTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let content = pendingNoteContent.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, !content.isEmpty else {
@@ -274,6 +281,18 @@ final class SessionStore: ObservableObject {
         persistPromptQueueToDisk()
         persistStateToDisk()
         appendOutput("Local personalization memory cleared by user request.")
+    }
+
+    func setMemoryCollectionEnabled(_ enabled: Bool) {
+        guard memoryCollectionEnabled != enabled else { return }
+        memoryCollectionEnabled = enabled
+        if !enabled {
+            deleteLocalMemory()
+            appendOutput("Long-term memory persistence disabled. Data now stays session-only.")
+            return
+        }
+        persistStateToDisk()
+        appendOutput("Long-term memory persistence enabled.")
     }
 
     func submitAnonymizedFeedback() {
@@ -325,6 +344,9 @@ final class SessionStore: ObservableObject {
     }
 
     func memoryUsageEstimate() -> String {
+        guard memoryCollectionEnabled else {
+            return "Memory collection disabled"
+        }
         let notesBytes = notes.reduce(0) { $0 + $1.title.count + $1.content.count }
         let queueBytes = promptQueue.reduce(0) { $0 + $1.prompt.count + ($1.output?.summary.count ?? 0) }
         let totalKB = max(1, (notesBytes + queueBytes) / 1024)
@@ -332,7 +354,8 @@ final class SessionStore: ObservableObject {
     }
 
     func appendOutput(_ line: String) {
-        systemOutput.insert(line, at: 0)
+        let sanitized = SensitiveDataRedactor.redact(line)
+        systemOutput.insert(String(sanitized.prefix(280)), at: 0)
         if systemOutput.count > 40 {
             systemOutput = Array(systemOutput.prefix(40))
         }
@@ -355,19 +378,26 @@ final class SessionStore: ObservableObject {
 
             let item = promptQueue[index]
             let checkpointInterval = queueCheckpointIntervalNanoseconds()
-            let checkpointTask = Task.detached { [weak self] in
+            let checkpointID = item.id
+            let checkpointTask = Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: checkpointInterval)
-                    await MainActor.run {
+                    await MainActor.run { [weak self] in
                         self?.checkpointRunningQueueItem(
-                            id: item.id,
+                            id: checkpointID,
                             note: "Checkpoint saved during local processing."
                         )
                     }
                 }
             }
-            let boundedPrompt = String(item.prompt.prefix(1800))
-            let boundedNotes = Array(notes.prefix(24))
+            let boundedPrompt = sanitizeModelInput(item.prompt, maxLength: 1800)
+            let boundedNotes = Array(notes.prefix(24)).map {
+                UserNote(
+                    noteID: $0.noteID,
+                    title: sanitizeModelInput($0.title, maxLength: 120),
+                    content: sanitizeModelInput($0.content, maxLength: 400)
+                )
+            }
             let output = await localReasoning.reason(prompt: boundedPrompt, notes: boundedNotes)
             checkpointTask.cancel()
             promptQueue[index].status = .done
@@ -723,7 +753,45 @@ final class SessionStore: ObservableObject {
         if context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return []
         }
-        return AtlasResearchEngine.shared.buildExecutionStreams(context: context, maxItems: 4)
+        let signals: [(String, String, String)] = [
+            (
+                "human-problem-solving",
+                "Human Problem-Solving Design",
+                "Stabilize cognition first (sleep, hydration, pacing), then run a deliberate problem drill."
+            ),
+            (
+                "resilience-systems",
+                "Resilience Systems Design",
+                "Treat incident handling as a protocol: detect, triage, communicate, and recover with logs."
+            ),
+            (
+                "wealth-operations",
+                "Wealth Operations Design",
+                "When revenue cadence is unstable, prioritize one direct money action before optimization work."
+            ),
+            (
+                "mobility-operations",
+                "Mobility Operations Design",
+                "Use legal-safe route and service checkpoints to reduce operational surprises."
+            ),
+        ]
+
+        return signals.enumerated().map { index, signal in
+            let citation = ResearchCitation(
+                id: "local-citation-\(index)",
+                title: "Atlas local reasoning corpus",
+                year: 2026,
+                sourceURL: "https://atlasmasa.com"
+            )
+            return ResearchExecutionStream(
+                id: "local-stream-\(signal.0)",
+                title: signal.1,
+                executionRecommendation: executionActions.first?.title ?? "Run one focused action block now.",
+                whyItWorks: signal.2,
+                confidence: 0.72,
+                citations: [citation]
+            )
+        }
     }
 
     private func combinedIntentText() -> String {
@@ -756,6 +824,11 @@ final class SessionStore: ObservableObject {
         return needles.contains { lower.contains($0) }
     }
 
+    private func sanitizeModelInput(_ value: String, maxLength: Int) -> String {
+        let redacted = SensitiveDataRedactor.redact(value)
+        return String(redacted.prefix(maxLength))
+    }
+
     private func syncSessionFromServerIfAvailable() async {
         do {
             let me = try await api.authMe()
@@ -764,6 +837,10 @@ final class SessionStore: ObservableObject {
                 ? me.user.email
                 : me.user.name
             markSignedIn(provider: provider, accountName: resolvedName)
+            memoryCollectionEnabled = me.user.memoryOptIn
+            if !memoryCollectionEnabled {
+                appendOutput("Server profile is set to memory opt-out. Local long-term memory persistence is disabled.")
+            }
             appendOutput("Secure account session verified with API.")
         } catch {
             if isSignedIn {
@@ -1175,6 +1252,11 @@ final class SessionStore: ObservableObject {
         let backupURL = promptQueueFileURL(fileName: queueBackupFileName)
 
         do {
+            let encrypted = try SecurePersistence.encrypt(
+                data,
+                context: "prompt_queue",
+                appNamespace: "AtlasMasaIOS"
+            )
             let fileManager = FileManager.default
             let dir = primaryURL.deletingLastPathComponent()
             if !fileManager.fileExists(atPath: dir.path) {
@@ -1191,7 +1273,7 @@ final class SessionStore: ObservableObject {
 #if os(iOS)
             writeOptions.insert(.completeFileProtection)
 #endif
-            try data.write(to: tempURL, options: writeOptions)
+            try encrypted.write(to: tempURL, options: writeOptions)
             if fileManager.fileExists(atPath: primaryURL.path) {
                 _ = try fileManager.replaceItemAt(primaryURL, withItemAt: tempURL)
             } else {
@@ -1208,7 +1290,7 @@ final class SessionStore: ObservableObject {
 
         if let primaryURL = promptQueueFileURL(fileName: queueFileName),
            let data = try? Data(contentsOf: primaryURL),
-           let restored = try? decoder.decode([PromptQueueItem].self, from: data)
+           let restored = try? decodePromptQueuePayload(data, decoder: decoder)
         {
             promptQueue = restored
             return
@@ -1216,7 +1298,7 @@ final class SessionStore: ObservableObject {
 
         if let backupURL = promptQueueFileURL(fileName: queueBackupFileName),
            let data = try? Data(contentsOf: backupURL),
-           let restored = try? decoder.decode([PromptQueueItem].self, from: data)
+           let restored = try? decodePromptQueuePayload(data, decoder: decoder)
         {
             promptQueue = restored
             persistPromptQueueToDisk()
@@ -1231,6 +1313,20 @@ final class SessionStore: ObservableObject {
             persistPromptQueueToDisk()
             UserDefaults.standard.removeObject(forKey: queueStorageLegacyKey)
         }
+    }
+
+    private func decodePromptQueuePayload(
+        _ data: Data,
+        decoder: JSONDecoder
+    ) throws -> [PromptQueueItem] {
+        if let decrypted = try? SecurePersistence.decrypt(
+            data,
+            context: "prompt_queue",
+            appNamespace: "AtlasMasaIOS"
+        ) {
+            return try decoder.decode([PromptQueueItem].self, from: decrypted)
+        }
+        return try decoder.decode([PromptQueueItem].self, from: data)
     }
 
     private func recoverInterruptedQueueItemsAfterRestart() {
@@ -1265,6 +1361,16 @@ final class SessionStore: ObservableObject {
     }
 
     private func persistStateToDisk() {
+        let persistedNotes = memoryCollectionEnabled ? notes : []
+        let persistedSurveyAnswers = memoryCollectionEnabled ? surveyAnswers : [:]
+        let persistedLearningPackage = memoryCollectionEnabled ? learningPackage : nil
+        let persistedLearningVersion = memoryCollectionEnabled
+            ? learningVersion
+            : 0
+        let persistedLearningFingerprint = memoryCollectionEnabled
+            ? learningFingerprint
+            : ""
+
         let state = PersistedState(
             isSignedIn: isSignedIn,
             accountProvider: accountProvider,
@@ -1285,11 +1391,12 @@ final class SessionStore: ObservableObject {
             travelRegion: travelRegion,
             annualDistanceKM: annualDistanceKM,
             workspaceMode: workspaceMode,
-            notes: notes,
-            surveyAnswers: surveyAnswers,
-            learningPackage: learningPackage,
-            learningVersion: learningVersion,
-            learningFingerprint: learningFingerprint
+            notes: persistedNotes,
+            surveyAnswers: persistedSurveyAnswers,
+            learningPackage: persistedLearningPackage,
+            learningVersion: persistedLearningVersion,
+            learningFingerprint: persistedLearningFingerprint,
+            memoryCollectionEnabled: memoryCollectionEnabled
         )
 
         let encoder = JSONEncoder()
@@ -1299,6 +1406,11 @@ final class SessionStore: ObservableObject {
 
         let backupURL = stateFileURL(fileName: stateBackupFileName)
         do {
+            let encrypted = try SecurePersistence.encrypt(
+                data,
+                context: "session_state",
+                appNamespace: "AtlasMasaIOS"
+            )
             let fileManager = FileManager.default
             let dir = primaryURL.deletingLastPathComponent()
             if !fileManager.fileExists(atPath: dir.path) {
@@ -1315,7 +1427,7 @@ final class SessionStore: ObservableObject {
 #if os(iOS)
             writeOptions.insert(.completeFileProtection)
 #endif
-            try data.write(to: tempURL, options: writeOptions)
+            try encrypted.write(to: tempURL, options: writeOptions)
             if fileManager.fileExists(atPath: primaryURL.path) {
                 _ = try fileManager.replaceItemAt(primaryURL, withItemAt: tempURL)
             } else {
@@ -1332,11 +1444,25 @@ final class SessionStore: ObservableObject {
             if let primaryURL = stateFileURL(fileName: stateFileName),
                let data = try? Data(contentsOf: primaryURL)
             {
+                if let decrypted = try? SecurePersistence.decrypt(
+                    data,
+                    context: "session_state",
+                    appNamespace: "AtlasMasaIOS"
+                ) {
+                    return decrypted
+                }
                 return data
             }
             if let backupURL = stateFileURL(fileName: stateBackupFileName),
                let data = try? Data(contentsOf: backupURL)
             {
+                if let decrypted = try? SecurePersistence.decrypt(
+                    data,
+                    context: "session_state",
+                    appNamespace: "AtlasMasaIOS"
+                ) {
+                    return decrypted
+                }
                 return data
             }
             if let legacy = UserDefaults.standard.data(forKey: stateStorageLegacyKey) {
@@ -1372,6 +1498,7 @@ final class SessionStore: ObservableObject {
         learningPackage = state.learningPackage
         learningVersion = state.learningVersion ?? (learningPackage?.version ?? 0)
         learningFingerprint = state.learningFingerprint ?? ""
+        memoryCollectionEnabled = state.memoryCollectionEnabled ?? true
     }
 
     private func stateFileURL(fileName: String) -> URL? {
@@ -1410,6 +1537,157 @@ private struct PersistedState: Codable {
     var learningPackage: AdaptiveLearningPackage?
     var learningVersion: Int?
     var learningFingerprint: String?
+    var memoryCollectionEnabled: Bool?
+}
+
+private enum SecurePersistenceError: Error {
+    case invalidEnvelope
+    case invalidKeyMaterial
+    case keychainFailure(OSStatus)
+}
+
+private enum SecurePersistence {
+    private static let service = "com.atlasmasa.secure.persistence"
+    private static let envelopeHeader = Data("ATLASSEC1".utf8)
+
+    static func encrypt(_ plaintext: Data, context: String, appNamespace: String) throws -> Data {
+        let key = try encryptionKey(appNamespace: appNamespace)
+        let aad = Data("atlas_context:\(context)".utf8)
+        let sealed = try AES.GCM.seal(plaintext, using: key, authenticating: aad)
+        guard let combined = sealed.combined else {
+            throw SecurePersistenceError.invalidEnvelope
+        }
+        return envelopeHeader + combined
+    }
+
+    static func decrypt(_ envelope: Data, context: String, appNamespace: String) throws -> Data {
+        guard envelope.starts(with: envelopeHeader) else {
+            throw SecurePersistenceError.invalidEnvelope
+        }
+        let combined = envelope.dropFirst(envelopeHeader.count)
+        let sealed = try AES.GCM.SealedBox(combined: combined)
+        let key = try encryptionKey(appNamespace: appNamespace)
+        let aad = Data("atlas_context:\(context)".utf8)
+        return try AES.GCM.open(sealed, using: key, authenticating: aad)
+    }
+
+    private static func encryptionKey(appNamespace: String) throws -> SymmetricKey {
+        let keyData = try loadOrCreateKeyMaterial(account: "\(appNamespace).v1")
+        guard keyData.count == 32 else {
+            throw SecurePersistenceError.invalidKeyMaterial
+        }
+        return SymmetricKey(data: keyData)
+    }
+
+    private static func loadOrCreateKeyMaterial(account: String) throws -> Data {
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+#if os(iOS)
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+#endif
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecSuccess {
+            guard let data = result as? Data else {
+                throw SecurePersistenceError.invalidKeyMaterial
+            }
+            return data
+        }
+        if status != errSecItemNotFound {
+            throw SecurePersistenceError.keychainFailure(status)
+        }
+
+        var generated = Data(count: 32)
+        let bytesStatus = generated.withUnsafeMutableBytes { bytes in
+            SecRandomCopyBytes(kSecRandomDefault, 32, bytes.baseAddress!)
+        }
+        guard bytesStatus == errSecSuccess else {
+            throw SecurePersistenceError.keychainFailure(bytesStatus)
+        }
+
+        var create: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: generated,
+        ]
+#if os(iOS)
+        create[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+#endif
+        let addStatus = SecItemAdd(create as CFDictionary, nil)
+        if addStatus == errSecSuccess {
+            return generated
+        }
+        if addStatus == errSecDuplicateItem {
+            return try loadOrCreateKeyMaterial(account: account)
+        }
+        throw SecurePersistenceError.keychainFailure(addStatus)
+    }
+}
+
+private enum SensitiveDataRedactor {
+    private struct Rule {
+        let regex: NSRegularExpression
+        let replacement: String
+    }
+
+    private static let rules: [Rule] = [
+        Rule(
+            regex: try! NSRegularExpression(
+                pattern: #"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]+=*"#,
+                options: []
+            ),
+            replacement: "bearer [redacted]"
+        ),
+        Rule(
+            regex: try! NSRegularExpression(
+                pattern: #"(?i)[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}"#,
+                options: []
+            ),
+            replacement: "[redacted-email]"
+        ),
+        Rule(
+            regex: try! NSRegularExpression(
+                pattern: #"\b[A-Za-z0-9\-_]{20,}\.[A-Za-z0-9\-_]{20,}\.[A-Za-z0-9\-_]{20,}\b"#,
+                options: []
+            ),
+            replacement: "[redacted-jwt]"
+        ),
+        Rule(
+            regex: try! NSRegularExpression(
+                pattern: #"(?<!\d)(?:\d[ -]?){13,19}(?!\d)"#,
+                options: []
+            ),
+            replacement: "[redacted-number]"
+        ),
+        Rule(
+            regex: try! NSRegularExpression(
+                pattern: #"(?<!\w)\+?\d[\d\-\s()]{7,}\d(?!\w)"#,
+                options: []
+            ),
+            replacement: "[redacted-phone]"
+        ),
+    ]
+
+    static func redact(_ input: String) -> String {
+        var output = input
+        for rule in rules {
+            let range = NSRange(output.startIndex ..< output.endIndex, in: output)
+            output = rule.regex.stringByReplacingMatches(
+                in: output,
+                options: [],
+                range: range,
+                withTemplate: rule.replacement
+            )
+        }
+        return output
+    }
 }
 
 private extension String {
