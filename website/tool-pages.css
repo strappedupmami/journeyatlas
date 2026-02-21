@@ -1,0 +1,130 @@
+.tool-main {
+  padding: 26px 0 60px;
+}
+
+.tool-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.tool-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+}
+
+.tool-title {
+  margin: 0 0 10px;
+}
+
+.tool-subtitle {
+  margin: 0;
+  color: var(--muted);
+}
+
+.tool-highlight {
+  display: grid;
+  gap: 10px;
+}
+
+.tool-highlight__list {
+  margin: 0;
+  padding-inline-start: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+}
+
+.tool-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.tool-section {
+  padding: 16px;
+}
+
+.tool-section h3 {
+  margin: 0 0 8px;
+}
+
+.tool-section p {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.tool-list {
+  margin: 0;
+  padding-inline-start: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+}
+
+.tool-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tool-field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted2);
+}
+
+.tool-field input,
+.tool-field textarea,
+.tool-field select {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.tool-field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.tool-note {
+  font-size: 13px;
+  color: var(--muted2);
+  margin-top: 8px;
+}
+
+.tool-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 0;
+}
+
+@media (max-width: 980px) {
+  .tool-hero,
+  .tool-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#14080e" />
+    <title>Atlas Masa Tool</title>
+    <meta
+      name="description"
+      content="Atlas Masa specialized AI tool workspace with dedicated layout and direct launch path."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="tool-pages.css" />
+  </head>
+  <body data-tool="trip">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="header">
+      <div class="container header__inner">
+        <a class="brand" href="homepage.html" aria-label="Atlas Masa home">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
+              <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M14 46h36" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M32 10v12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M26 22h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand__text">
+            <span class="brand__name">Atlas Masa</span>
+            <span class="brand__tag">Specialized AI Tools</span>
+          </span>
+        </a>
+
+        <nav class="nav" aria-label="Primary navigation">
+          <a href="homepage.html">Homepage</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="concierge-local.html">AI Studio</a>
+          <a href="signin.html">Log in</a>
+          <a class="nav__auth nav__auth--primary" href="signup.html">Sign up</a>
+        </nav>
+      </div>
+      <section class="ai-quickbar" aria-label="AI tools">
+        <div class="container ai-quickbar__inner">
+          <span class="ai-quickbar__label">Tools:</span>
+          <a class="ai-quickbar__item tool-link" data-tool="chat" href="tool-chat.html">Text chat</a>
+          <a class="ai-quickbar__item tool-link" data-tool="trip" href="tool-trip.html">Trip planning</a>
+          <a class="ai-quickbar__item tool-link" data-tool="voice" href="tool-voice.html">Voice check-in</a>
+          <a class="ai-quickbar__item tool-link" data-tool="survey" href="tool-survey.html">Deep survey</a>
+          <a class="ai-quickbar__item tool-link" data-tool="notes" href="tool-notes.html">Notes capture</a>
+          <a class="ai-quickbar__item tool-link" data-tool="memory" href="tool-memory.html">Memory import</a>
+          <a class="ai-quickbar__item tool-link" data-tool="briefing" href="tool-briefing.html">Mission briefing</a>
+        </div>
+      </section>
+    </header>
+
+    <main id="main" class="tool-main">
+      <div class="container">
+        <section class="tool-hero">
+          <article class="card tool-section">
+            <span class="tool-kicker" id="tool-kicker">AI Tool</span>
+            <h1 class="tool-title" id="tool-title">Tool</h1>
+            <p class="tool-subtitle" id="tool-subtitle"></p>
+            <div class="tool-cta">
+              <a class="btn btn--primary" id="open-tool-btn" href="concierge-local.html">Open tool</a>
+              <a class="btn btn--ghost" id="open-studio-btn" href="concierge-local.html">Open full studio</a>
+            </div>
+            <p class="tool-note">This route is tool-specific by design, so each feature has its own layout and workflow.</p>
+          </article>
+
+          <aside class="card tool-section tool-highlight">
+            <h3>Why this page exists</h3>
+            <ul class="tool-highlight__list" id="tool-summary"></ul>
+            <div class="tool-divider"></div>
+            <p class="tool-note">You can still jump to the full AI Studio anytime, but this page keeps one feature front-and-center.</p>
+          </aside>
+        </section>
+
+        <section class="tool-grid" id="tool-layout"></section>
+      </div>
+    </main>
+
+    <script src="tool-pages.js"></script>
+  </body>
+</html>

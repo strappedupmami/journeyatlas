@@ -61,22 +61,15 @@
   const API_BASE = getApiBase();
 
   function buildPostAuthDestination() {
-    const launch = mode === "signin" ? "chat" : "survey";
-    return (
-      "concierge-local.html?launch=" +
-      encodeURIComponent(launch) +
-      "&api_base=" +
-      encodeURIComponent(API_BASE)
-    );
+    const destination = mode === "signin" ? "tool-chat.html" : "tool-survey.html";
+    return destination + "?api_base=" + encodeURIComponent(API_BASE);
   }
 
   if (surveyLink) {
-    surveyLink.href =
-      "concierge-local.html?launch=survey&api_base=" + encodeURIComponent(API_BASE);
+    surveyLink.href = "tool-survey.html?api_base=" + encodeURIComponent(API_BASE);
   }
   if (studioLink) {
-    studioLink.href =
-      "concierge-local.html?launch=chat&api_base=" + encodeURIComponent(API_BASE);
+    studioLink.href = "tool-chat.html?api_base=" + encodeURIComponent(API_BASE);
   }
 
   function toBase64Url(data) {
