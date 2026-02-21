@@ -13,6 +13,7 @@
   const params = new URLSearchParams(window.location.search);
   const authResult = params.get("auth");
   const authReason = params.get("reason");
+  const stayOnAuthPage = params.get("stay_auth") === "1";
 
   if (mode === "signin") {
     document.title = "Atlas Masa | Sign In";
@@ -58,6 +59,16 @@
   }
 
   const API_BASE = getApiBase();
+
+  function buildPostAuthDestination() {
+    const launch = mode === "signin" ? "chat" : "survey";
+    return (
+      "concierge-local.html?launch=" +
+      encodeURIComponent(launch) +
+      "&api_base=" +
+      encodeURIComponent(API_BASE)
+    );
+  }
 
   if (surveyLink) {
     surveyLink.href =
@@ -399,7 +410,12 @@
     setButtonsLoading(false);
 
     if (result.ok && result.payload && result.payload.user) {
-      setStatus("Account session is active. Continue to Adaptive Deep Survey.", "ok");
+      setStatus("Account session is active. Redirecting now...", "ok");
+      if (!stayOnAuthPage) {
+        window.setTimeout(function () {
+          window.location.href = buildPostAuthDestination();
+        }, 260);
+      }
       return;
     }
 
@@ -426,10 +442,20 @@
     setStatus("Sign-in completed, but session verification has not propagated yet. Refresh once.", "warn");
   }
 
+  async function redirectIfAlreadyAuthenticated() {
+    const result = await fetchJson("/v1/auth/me", "GET", undefined, false);
+    if (!(result.ok && result.payload && result.payload.user)) return;
+    if (stayOnAuthPage) return;
+    setStatus("You are already signed in. Redirecting...", "ok");
+    window.setTimeout(function () {
+      window.location.href = buildPostAuthDestination();
+    }, 220);
+  }
+
   async function applyCapabilities() {
     const result = await fetchJson("/health", "GET", undefined, false);
     if (!result.ok) {
-      setStatus("Could not verify auth provider status right now.", "warn");
+      // Non-blocking check. Do not override active auth flow/status.
       return;
     }
 
@@ -466,6 +492,8 @@
     verifySessionAfterAuth();
   } else if (authResult === "error") {
     setStatus("Sign-in failed: " + (authReason || "Unknown reason"), "warn");
+  } else {
+    redirectIfAlreadyAuthenticated();
   }
 
   applyCapabilities();
