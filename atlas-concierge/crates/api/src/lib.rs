@@ -1,6 +1,6 @@
 mod rate_limit;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::path::Path;
 use std::sync::Arc;
@@ -72,6 +72,8 @@ pub struct ApiState {
     pub feedback_items: Arc<RwLock<Vec<FeedbackRecord>>>,
     pub user_notes: Arc<RwLock<HashMap<String, Vec<UserNoteRecord>>>>,
     pub user_memories: Arc<RwLock<HashMap<String, Vec<MemoryRecord>>>>,
+    pub execution_checkins: Arc<RwLock<HashMap<String, Vec<ExecutionCheckinRecord>>>>,
+    pub execution_controls: Arc<RwLock<HashMap<String, ExecutionControlsRecord>>>,
     pub oauth_states: Arc<RwLock<HashMap<String, OAuthStateRecord>>>,
     pub google_oauth: Option<GoogleOAuthConfig>,
     pub apple_oauth: Option<AppleOAuthConfig>,
@@ -306,6 +308,73 @@ struct ProactiveFeedResponse {
     gate_reason: Option<String>,
     required_minutes: u32,
     company_status: CompanyStatusRecord,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ExecutionCheckinRecord {
+    checkin_id: String,
+    user_id: String,
+    daily_focus: String,
+    mid_term_focus: Option<String>,
+    long_term_focus: Option<String>,
+    blocker: Option<String>,
+    next_action_now: Option<String>,
+    energy_level: Option<u8>,
+    mood: Option<String>,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ExecutionCheckinRequest {
+    user_id: Option<String>,
+    daily_focus: String,
+    mid_term_focus: Option<String>,
+    long_term_focus: Option<String>,
+    blocker: Option<String>,
+    next_action_now: Option<String>,
+    energy_level: Option<u8>,
+    mood: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ExecutionControlsRecord {
+    user_id: String,
+    cadence: String,
+    detail_level: String,
+    include_company_awareness: bool,
+    include_reminder_suggestions: bool,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct ExecutionControlsUpsertRequest {
+    cadence: Option<String>,
+    detail_level: Option<String>,
+    include_company_awareness: Option<bool>,
+    include_reminder_suggestions: Option<bool>,
+}
+
+#[derive(Debug, Clone)]
+struct ExecutionTaskCandidate {
+    task_id: String,
+    title: String,
+    detail: String,
+    source: String,
+    horizon: String,
+    urgency: f32,
+    impact: f32,
+    confidence: f32,
+}
+
+struct ExecutionFeedContext<'a> {
+    company_status: &'a CompanyStatusRecord,
+    user: &'a UserRecord,
+    prefs: Option<&'a StudioPreferencesRecord>,
+    survey: Option<&'a SurveyStateRecord>,
+    notes: Option<&'a [UserNoteRecord]>,
+    controls: &'a ExecutionControlsRecord,
+    memories: &'a [MemoryRetrievedItem],
+    latest_checkin: Option<&'a ExecutionCheckinRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -610,6 +679,8 @@ struct PersistedState {
     feedback_items: Vec<FeedbackRecord>,
     user_notes: HashMap<String, Vec<UserNoteRecord>>,
     user_memories: HashMap<String, Vec<MemoryRecord>>,
+    execution_checkins: HashMap<String, Vec<ExecutionCheckinRecord>>,
+    execution_controls: HashMap<String, ExecutionControlsRecord>,
     passkeys_by_user: HashMap<String, Vec<PasskeyRecord>>,
 }
 
@@ -717,6 +788,8 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         feedback_items: Arc::new(RwLock::new(persisted_state.feedback_items)),
         user_notes: Arc::new(RwLock::new(persisted_state.user_notes)),
         user_memories: Arc::new(RwLock::new(persisted_state.user_memories)),
+        execution_checkins: Arc::new(RwLock::new(persisted_state.execution_checkins)),
+        execution_controls: Arc::new(RwLock::new(persisted_state.execution_controls)),
         oauth_states: Arc::new(RwLock::new(HashMap::new())),
         google_oauth,
         apple_oauth,
@@ -790,6 +863,12 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/v1/survey/next", get(survey_next))
         .route("/v1/survey/answer", post(survey_answer))
         .route("/v1/feed/proactive", get(feed_proactive))
+        .route("/v1/execution/checkin", post(execution_checkin_submit))
+        .route("/v1/execution/refresh", post(execution_refresh))
+        .route(
+            "/v1/execution/controls",
+            get(execution_controls_get).post(execution_controls_upsert),
+        )
         .route("/v1/company/status", get(company_status))
         .route("/v1/feedback/submit", post(feedback_submit))
         .route(
@@ -1884,6 +1963,8 @@ async fn chat(
                     .get(&user.user_id)
                     .cloned()
                     .unwrap_or_default();
+                let execution_controls = get_execution_controls(&state, &user.user_id);
+                let latest_checkin = latest_execution_checkin(&state, &user.user_id);
                 let memory_context = retrieve_user_memory_context(
                     &state,
                     user.user_id.as_str(),
@@ -1937,12 +2018,17 @@ async fn chat(
                     if include_proactive {
                         payload_obj.insert(
                             "proactive_feed".to_string(),
-                            serde_json::json!(build_proactive_feed(
-                                &state.company_status,
-                                &user,
-                                Some(&effective_studio_pref),
-                                survey_state.as_ref(),
-                                Some(note_items.as_slice()),
+                            serde_json::json!(build_orchestrated_proactive_feed(
+                                &ExecutionFeedContext {
+                                    company_status: &state.company_status,
+                                    user: &user,
+                                    prefs: Some(&effective_studio_pref),
+                                    survey: survey_state.as_ref(),
+                                    notes: Some(note_items.as_slice()),
+                                    controls: &execution_controls,
+                                    memories: memory_context.as_slice(),
+                                    latest_checkin: latest_checkin.as_ref(),
+                                }
                             )),
                         );
                     }
@@ -3342,88 +3428,220 @@ async fn feed_proactive(
     headers: HeaderMap,
     Query(query): Query<UserLookupQuery>,
 ) -> impl IntoResponse {
-    const MIN_SURVEY_MINUTES: u32 = 20;
-
     let user_id = resolve_user_id_or_guest(&state, &headers, query.user_id.clone());
     let request_locale = resolve_request_locale(&state, &user_id, query.locale.as_deref());
-    let user = state
-        .users
-        .read()
-        .get(&user_id)
-        .cloned()
-        .unwrap_or_else(|| UserRecord {
-            user_id: user_id.clone(),
-            provider: "guest".to_string(),
-            email: "guest@atlasmasa.local".to_string(),
-            name: "Guest".to_string(),
-            locale: request_locale.clone(),
-            trip_style: Some("mixed".to_string()),
-            risk_preference: Some("medium".to_string()),
-            memory_opt_in: true,
-            passkey_user_handle: None,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        });
-    let mut effective_user = user;
-    effective_user.locale = request_locale.clone();
+    let response = build_proactive_feed_response(&state, user_id.as_str(), request_locale.as_str());
+    (StatusCode::OK, Json(response)).into_response()
+}
 
-    let studio_pref = state
-        .studio_preferences
-        .read()
-        .get(&user_id)
-        .cloned()
-        .unwrap_or_else(|| default_studio_preferences(&user_id));
-    let survey_state = state.survey_states.read().get(&user_id).cloned();
-    let note_items = state
-        .user_notes
-        .read()
-        .get(&user_id)
-        .cloned()
-        .unwrap_or_default();
-    let elapsed_minutes = survey_state
-        .as_ref()
-        .and_then(survey_elapsed_minutes)
-        .unwrap_or(0);
-    let survey_complete = survey_state
-        .as_ref()
-        .map(|value| value.completed)
-        .unwrap_or(false);
-    let feed_ready = survey_complete && elapsed_minutes >= MIN_SURVEY_MINUTES;
-    let gate_reason = if feed_ready {
-        None
-    } else if request_locale.starts_with("he") {
-        Some(format!(
-            "זרם הביצוע ייפתח אחרי השלמת סקר העומק ולאחר לפחות {} דקות תהליך.",
-            MIN_SURVEY_MINUTES
-        ))
-    } else {
-        Some(format!(
-            "Execution Stream unlocks after completing the adaptive deep survey and at least {} minutes of survey process.",
-            MIN_SURVEY_MINUTES
-        ))
+async fn execution_checkin_submit(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<ExecutionCheckinRequest>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, input.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
     };
-    let items = if feed_ready {
-        build_proactive_feed(
-            &state.company_status,
-            &effective_user,
-            Some(&studio_pref),
-            survey_state.as_ref(),
-            Some(note_items.as_slice()),
+
+    let daily_focus = sanitize_limited_text(input.daily_focus.as_str(), MAX_MEMORY_TEXT_LEN);
+    if daily_focus.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "invalid_daily_focus",
+                "message": "daily_focus is required"
+            })),
         )
-    } else {
-        Vec::new()
+            .into_response();
+    }
+    let now = chrono::Utc::now();
+    let checkin = ExecutionCheckinRecord {
+        checkin_id: uuid::Uuid::new_v4().to_string(),
+        user_id: user_id.clone(),
+        daily_focus: daily_focus.clone(),
+        mid_term_focus: input
+            .mid_term_focus
+            .map(|value| sanitize_limited_text(value.as_str(), MAX_MEMORY_TEXT_LEN))
+            .filter(|value| !value.is_empty()),
+        long_term_focus: input
+            .long_term_focus
+            .map(|value| sanitize_limited_text(value.as_str(), MAX_MEMORY_TEXT_LEN))
+            .filter(|value| !value.is_empty()),
+        blocker: input
+            .blocker
+            .map(|value| sanitize_limited_text(value.as_str(), MAX_MEMORY_TEXT_LEN))
+            .filter(|value| !value.is_empty()),
+        next_action_now: input
+            .next_action_now
+            .map(|value| sanitize_limited_text(value.as_str(), MAX_MEMORY_TEXT_LEN))
+            .filter(|value| !value.is_empty()),
+        energy_level: input.energy_level.map(|value| value.clamp(1, 5)),
+        mood: input
+            .mood
+            .map(|value| sanitize_limited_text(value.as_str(), MAX_PROFILE_FIELD_LEN))
+            .filter(|value| !value.is_empty()),
+        created_at: now.to_rfc3339(),
     };
 
+    {
+        let mut checkins = state.execution_checkins.write();
+        let history = checkins.entry(user_id.clone()).or_default();
+        history.push(checkin.clone());
+        history.sort_by(|lhs, rhs| rhs.created_at.cmp(&lhs.created_at));
+        history.truncate(180);
+    }
+    let _ = persist_checkins_if_configured(&state, user_id.as_str()).await;
+
+    let mut memory_tags = vec!["checkin".to_string(), "daily_execution".to_string()];
+    if checkin.energy_level.unwrap_or(3) <= 2 {
+        memory_tags.push("low_energy".to_string());
+    }
+    let _ = ingest_memory_event_for_user(
+        &state,
+        user_id.as_str(),
+        MemoryIngestEvent {
+            memory_type: "task".to_string(),
+            stability: "transient".to_string(),
+            source: "system".to_string(),
+            text: format!(
+                "Check-in focus: {} | blocker: {} | next action: {}",
+                checkin.daily_focus,
+                checkin
+                    .blocker
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
+                checkin
+                    .next_action_now
+                    .clone()
+                    .unwrap_or_else(|| "not_set".to_string())
+            ),
+            weight: 0.84,
+            tags: memory_tags,
+            happened_at: Some(now),
+            expires_at: Some(now + chrono::Duration::days(3)),
+        },
+    )
+    .await;
+
+    let locale = resolve_request_locale(&state, &user_id, None);
+    let refreshed = build_proactive_feed_response(&state, user_id.as_str(), locale.as_str());
     (
         StatusCode::OK,
-        Json(ProactiveFeedResponse {
-            generated_at: chrono::Utc::now().to_rfc3339(),
-            items,
-            feed_ready,
-            gate_reason,
-            required_minutes: MIN_SURVEY_MINUTES,
-            company_status: state.company_status.clone(),
-        }),
+        Json(serde_json::json!({
+            "ok": true,
+            "checkin": checkin,
+            "feed": refreshed
+        })),
+    )
+        .into_response()
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct ExecutionRefreshRequest {
+    user_id: Option<String>,
+    locale: Option<String>,
+}
+
+async fn execution_refresh(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<ExecutionRefreshRequest>,
+) -> impl IntoResponse {
+    let user_id = resolve_user_id_or_guest(&state, &headers, input.user_id.clone());
+    let request_locale = resolve_request_locale(&state, &user_id, input.locale.as_deref());
+    let response = build_proactive_feed_response(&state, user_id.as_str(), request_locale.as_str());
+    (StatusCode::OK, Json(response)).into_response()
+}
+
+async fn execution_controls_get(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let user_id = match session_user_from_headers(&state, &headers) {
+        Some(user) => user.user_id,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+    let controls = get_execution_controls(&state, user_id.as_str());
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "controls": controls
+        })),
+    )
+        .into_response()
+}
+
+async fn execution_controls_upsert(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<ExecutionControlsUpsertRequest>,
+) -> impl IntoResponse {
+    let user_id = match session_user_from_headers(&state, &headers) {
+        Some(user) => user.user_id,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+    let updated = {
+        let mut map = state.execution_controls.write();
+        let mut record = map
+            .get(&user_id)
+            .cloned()
+            .unwrap_or_else(|| default_execution_controls(&user_id));
+        if let Some(cadence) = input.cadence {
+            record.cadence =
+                sanitize_enum_value(cadence.as_str(), &["steady", "aggressive"], "steady");
+        }
+        if let Some(detail_level) = input.detail_level {
+            record.detail_level = sanitize_enum_value(
+                detail_level.as_str(),
+                &["concise", "standard", "expanded"],
+                "standard",
+            );
+        }
+        if let Some(value) = input.include_company_awareness {
+            record.include_company_awareness = value;
+        }
+        if let Some(value) = input.include_reminder_suggestions {
+            record.include_reminder_suggestions = value;
+        }
+        record.updated_at = chrono::Utc::now().to_rfc3339();
+        map.insert(user_id.clone(), record.clone());
+        record
+    };
+    let _ = persist_execution_controls_if_configured(&state, user_id.as_str()).await;
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "controls": updated
+        })),
     )
         .into_response()
 }
@@ -4149,159 +4367,712 @@ fn format_by_mode(
     }
 }
 
-fn build_proactive_feed(
-    _company_status: &CompanyStatusRecord,
-    user: &UserRecord,
-    prefs: Option<&StudioPreferencesRecord>,
+fn build_proactive_feed_response(
+    state: &ApiState,
+    user_id: &str,
+    request_locale: &str,
+) -> ProactiveFeedResponse {
+    const MIN_SURVEY_MINUTES: u32 = 20;
+
+    let user = state
+        .users
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_else(|| UserRecord {
+            user_id: user_id.to_string(),
+            provider: "guest".to_string(),
+            email: "guest@atlasmasa.local".to_string(),
+            name: "Guest".to_string(),
+            locale: request_locale.to_string(),
+            trip_style: Some("mixed".to_string()),
+            risk_preference: Some("medium".to_string()),
+            memory_opt_in: true,
+            passkey_user_handle: None,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        });
+    let mut effective_user = user;
+    effective_user.locale = request_locale.to_string();
+
+    let studio_pref = state
+        .studio_preferences
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_else(|| default_studio_preferences(user_id));
+    let survey_state = state.survey_states.read().get(user_id).cloned();
+    let notes = state
+        .user_notes
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default();
+    let controls = get_execution_controls(state, user_id);
+    let latest_checkin = latest_execution_checkin(state, user_id);
+    let memories = retrieve_user_memory_context(state, user_id, "", 20);
+    let elapsed_minutes = survey_state
+        .as_ref()
+        .and_then(survey_elapsed_minutes)
+        .unwrap_or(0);
+    let survey_complete = survey_state
+        .as_ref()
+        .map(|value| value.completed)
+        .unwrap_or(false);
+    let feed_ready = survey_complete && elapsed_minutes >= MIN_SURVEY_MINUTES;
+
+    let gate_reason = if feed_ready {
+        None
+    } else if request_locale.starts_with("he") {
+        Some(format!(
+            "זרם הביצוע ייפתח אחרי השלמת סקר העומק ולאחר לפחות {} דקות תהליך.",
+            MIN_SURVEY_MINUTES
+        ))
+    } else {
+        Some(format!(
+            "Execution Stream unlocks after completing the adaptive deep survey and at least {} minutes of survey process.",
+            MIN_SURVEY_MINUTES
+        ))
+    };
+    let items = if feed_ready {
+        build_orchestrated_proactive_feed(&ExecutionFeedContext {
+            company_status: &state.company_status,
+            user: &effective_user,
+            prefs: Some(&studio_pref),
+            survey: survey_state.as_ref(),
+            notes: Some(notes.as_slice()),
+            controls: &controls,
+            memories: memories.as_slice(),
+            latest_checkin: latest_checkin.as_ref(),
+        })
+    } else {
+        Vec::new()
+    };
+
+    ProactiveFeedResponse {
+        generated_at: chrono::Utc::now().to_rfc3339(),
+        items,
+        feed_ready,
+        gate_reason,
+        required_minutes: MIN_SURVEY_MINUTES,
+        company_status: state.company_status.clone(),
+    }
+}
+
+fn default_execution_controls(user_id: &str) -> ExecutionControlsRecord {
+    ExecutionControlsRecord {
+        user_id: user_id.to_string(),
+        cadence: "steady".to_string(),
+        detail_level: "standard".to_string(),
+        include_company_awareness: true,
+        include_reminder_suggestions: true,
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+fn get_execution_controls(state: &ApiState, user_id: &str) -> ExecutionControlsRecord {
+    state
+        .execution_controls
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_else(|| default_execution_controls(user_id))
+}
+
+fn latest_execution_checkin(state: &ApiState, user_id: &str) -> Option<ExecutionCheckinRecord> {
+    state
+        .execution_checkins
+        .read()
+        .get(user_id)
+        .and_then(|entries| entries.first().cloned())
+}
+
+fn schedule_minutes_offset(cadence: &str, horizon: &str, index: usize) -> i64 {
+    let cadence_base = match cadence {
+        "aggressive" => 8_i64,
+        _ => 18_i64,
+    };
+    let horizon_boost = match horizon {
+        "daily" => 0_i64,
+        "mid_term" => 50_i64,
+        "long_term" => 180_i64,
+        _ => 25_i64,
+    };
+    cadence_base + horizon_boost + (index as i64 * 12)
+}
+
+fn classify_horizon_from_text(text: &str) -> String {
+    let lower = text.trim().to_lowercase();
+    if [
+        "today",
+        "tonight",
+        "now",
+        "urgent",
+        "daily",
+        "היום",
+        "עכשיו",
+        "יומי",
+        "דחוף",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+    {
+        return "daily".to_string();
+    }
+    if [
+        "month",
+        "quarter",
+        "roadmap",
+        "milestone",
+        "חודש",
+        "רבעון",
+        "יעד ביניים",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+    {
+        return "mid_term".to_string();
+    }
+    if [
+        "year", "decade", "legacy", "mission", "חזון", "שנתי", "ארוך",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+    {
+        return "long_term".to_string();
+    }
+    "daily".to_string()
+}
+
+fn push_task_if_valid(tasks: &mut Vec<ExecutionTaskCandidate>, task: ExecutionTaskCandidate) {
+    let title = task.title.trim();
+    let detail = task.detail.trim();
+    if title.is_empty() || detail.is_empty() {
+        return;
+    }
+    tasks.push(task);
+}
+
+fn extract_note_tasks(notes: Option<&[UserNoteRecord]>) -> Vec<ExecutionTaskCandidate> {
+    let mut tasks = Vec::new();
+    let Some(notes) = notes else {
+        return tasks;
+    };
+    for note in notes.iter().take(8) {
+        let summary = sanitize_limited_text(note.content.as_str(), 200);
+        let horizon =
+            classify_horizon_from_text(format!("{} {}", note.title, note.content).as_str());
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: format!("note-{}", note.note_id),
+                title: note.title.clone(),
+                detail: summary,
+                source: "notes".to_string(),
+                horizon,
+                urgency: 0.72,
+                impact: 0.82,
+                confidence: 0.78,
+            },
+        );
+    }
+    tasks
+}
+
+fn extract_survey_tasks(
     survey: Option<&SurveyStateRecord>,
-    notes: Option<&[UserNoteRecord]>,
-) -> Vec<ProactiveFeedItem> {
-    let style = user
-        .trip_style
-        .clone()
-        .unwrap_or_else(|| "mixed".to_string());
-    let reminder_app = prefs
+    locale: &str,
+) -> Vec<ExecutionTaskCandidate> {
+    let mut tasks = Vec::new();
+    let Some(survey_state) = survey else {
+        return tasks;
+    };
+
+    if let Some(goal) = survey_state.answers.get("primary_goal") {
+        let detail = if locale == "he" {
+            format!("יעד אסטרטגי ראשי מהסקר: {}", goal)
+        } else {
+            format!("Primary strategic goal from survey: {}", goal)
+        };
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: "survey-primary-goal".to_string(),
+                title: if locale == "he" {
+                    "עיגון יעד אסטרטגי".to_string()
+                } else {
+                    "Anchor strategic objective".to_string()
+                },
+                detail,
+                source: "survey".to_string(),
+                horizon: "long_term".to_string(),
+                urgency: 0.6,
+                impact: 0.95,
+                confidence: 0.86,
+            },
+        );
+    }
+    if let Some(pressure) = survey_state.answers.get("daily_pressure") {
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: "survey-pressure".to_string(),
+                title: if locale == "he" {
+                    "ייצוב עומס יומי".to_string()
+                } else {
+                    "Stabilize daily pressure".to_string()
+                },
+                detail: if locale == "he" {
+                    format!(
+                        "המערכת זיהתה לחץ יומי ברמה {}. בצע חסימה יזומה ביומן.",
+                        pressure
+                    )
+                } else {
+                    format!(
+                        "Survey indicates daily pressure at {}. Block focus time in calendar.",
+                        pressure
+                    )
+                },
+                source: "survey".to_string(),
+                horizon: "daily".to_string(),
+                urgency: if pressure == "high" { 0.95 } else { 0.72 },
+                impact: 0.78,
+                confidence: 0.9,
+            },
+        );
+    }
+    if let Some(charity) = survey_state.answers.get("charity_commitment") {
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: "survey-charity".to_string(),
+                title: if locale == "he" {
+                    "תכנון תרומה ושפע".to_string()
+                } else {
+                    "Plan giving and abundance".to_string()
+                },
+                detail: if locale == "he" {
+                    format!("מחויבות תרומה שנבחרה: {}. קבע כלל ביצוע קבוע.", charity)
+                } else {
+                    format!(
+                        "Selected giving commitment: {}. Define a fixed execution rule.",
+                        charity
+                    )
+                },
+                source: "survey".to_string(),
+                horizon: "long_term".to_string(),
+                urgency: 0.48,
+                impact: 0.8,
+                confidence: 0.82,
+            },
+        );
+    }
+    tasks
+}
+
+fn extract_memory_tasks(
+    memories: &[MemoryRetrievedItem],
+    locale: &str,
+) -> Vec<ExecutionTaskCandidate> {
+    let mut tasks = Vec::new();
+    for memory in memories.iter().take(12) {
+        if !matches!(
+            memory.source.as_str(),
+            "chat" | "survey" | "feedback" | "note" | "note_rewrite" | "manual"
+        ) {
+            continue;
+        }
+        if memory.text.trim().is_empty() {
+            continue;
+        }
+        let horizon = if memory.memory_type == "goal" {
+            "long_term".to_string()
+        } else if memory.memory_type == "friction" || memory.memory_type == "mood" {
+            "daily".to_string()
+        } else {
+            classify_horizon_from_text(memory.text.as_str())
+        };
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: format!("memory-{}", memory.memory_id),
+                title: if locale == "he" {
+                    "משימה מנגזרת מזיכרון".to_string()
+                } else {
+                    "Action from long-term memory".to_string()
+                },
+                detail: sanitize_limited_text(memory.text.as_str(), 180),
+                source: memory.source.clone(),
+                horizon,
+                urgency: (memory.final_score * 0.9).clamp(0.4, 0.98),
+                impact: (memory.weight * 0.9).clamp(0.35, 0.95),
+                confidence: (memory.relevance_score * 0.6 + 0.35).clamp(0.35, 0.95),
+            },
+        );
+    }
+    tasks
+}
+
+fn extract_checkin_tasks(
+    checkin: Option<&ExecutionCheckinRecord>,
+    locale: &str,
+) -> Vec<ExecutionTaskCandidate> {
+    let mut tasks = Vec::new();
+    let Some(checkin) = checkin else {
+        return tasks;
+    };
+    push_task_if_valid(
+        &mut tasks,
+        ExecutionTaskCandidate {
+            task_id: format!("checkin-daily-{}", checkin.checkin_id),
+            title: if locale == "he" {
+                "פוקוס יומי מהצ׳ק-אין".to_string()
+            } else {
+                "Daily focus from check-in".to_string()
+            },
+            detail: checkin.daily_focus.clone(),
+            source: "checkin".to_string(),
+            horizon: "daily".to_string(),
+            urgency: 0.96,
+            impact: 0.82,
+            confidence: 0.95,
+        },
+    );
+    if let Some(mid) = checkin.mid_term_focus.as_ref() {
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: format!("checkin-mid-{}", checkin.checkin_id),
+                title: if locale == "he" {
+                    "יעד ביניים מהצ׳ק-אין".to_string()
+                } else {
+                    "Mid-term focus from check-in".to_string()
+                },
+                detail: mid.clone(),
+                source: "checkin".to_string(),
+                horizon: "mid_term".to_string(),
+                urgency: 0.68,
+                impact: 0.86,
+                confidence: 0.9,
+            },
+        );
+    }
+    if let Some(long) = checkin.long_term_focus.as_ref() {
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: format!("checkin-long-{}", checkin.checkin_id),
+                title: if locale == "he" {
+                    "כיוון ארוך-טווח מהצ׳ק-אין".to_string()
+                } else {
+                    "Long-horizon direction from check-in".to_string()
+                },
+                detail: long.clone(),
+                source: "checkin".to_string(),
+                horizon: "long_term".to_string(),
+                urgency: 0.55,
+                impact: 0.92,
+                confidence: 0.88,
+            },
+        );
+    }
+    tasks
+}
+
+fn build_company_awareness_task(
+    company_status: &CompanyStatusRecord,
+    locale: &str,
+) -> ExecutionTaskCandidate {
+    let detail = if locale == "he" {
+        format!(
+            "פאזה: {} | פוקוס: {} | בהמשך: {}",
+            company_status.phase,
+            company_status.current_focus.join(", "),
+            company_status.upcoming.join(", ")
+        )
+    } else {
+        format!(
+            "Phase: {} | Current focus: {} | Upcoming: {}",
+            company_status.phase,
+            company_status.current_focus.join(", "),
+            company_status.upcoming.join(", ")
+        )
+    };
+    ExecutionTaskCandidate {
+        task_id: "company-awareness".to_string(),
+        title: if locale == "he" {
+            "יישור לתכנית החברה".to_string()
+        } else {
+            "Align with company plan".to_string()
+        },
+        detail,
+        source: "company".to_string(),
+        horizon: "mid_term".to_string(),
+        urgency: 0.62,
+        impact: 0.84,
+        confidence: 0.93,
+    }
+}
+
+fn execution_priority_score(task: &ExecutionTaskCandidate) -> f32 {
+    let horizon_boost = match task.horizon.as_str() {
+        "daily" => 0.12,
+        "mid_term" => 0.08,
+        "long_term" => 0.05,
+        _ => 0.03,
+    };
+    (task.impact * 0.45 + task.urgency * 0.35 + task.confidence * 0.2 + horizon_boost)
+        .clamp(0.0, 1.25)
+}
+
+fn prioritize_execution_tasks(tasks: Vec<ExecutionTaskCandidate>) -> Vec<ExecutionTaskCandidate> {
+    let mut dedup = HashMap::<String, ExecutionTaskCandidate>::new();
+    for task in tasks {
+        let key = task.title.trim().to_lowercase();
+        match dedup.get(&key) {
+            Some(existing)
+                if execution_priority_score(existing) >= execution_priority_score(&task) => {}
+            _ => {
+                dedup.insert(key, task);
+            }
+        }
+    }
+    let mut ranked = dedup.into_values().collect::<Vec<_>>();
+    ranked.sort_by(|lhs, rhs| {
+        execution_priority_score(rhs).total_cmp(&execution_priority_score(lhs))
+    });
+    ranked
+}
+
+fn build_orchestrated_proactive_feed(context: &ExecutionFeedContext<'_>) -> Vec<ProactiveFeedItem> {
+    let reminder_app = context
+        .prefs
         .map(|value| value.reminders_app.clone())
         .unwrap_or_else(|| "google_calendar".to_string());
-    let alarm_app = prefs
+    let alarm_app = context
+        .prefs
         .map(|value| value.alarms_app.clone())
         .unwrap_or_else(|| "apple_clock".to_string());
+    let mut tasks = Vec::new();
+    tasks.extend(extract_checkin_tasks(
+        context.latest_checkin,
+        context.user.locale.as_str(),
+    ));
+    tasks.extend(extract_note_tasks(context.notes));
+    tasks.extend(extract_survey_tasks(
+        context.survey,
+        context.user.locale.as_str(),
+    ));
+    tasks.extend(extract_memory_tasks(
+        context.memories,
+        context.user.locale.as_str(),
+    ));
+    if context.controls.include_company_awareness {
+        tasks.push(build_company_awareness_task(
+            context.company_status,
+            context.user.locale.as_str(),
+        ));
+    }
+    let ranked = prioritize_execution_tasks(tasks);
+    let mut items = Vec::new();
+    let now = chrono::Utc::now();
 
-    let mut items = vec![ProactiveFeedItem {
-        id: "daily_momentum".to_string(),
-        title: if user.locale == "he" {
-            "תכנית מומנטום יומית".to_string()
-        } else {
-            "Daily momentum plan".to_string()
-        },
-        summary: if user.locale == "he" {
-            "להגדיר יעד יומי, להפעיל תזכורת, ולבצע בלוק פוקוס ראשון תוך 30 דקות.".to_string()
-        } else {
-            "Define one daily target, trigger a reminder, and execute first focus block in 30 minutes."
-                .to_string()
-        },
-        why_now: if user.locale == "he" {
-            format!("העדפות פעילות: סגנון {}.", style)
-        } else {
-            format!("Your profile suggests style={}.", style)
-        },
-        priority: "high".to_string(),
-        actions: vec![
-            atlas_core::SuggestedAction {
+    if let Some(top) = ranked.first() {
+        let due_at = now
+            + chrono::Duration::minutes(schedule_minutes_offset(
+                context.controls.cadence.as_str(),
+                "daily",
+                0,
+            ));
+        let mut actions = Vec::new();
+        if context.controls.include_reminder_suggestions {
+            actions.push(atlas_core::SuggestedAction {
                 action_type: "create_reminder".to_string(),
-                label: if user.locale == "he" {
-                    "תזכורת לביצוע".to_string()
+                label: if context.user.locale == "he" {
+                    "תזכורת לביצוע מיידי".to_string()
                 } else {
-                    "Execution reminder".to_string()
+                    "Set immediate execution reminder".to_string()
                 },
                 payload: serde_json::json!({
-                    "title": "Atlas Masa daily momentum",
-                    "details": "Execute first strategic action now",
-                    "due_at_utc": (chrono::Utc::now() + chrono::Duration::minutes(20)).to_rfc3339(),
+                    "title": top.title,
+                    "details": top.detail,
+                    "due_at_utc": due_at.to_rfc3339(),
                     "reminders_app": reminder_app
                 }),
-            },
-            atlas_core::SuggestedAction {
+            });
+            actions.push(atlas_core::SuggestedAction {
                 action_type: "create_alarm".to_string(),
-                label: if user.locale == "he" {
-                    "אזעקת פוקוס".to_string()
+                label: if context.user.locale == "he" {
+                    "אזעקת התחלה".to_string()
                 } else {
-                    "Focus alarm".to_string()
+                    "Start alarm".to_string()
                 },
                 payload: serde_json::json!({
-                    "label": "Atlas focus sprint",
+                    "label": "Atlas next action now",
                     "time_local": "09:00",
                     "days": ["Sun","Mon","Tue","Wed","Thu"],
                     "alarms_app": alarm_app
                 }),
+            });
+        }
+        items.push(ProactiveFeedItem {
+            id: "next_action_now".to_string(),
+            title: if context.user.locale == "he" {
+                "הפעולה הבאה עכשיו".to_string()
+            } else {
+                "Next action now".to_string()
             },
-        ],
-    }];
-
-    if let Some(survey_state) = survey {
-        if survey_state
-            .answers
-            .get("daily_pressure")
-            .map(|value| value == "high")
-            .unwrap_or(false)
-        {
-            items.push(ProactiveFeedItem {
-                id: "stress_routine".to_string(),
-                title: if user.locale == "he" {
-                    "רוטינת איפוס עומס".to_string()
-                } else {
-                    "Stress reset routine".to_string()
-                },
-                summary: if user.locale == "he" {
-                    "הפסקת 12 דקות: נשימה, שתייה קרה, והליכה קצרה לפני בלוק העבודה הבא."
-                        .to_string()
-                } else {
-                    "12-minute reset: breathing, cold drink, and short walk before next work block."
-                        .to_string()
-                },
-                why_now: if user.locale == "he" {
-                    "הסקר זיהה עומס יומי גבוה.".to_string()
-                } else {
-                    "Survey detected high daily pressure.".to_string()
-                },
-                priority: "high".to_string(),
-                actions: vec![atlas_core::SuggestedAction {
-                    action_type: "create_reminder".to_string(),
-                    label: if user.locale == "he" {
-                        "תזכורת להפסקת איפוס".to_string()
-                    } else {
-                        "Reset break reminder".to_string()
-                    },
-                    payload: serde_json::json!({
-                        "title": "Atlas reset break",
-                        "details": "12 minutes reset routine",
-                        "due_at_utc": (chrono::Utc::now() + chrono::Duration::minutes(45)).to_rfc3339(),
-                        "reminders_app": reminder_app
-                    }),
-                }],
-            });
-        }
+            summary: format!("{} — {}", top.title, top.detail),
+            why_now: if context.user.locale == "he" {
+                format!("מקור: {} | אופק: {}", top.source, top.horizon)
+            } else {
+                format!("Source: {} | Horizon: {}", top.source, top.horizon)
+            },
+            priority: "critical".to_string(),
+            actions,
+        });
     }
 
-    if let Some(notes) = notes {
-        if let Some(note) = notes.first() {
-            items.push(ProactiveFeedItem {
-                id: "note_alignment".to_string(),
-                title: if user.locale == "he" {
-                    "יישור למשימה מרכזית".to_string()
-                } else {
-                    "Priority alignment".to_string()
-                },
-                summary: if user.locale == "he" {
-                    format!("מהפתק \"{}\": {}.", note.title, note.content.chars().take(120).collect::<String>())
-                } else {
-                    format!("From note \"{}\": {}.", note.title, note.content.chars().take(120).collect::<String>())
-                },
-                why_now: if user.locale == "he" {
-                    "המערכת מושכת את המשימה החשובה ביותר לזירת הביצוע היומית.".to_string()
-                } else {
-                    "The system elevates your highest-priority note into daily execution.".to_string()
-                },
-                priority: "high".to_string(),
-                actions: vec![atlas_core::SuggestedAction {
-                    action_type: "create_reminder".to_string(),
-                    label: if user.locale == "he" {
-                        "תזכורת למשימה מהפתק".to_string()
-                    } else {
-                        "Reminder from note".to_string()
-                    },
-                    payload: serde_json::json!({
-                        "title": note.title,
-                        "details": note.content,
-                        "due_at_utc": (chrono::Utc::now() + chrono::Duration::minutes(35)).to_rfc3339(),
-                        "reminders_app": reminder_app
-                    }),
-                }],
-            });
+    let mut used_task_ids = HashSet::new();
+    if let Some(top) = ranked.first() {
+        used_task_ids.insert(top.task_id.clone());
+    }
+    let mut selected = Vec::new();
+    for horizon in ["daily", "mid_term", "long_term"] {
+        if let Some(task) = ranked.iter().find(|candidate| {
+            candidate.horizon == horizon && !used_task_ids.contains(&candidate.task_id)
+        }) {
+            used_task_ids.insert(task.task_id.clone());
+            selected.push(task.clone());
         }
     }
+    for task in ranked.iter() {
+        if selected.len() >= 4 {
+            break;
+        }
+        if used_task_ids.contains(&task.task_id) {
+            continue;
+        }
+        used_task_ids.insert(task.task_id.clone());
+        selected.push(task.clone());
+    }
 
-    items
+    for (index, task) in selected.iter().enumerate() {
+        let due_at = now
+            + chrono::Duration::minutes(schedule_minutes_offset(
+                context.controls.cadence.as_str(),
+                task.horizon.as_str(),
+                index + 1,
+            ));
+        let mut actions = Vec::new();
+        if context.controls.include_reminder_suggestions {
+            actions.push(atlas_core::SuggestedAction {
+                action_type: "create_reminder".to_string(),
+                label: if context.user.locale == "he" {
+                    "קבע תזכורת".to_string()
+                } else {
+                    "Set reminder".to_string()
+                },
+                payload: serde_json::json!({
+                    "title": task.title,
+                    "details": task.detail,
+                    "due_at_utc": due_at.to_rfc3339(),
+                    "reminders_app": reminder_app
+                }),
+            });
+        }
+        if task.source == "company" {
+            actions.push(atlas_core::SuggestedAction {
+                action_type: "open_company_status".to_string(),
+                label: if context.user.locale == "he" {
+                    "פתח סטטוס חברה".to_string()
+                } else {
+                    "Open company status".to_string()
+                },
+                payload: serde_json::json!({}),
+            });
+        }
+        items.push(ProactiveFeedItem {
+            id: task.task_id.clone(),
+            title: task.title.clone(),
+            summary: task.detail.clone(),
+            why_now: if context.user.locale == "he" {
+                format!("אופק {} | סדר עדיפויות מחושב", task.horizon)
+            } else {
+                format!("{} horizon | prioritized by execution engine", task.horizon)
+            },
+            priority: if execution_priority_score(task) > 0.85 {
+                "high".to_string()
+            } else {
+                "normal".to_string()
+            },
+            actions,
+        });
+    }
+
+    if context.controls.include_company_awareness {
+        items.push(ProactiveFeedItem {
+            id: "company_planning_awareness".to_string(),
+            title: if context.user.locale == "he" {
+                "מודעות תכנית חברה".to_string()
+            } else {
+                "Company planning awareness".to_string()
+            },
+            summary: context.company_status.message.clone(),
+            why_now: if context.user.locale == "he" {
+                format!(
+                    "פאזה {}. פוקוס: {}.",
+                    context.company_status.phase,
+                    context.company_status.current_focus.join(", ")
+                )
+            } else {
+                format!(
+                    "Phase {}. Focus: {}.",
+                    context.company_status.phase,
+                    context.company_status.current_focus.join(", ")
+                )
+            },
+            priority: "normal".to_string(),
+            actions: vec![atlas_core::SuggestedAction {
+                action_type: "open_company_status".to_string(),
+                label: if context.user.locale == "he" {
+                    "סקירת סטטוס מלאה".to_string()
+                } else {
+                    "Review full company status".to_string()
+                },
+                payload: serde_json::json!({}),
+            }],
+        });
+    }
+
+    if context.controls.detail_level == "concise" {
+        items
+            .into_iter()
+            .map(|mut item| {
+                item.summary = sanitize_limited_text(item.summary.as_str(), 120);
+                item.why_now = sanitize_limited_text(item.why_now.as_str(), 90);
+                item
+            })
+            .collect()
+    } else if context.controls.detail_level == "expanded" {
+        items
+            .into_iter()
+            .map(|mut item| {
+                item.why_now = format!(
+                    "{} | {}",
+                    item.why_now,
+                    if context.user.locale == "he" {
+                        "המלצה זו נגזרת מדפוסי שימוש, זיכרון ארוך-טווח ויעדי אופק."
+                    } else {
+                        "Recommendation derived from usage patterns, long-term memory, and horizon goals."
+                    }
+                );
+                item
+            })
+            .collect()
+    } else {
+        items
+    }
 }
 
 fn build_survey_hints(state: &SurveyStateRecord) -> Vec<String> {
@@ -5408,6 +6179,29 @@ async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {
 
     sqlx::query(
         r#"
+        CREATE TABLE IF NOT EXISTS execution_checkins (
+          checkin_id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          data_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS execution_controls (
+          user_id TEXT PRIMARY KEY,
+          data_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS passkeys (
           passkey_id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
@@ -5546,6 +6340,30 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
                 .entry(row.get("user_id"))
                 .or_default()
                 .push(value);
+        }
+    }
+
+    let checkins = sqlx::query("SELECT user_id, data_json FROM execution_checkins")
+        .fetch_all(pool)
+        .await?;
+    for row in checkins {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<ExecutionCheckinRecord>(&json) {
+            state
+                .execution_checkins
+                .entry(row.get("user_id"))
+                .or_default()
+                .push(value);
+        }
+    }
+
+    let controls = sqlx::query("SELECT user_id, data_json FROM execution_controls")
+        .fetch_all(pool)
+        .await?;
+    for row in controls {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<ExecutionControlsRecord>(&json) {
+            state.execution_controls.insert(row.get("user_id"), value);
         }
     }
 
@@ -5727,6 +6545,56 @@ async fn persist_notes_if_configured(state: &ApiState, user_id: &str) -> Result<
             .execute(pool)
             .await?;
     }
+    Ok(())
+}
+
+async fn persist_checkins_if_configured(state: &ApiState, user_id: &str) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    sqlx::query("DELETE FROM execution_checkins WHERE user_id = ?1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    let checkins = state
+        .execution_checkins
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default();
+    for checkin in checkins {
+        let json = serde_json::to_string(&checkin)?;
+        sqlx::query(
+            "INSERT INTO execution_checkins (checkin_id, user_id, data_json) VALUES (?1, ?2, ?3)",
+        )
+        .bind(checkin.checkin_id)
+        .bind(user_id)
+        .bind(json)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+async fn persist_execution_controls_if_configured(state: &ApiState, user_id: &str) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    let Some(controls) = state.execution_controls.read().get(user_id).cloned() else {
+        return Ok(());
+    };
+    let json = serde_json::to_string(&controls)?;
+    sqlx::query(
+        r#"
+        INSERT INTO execution_controls (user_id, data_json)
+        VALUES (?1, ?2)
+        ON CONFLICT(user_id) DO UPDATE SET data_json=excluded.data_json
+        "#,
+    )
+    .bind(user_id)
+    .bind(json)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -6344,7 +7212,8 @@ async fn security_headers_middleware(
 mod tests {
     use super::{
         build_clear_cookie, build_session_cookie, ingest_memory_records_if_opted_in,
-        retrieve_memory_context_from_records, MemoryIngestEvent, MemoryRecord,
+        prioritize_execution_tasks, retrieve_memory_context_from_records, schedule_minutes_offset,
+        ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
     };
     use chrono::Duration;
 
@@ -6486,5 +7355,45 @@ mod tests {
         );
         assert!(ingested.is_none());
         assert!(records.is_empty());
+    }
+
+    #[test]
+    fn scheduling_offsets_follow_cadence_and_horizon() {
+        let aggressive_daily = schedule_minutes_offset("aggressive", "daily", 0);
+        let steady_daily = schedule_minutes_offset("steady", "daily", 0);
+        let steady_mid = schedule_minutes_offset("steady", "mid_term", 0);
+        let steady_long = schedule_minutes_offset("steady", "long_term", 0);
+        assert!(aggressive_daily < steady_daily);
+        assert!(steady_mid > steady_daily);
+        assert!(steady_long > steady_mid);
+    }
+
+    #[test]
+    fn prioritization_prefers_urgent_daily_execution() {
+        let ranked = prioritize_execution_tasks(vec![
+            ExecutionTaskCandidate {
+                task_id: "long-a".to_string(),
+                title: "Long mission planning".to_string(),
+                detail: "Prepare annual strategic narrative".to_string(),
+                source: "survey".to_string(),
+                horizon: "long_term".to_string(),
+                urgency: 0.45,
+                impact: 0.95,
+                confidence: 0.85,
+            },
+            ExecutionTaskCandidate {
+                task_id: "daily-a".to_string(),
+                title: "Next action now".to_string(),
+                detail: "Ship the current customer deliverable in this block".to_string(),
+                source: "checkin".to_string(),
+                horizon: "daily".to_string(),
+                urgency: 0.97,
+                impact: 0.82,
+                confidence: 0.94,
+            },
+        ]);
+
+        assert!(!ranked.is_empty());
+        assert_eq!(ranked[0].task_id, "daily-a");
     }
 }

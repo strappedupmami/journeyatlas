@@ -548,8 +548,81 @@
               <p class="subtle" data-i18n="studio.feedSub">
                 זרם ביצוע מותאם נפתח רק לאחר השלמת סקר עומק מלא (20+ דקות) כדי לייצר תכנית איכותית.
               </p>
+              <div class="survey-card" style="margin-top: 10px">
+                <h3 data-i18n="studio.checkinTitle">צ׳ק-אין ביצוע יומי</h3>
+                <div class="field">
+                  <label for="checkin-daily-focus" data-i18n="studio.checkinDailyFocus">מה הפוקוס להיום?</label>
+                  <textarea id="checkin-daily-focus" data-i18n-placeholder="studio.checkinDailyFocusPh" placeholder="לדוגמה: להשלים דיליברבל מרכזי עד 14:00"></textarea>
+                </div>
+                <div class="field">
+                  <label for="checkin-mid-focus" data-i18n="studio.checkinMidFocus">יעד ביניים (7-30 ימים)</label>
+                  <input id="checkin-mid-focus" data-i18n-placeholder="studio.checkinMidFocusPh" placeholder="לדוגמה: לסיים MVP ולהפעיל ניסוי משתמשים" />
+                </div>
+                <div class="field">
+                  <label for="checkin-long-focus" data-i18n="studio.checkinLongFocus">כיוון ארוך-טווח (רבעון ומעלה)</label>
+                  <input id="checkin-long-focus" data-i18n-placeholder="studio.checkinLongFocusPh" placeholder="לדוגמה: לבנות מנוע הכנסות יציב וסקיילבילי" />
+                </div>
+                <div class="field">
+                  <label for="checkin-blocker" data-i18n="studio.checkinBlocker">מה החסם הראשי כרגע?</label>
+                  <input id="checkin-blocker" data-i18n-placeholder="studio.checkinBlockerPh" placeholder="לדוגמה: עומס הקשר/הסחות/חוסר ודאות" />
+                </div>
+                <div class="field">
+                  <label for="checkin-next-action" data-i18n="studio.checkinNextAction">מה הפעולה הבאה עכשיו?</label>
+                  <input id="checkin-next-action" data-i18n-placeholder="studio.checkinNextActionPh" placeholder="לדוגמה: לסגור 25 דק׳ פוקוס ולהתחיל משימה 1" />
+                </div>
+                <div class="field">
+                  <label for="checkin-energy" data-i18n="studio.checkinEnergy">רמת אנרגיה נוכחית (1-5)</label>
+                  <select id="checkin-energy">
+                    <option value="">-</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </div>
+                <div class="actions">
+                  <button class="btn btn--primary" id="submit-checkin-btn" type="button" data-i18n="studio.checkinSubmit">שמירת צ׳ק-אין ורענון תכנית</button>
+                </div>
+              </div>
+              <div class="survey-card" style="margin-top: 10px">
+                <h3 data-i18n="studio.controlsTitle">בקרות פלט יזום</h3>
+                <div class="field">
+                  <label for="execution-cadence" data-i18n="studio.controlsCadence">קצב דחיפה</label>
+                  <select id="execution-cadence">
+                    <option value="steady">steady</option>
+                    <option value="aggressive">aggressive</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="execution-detail-level" data-i18n="studio.controlsDetail">רמת פירוט</label>
+                  <select id="execution-detail-level">
+                    <option value="concise">concise</option>
+                    <option value="standard">standard</option>
+                    <option value="expanded">expanded</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="execution-company-awareness" data-i18n="studio.controlsCompany">לשלב מודעות סטטוס ותכנון חברה</label>
+                  <select id="execution-company-awareness">
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="execution-reminders" data-i18n="studio.controlsReminders">להציג הצעות תזכורת/אזעקה</label>
+                  <select id="execution-reminders">
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                </div>
+                <div class="actions">
+                  <button class="btn btn--ghost" id="save-execution-controls-btn" type="button" data-i18n="studio.controlsSave">שמירת בקרות פלט</button>
+                </div>
+              </div>
               <div class="actions">
                 <button class="btn btn--primary" id="refresh-feed-btn" type="button" data-i18n="studio.refreshFeed">רענון זרם</button>
+                <button class="btn btn--ghost" id="refresh-plan-btn" type="button" data-i18n="studio.refreshPlan">רענון תכנית ביצוע</button>
               </div>
               <div class="stack" id="feed-list"></div>
             </section>
@@ -685,7 +758,27 @@
             surveyVoice: "תשובה קולית",
             feedbackHint: "אם המערכת מזהה חיכוך משמעותי, היא תציע לשלוח דו״ח אנונימי ומפורט לצוות המוצר.",
             feedSub: "זרם ביצוע מותאם נפתח רק לאחר השלמת סקר עומק מלא (20+ דקות) כדי לייצר תכנית איכותית.",
+            checkinTitle: "צ׳ק-אין ביצוע יומי",
+            checkinDailyFocus: "מה הפוקוס להיום?",
+            checkinDailyFocusPh: "לדוגמה: להשלים דיליברבל מרכזי עד 14:00",
+            checkinMidFocus: "יעד ביניים (7-30 ימים)",
+            checkinMidFocusPh: "לדוגמה: לסיים MVP ולהפעיל ניסוי משתמשים",
+            checkinLongFocus: "כיוון ארוך-טווח (רבעון ומעלה)",
+            checkinLongFocusPh: "לדוגמה: לבנות מנוע הכנסות יציב וסקיילבילי",
+            checkinBlocker: "מה החסם הראשי כרגע?",
+            checkinBlockerPh: "לדוגמה: עומס הקשר/הסחות/חוסר ודאות",
+            checkinNextAction: "מה הפעולה הבאה עכשיו?",
+            checkinNextActionPh: "לדוגמה: לסגור 25 דק׳ פוקוס ולהתחיל משימה 1",
+            checkinEnergy: "רמת אנרגיה נוכחית (1-5)",
+            checkinSubmit: "שמירת צ׳ק-אין ורענון תכנית",
+            controlsTitle: "בקרות פלט יזום",
+            controlsCadence: "קצב דחיפה",
+            controlsDetail: "רמת פירוט",
+            controlsCompany: "לשלב מודעות סטטוס ותכנון חברה",
+            controlsReminders: "להציג הצעות תזכורת/אזעקה",
+            controlsSave: "שמירת בקרות פלט",
             refreshFeed: "רענון זרם",
+            refreshPlan: "רענון תכנית ביצוע",
             outputTitle: "פלט מערכת",
             outputReady: "המערכת מוכנה. התחילו עם שאלה או סקר עומק.",
             autoTitle: "מה המערכת עושה אוטומטית?",
@@ -784,7 +877,27 @@
             surveyVoice: "Voice answer",
             feedbackHint: "When the system detects significant friction, it can offer to send a detailed anonymized report to the product team.",
             feedSub: "Execution Stream unlocks only after completing the adaptive deep survey (20+ minutes) for higher-quality guidance.",
+            checkinTitle: "Daily execution check-in",
+            checkinDailyFocus: "What is today's focus?",
+            checkinDailyFocusPh: "Example: deliver the core milestone by 14:00",
+            checkinMidFocus: "Mid-term objective (7-30 days)",
+            checkinMidFocusPh: "Example: finish MVP and run user pilot",
+            checkinLongFocus: "Long-horizon direction (quarter+)",
+            checkinLongFocusPh: "Example: build durable and scalable revenue engine",
+            checkinBlocker: "Main blocker right now",
+            checkinBlockerPh: "Example: context switching/distraction/uncertainty",
+            checkinNextAction: "What is the next action now?",
+            checkinNextActionPh: "Example: lock a 25-minute focus block and start task #1",
+            checkinEnergy: "Current energy level (1-5)",
+            checkinSubmit: "Save check-in and refresh plan",
+            controlsTitle: "Proactive output controls",
+            controlsCadence: "Execution push cadence",
+            controlsDetail: "Detail level",
+            controlsCompany: "Include company status and planning awareness",
+            controlsReminders: "Include reminder/alarm suggestions",
+            controlsSave: "Save output controls",
             refreshFeed: "Refresh stream",
+            refreshPlan: "Refresh execution plan",
             outputTitle: "System output",
             outputReady: "System is ready. Start with a prompt or deep survey.",
             autoTitle: "What runs automatically?",
@@ -832,6 +945,12 @@
           alarms_app: "apple_clock",
           voice_mode: "enabled",
         },
+        executionControls: {
+          cadence: "steady",
+          detail_level: "standard",
+          include_company_awareness: true,
+          include_reminder_suggestions: true,
+        },
         proactiveItems: [],
         notes: [],
         activeNoteId: null,
@@ -872,7 +991,20 @@
       const surveyNextBtn = document.getElementById("survey-next-btn");
       const surveyVoiceBtn = document.getElementById("survey-voice-btn");
       const refreshFeedBtn = document.getElementById("refresh-feed-btn");
+      const refreshPlanBtn = document.getElementById("refresh-plan-btn");
       const feedList = document.getElementById("feed-list");
+      const checkinDailyFocus = document.getElementById("checkin-daily-focus");
+      const checkinMidFocus = document.getElementById("checkin-mid-focus");
+      const checkinLongFocus = document.getElementById("checkin-long-focus");
+      const checkinBlocker = document.getElementById("checkin-blocker");
+      const checkinNextAction = document.getElementById("checkin-next-action");
+      const checkinEnergy = document.getElementById("checkin-energy");
+      const submitCheckinBtn = document.getElementById("submit-checkin-btn");
+      const executionCadence = document.getElementById("execution-cadence");
+      const executionDetailLevel = document.getElementById("execution-detail-level");
+      const executionCompanyAwareness = document.getElementById("execution-company-awareness");
+      const executionReminders = document.getElementById("execution-reminders");
+      const saveExecutionControlsBtn = document.getElementById("save-execution-controls-btn");
       const saveStudioBtn = document.getElementById("save-studio-btn");
       const loadStudioBtn = document.getElementById("load-studio-btn");
       const preferredFormat = document.getElementById("preferred-format");
@@ -1231,6 +1363,20 @@
         state.studio.reminders_app = remindersApp.value;
         state.studio.alarms_app = alarmsApp.value;
         state.studio.voice_mode = voiceMode.value;
+      }
+
+      function syncExecutionControls() {
+        executionCadence.value = state.executionControls.cadence || "steady";
+        executionDetailLevel.value = state.executionControls.detail_level || "standard";
+        executionCompanyAwareness.value = state.executionControls.include_company_awareness ? "true" : "false";
+        executionReminders.value = state.executionControls.include_reminder_suggestions ? "true" : "false";
+      }
+
+      function collectExecutionControls() {
+        state.executionControls.cadence = executionCadence.value || "steady";
+        state.executionControls.detail_level = executionDetailLevel.value || "standard";
+        state.executionControls.include_company_awareness = executionCompanyAwareness.value !== "false";
+        state.executionControls.include_reminder_suggestions = executionReminders.value !== "false";
       }
 
       function applyLaunchPreset(launch, options = {}) {
@@ -1785,6 +1931,7 @@
         await restoreSession();
         renderOutput(state.locale === "he" ? "התחברות Passkey הצליחה" : "Passkey sign-in complete", ["auth", "passkey"], finish.payload);
         await loadStudioPreferences();
+        await loadExecutionControls();
         await loadNotes();
         await loadProactiveFeed();
       }
@@ -1928,6 +2075,13 @@
         state.subscription = { bypass: false, active: false, tier: "standard" };
         state.notes = [];
         state.activeNoteId = null;
+        state.executionControls = {
+          cadence: "steady",
+          detail_level: "standard",
+          include_company_awareness: true,
+          include_reminder_suggestions: true,
+        };
+        syncExecutionControls();
         if (noteTitle) noteTitle.value = "";
         if (noteContent) noteContent.value = "";
         updateUserState();
@@ -1980,6 +2134,145 @@
         state.studio = Object.assign({}, state.studio, result.payload.preferences || {});
         syncStudioControls();
         renderOutput(state.locale === "he" ? "הגדרות סטודיו נשמרו" : "Studio settings saved", ["studio", state.studio.preferred_format]);
+      }
+
+      async function loadExecutionControls() {
+        if (!state.user) {
+          state.executionControls = {
+            cadence: "steady",
+            detail_level: "standard",
+            include_company_awareness: true,
+            include_reminder_suggestions: true,
+          };
+          syncExecutionControls();
+          return;
+        }
+        const result = await request("/v1/execution/controls");
+        if (!result.ok || !result.payload || !result.payload.controls) {
+          syncExecutionControls();
+          return;
+        }
+        state.executionControls = Object.assign({}, state.executionControls, result.payload.controls);
+        syncExecutionControls();
+      }
+
+      async function saveExecutionControls() {
+        if (!state.user) {
+          renderOutput(
+            state.locale === "he" ? "צריך להתחבר כדי לשמור בקרות פלט" : "Sign in to save proactive controls",
+            ["execution", "controls", "auth"]
+          );
+          return;
+        }
+        collectExecutionControls();
+        const result = await request("/v1/execution/controls", "POST", {
+          cadence: state.executionControls.cadence,
+          detail_level: state.executionControls.detail_level,
+          include_company_awareness: state.executionControls.include_company_awareness,
+          include_reminder_suggestions: state.executionControls.include_reminder_suggestions,
+        });
+        if (!result.ok) {
+          renderOutput(
+            `${state.locale === "he" ? "שמירת בקרות נכשלה" : "Saving controls failed"} (${result.status})`,
+            ["execution", "controls", "error"],
+            result.payload
+          );
+          return;
+        }
+        state.executionControls = Object.assign({}, state.executionControls, result.payload.controls || {});
+        syncExecutionControls();
+        renderOutput(
+          state.locale === "he" ? "בקרות הפלט נשמרו" : "Proactive output controls saved",
+          ["execution", "controls", state.executionControls.cadence]
+        );
+        await refreshExecutionPlan(true);
+      }
+
+      async function submitExecutionCheckin() {
+        if (!state.user) {
+          renderOutput(
+            state.locale === "he" ? "צריך להתחבר כדי לשמור צ׳ק-אין" : "Sign in to submit a check-in",
+            ["execution", "checkin", "auth"]
+          );
+          return;
+        }
+        const payload = {
+          daily_focus: (checkinDailyFocus.value || "").trim(),
+          mid_term_focus: (checkinMidFocus.value || "").trim() || undefined,
+          long_term_focus: (checkinLongFocus.value || "").trim() || undefined,
+          blocker: (checkinBlocker.value || "").trim() || undefined,
+          next_action_now: (checkinNextAction.value || "").trim() || undefined,
+          energy_level: checkinEnergy.value ? Number(checkinEnergy.value) : undefined,
+        };
+        if (!payload.daily_focus) {
+          renderOutput(
+            state.locale === "he" ? "הזינו פוקוס יומי כדי לשמור צ׳ק-אין" : "Enter daily focus to save check-in",
+            ["execution", "checkin", "input"]
+          );
+          return;
+        }
+        const result = await request("/v1/execution/checkin", "POST", payload);
+        if (!result.ok) {
+          renderOutput(
+            `${state.locale === "he" ? "שמירת צ׳ק-אין נכשלה" : "Check-in submission failed"} (${result.status})`,
+            ["execution", "checkin", "error"],
+            result.payload
+          );
+          return;
+        }
+        if (result.payload && result.payload.feed) {
+          renderFeed(result.payload.feed.items || []);
+          setMomentumEnabled(!!result.payload.feed.feed_ready, result.payload.feed.gate_reason || "");
+        }
+        renderOutput(
+          state.locale === "he"
+            ? "צ׳ק-אין נשמר. הפעולה הבאה עכשיו חושבה מחדש."
+            : "Check-in saved. Next action now has been recalculated.",
+          ["execution", "checkin", "next-action"],
+          result.payload
+        );
+      }
+
+      async function refreshExecutionPlan(silent = false) {
+        const result = await request("/v1/execution/refresh", "POST", {
+          locale: state.locale,
+        });
+        if (!result.ok) {
+          setMomentumEnabled(false, state.locale === "he" ? "תכנית הביצוע לא זמינה כרגע." : "Execution plan is unavailable right now.");
+          renderFeed([]);
+          if (!silent) {
+            renderOutput(
+              `${state.locale === "he" ? "רענון תכנית נכשל" : "Execution plan refresh failed"} (${result.status})`,
+              ["execution", "refresh", "error"],
+              result.payload
+            );
+          }
+          return;
+        }
+
+        if (result.payload.feed_ready === false) {
+          setMomentumEnabled(false, result.payload.gate_reason || "");
+          renderFeed([]);
+          if (!silent && result.payload.gate_reason) {
+            renderOutput(result.payload.gate_reason, ["execution", "stream", "locked"], result.payload);
+          }
+          return;
+        }
+
+        setMomentumEnabled(true, "");
+        renderFeed(result.payload.items || []);
+        if (!silent) {
+          const first = (result.payload.items || [])[0];
+          renderOutput(
+            first && first.summary
+              ? first.summary
+              : state.locale === "he"
+              ? "התכנית עודכנה."
+              : "Execution plan refreshed.",
+            ["execution", "refresh", "priority"],
+            result.payload
+          );
+        }
       }
 
       async function loadNotes() {
@@ -2562,6 +2855,9 @@
         surveyNextBtn.addEventListener("click", () => submitSurveyAnswer());
         surveyVoiceBtn.addEventListener("click", toggleVoiceInput);
         refreshFeedBtn.addEventListener("click", () => loadProactiveFeed(false));
+        if (refreshPlanBtn) refreshPlanBtn.addEventListener("click", () => refreshExecutionPlan(false));
+        if (submitCheckinBtn) submitCheckinBtn.addEventListener("click", submitExecutionCheckin);
+        if (saveExecutionControlsBtn) saveExecutionControlsBtn.addEventListener("click", saveExecutionControls);
 
         window.addEventListener("atlas:language-change", (event) => {
           state.locale = (event && event.detail && event.detail.code) || "he";
@@ -2575,6 +2871,7 @@
           if (state.feature === "survey") {
             loadSurveyNext();
           }
+          syncExecutionControls();
           loadProactiveFeed(true);
         });
       }
@@ -2637,6 +2934,7 @@
         renderMode();
         setPressed(styleSegment, "style", state.style);
         syncStudioControls();
+        syncExecutionControls();
         applyCapabilityGates();
         setMomentumEnabled(false, state.locale === "he" ? "נפתח לאחר סקר עומק מלא." : "Unlocks after full deep survey.");
         initVoice();
@@ -2644,6 +2942,7 @@
         await runHealthCheck();
         await restoreSession();
         await loadStudioPreferences();
+        await loadExecutionControls();
         await loadNotes();
         await loadSurveyNext();
         await loadProactiveFeed(true);
