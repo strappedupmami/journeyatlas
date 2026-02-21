@@ -40,13 +40,16 @@ final class SessionStore: ObservableObject {
     private let localReasoning = LocalReasoningEngine()
     private var queueWorkerTask: Task<Void, Never>?
 
-    private let queueStorageKey = "atlas_macos_prompt_queue_v2"
+    private let queueStorageLegacyKey = "atlas_macos_prompt_queue_v2"
+    private let queueFileName = "prompt-queue-v3.json"
+    private let queueBackupFileName = "prompt-queue-v3.bak.json"
     private let stateStorageKey = "atlas_macos_state_v2"
 
     init(api: APIClient = APIClient()) {
         self.api = api
         restoreStateFromDisk()
         loadPromptQueueFromDisk()
+        recoverInterruptedQueueItemsAfterRestart()
     }
 
     func bootstrap() async {
@@ -459,15 +462,88 @@ final class SessionStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(promptQueue) else { return }
-        UserDefaults.standard.set(data, forKey: queueStorageKey)
+        guard let primaryURL = promptQueueFileURL(fileName: queueFileName) else { return }
+        let backupURL = promptQueueFileURL(fileName: queueBackupFileName)
+
+        do {
+            let fileManager = FileManager.default
+            let dir = primaryURL.deletingLastPathComponent()
+            if !fileManager.fileExists(atPath: dir.path) {
+                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+            }
+
+            if let backupURL, fileManager.fileExists(atPath: primaryURL.path) {
+                _ = try? fileManager.removeItem(at: backupURL)
+                try? fileManager.copyItem(at: primaryURL, to: backupURL)
+            }
+
+            let tempURL = primaryURL.appendingPathExtension("tmp")
+            try data.write(to: tempURL, options: [.atomic])
+            if fileManager.fileExists(atPath: primaryURL.path) {
+                _ = try fileManager.replaceItemAt(primaryURL, withItemAt: tempURL)
+            } else {
+                try fileManager.moveItem(at: tempURL, to: primaryURL)
+            }
+        } catch {
+            // Keep silent here; queue still exists in-memory and will retry persistence later.
+        }
     }
 
     private func loadPromptQueueFromDisk() {
-        guard let data = UserDefaults.standard.data(forKey: queueStorageKey) else { return }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        guard let restored = try? decoder.decode([PromptQueueItem].self, from: data) else { return }
-        promptQueue = restored
+
+        if let primaryURL = promptQueueFileURL(fileName: queueFileName),
+           let data = try? Data(contentsOf: primaryURL),
+           let restored = try? decoder.decode([PromptQueueItem].self, from: data)
+        {
+            promptQueue = restored
+            return
+        }
+
+        if let backupURL = promptQueueFileURL(fileName: queueBackupFileName),
+           let data = try? Data(contentsOf: backupURL),
+           let restored = try? decoder.decode([PromptQueueItem].self, from: data)
+        {
+            promptQueue = restored
+            persistPromptQueueToDisk()
+            return
+        }
+
+        // Legacy migration from UserDefaults v2 storage.
+        if let legacy = UserDefaults.standard.data(forKey: queueStorageLegacyKey),
+           let restored = try? decoder.decode([PromptQueueItem].self, from: legacy)
+        {
+            promptQueue = restored
+            persistPromptQueueToDisk()
+            UserDefaults.standard.removeObject(forKey: queueStorageLegacyKey)
+        }
+    }
+
+    private func recoverInterruptedQueueItemsAfterRestart() {
+        var recovered = 0
+        for idx in promptQueue.indices {
+            if promptQueue[idx].status == .running {
+                promptQueue[idx].status = .queued
+                promptQueue[idx].completedAt = nil
+                promptQueue[idx].errorMessage = "Recovered after restart. Resuming queue."
+                recovered += 1
+            }
+        }
+        if recovered > 0 {
+            persistPromptQueueToDisk()
+            appendOutput("Recovered \(recovered) interrupted queued task(s) after restart.")
+        }
+    }
+
+    private func promptQueueFileURL(fileName: String) -> URL? {
+        let fm = FileManager.default
+        guard let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return base
+            .appendingPathComponent("AtlasMasaMacOS", isDirectory: true)
+            .appendingPathComponent(fileName, isDirectory: false)
     }
 
     private func persistStateToDisk() {
