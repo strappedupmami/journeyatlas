@@ -64,76 +64,77 @@
       <div class="container">
         <div class="section__head">
           <h1 data-i18n="pricing.title">חבילות ומחירים</h1>
-          <p class="sub" data-i18n="pricing.sub">מודל דו-כניסתי: מסע חווייתי לטווח קצר + מנוי מסע לטווח ארוך.</p>
+          <p class="sub" data-i18n="pricing.sub">מודל דו-שכבתי: Tier 1 אפליקציות Swift עם reasoning מקומי, Tier 2 שדרוג reasoning שרתי + הרחבות תפעול.</p>
         </div>
 
         <section class="grid grid--2" id="plans">
-          <article class="card offer">
+          <article class="card offer" id="app-tier">
             <header class="offer__head">
-              <h2 data-i18n="pricing.trial.title">מסע חווייתי (ניסיון קצר)</h2>
-              <p class="offer__desc" data-i18n="pricing.trial.desc">פאזה 1 לאימות מוצר וללמידת לקוח.</p>
+              <h2 data-i18n="pricing.trial.title">Tier 1: Local App Access</h2>
+              <p class="offer__desc" data-i18n="pricing.trial.desc">3 חודשי trial עם reasoning מקומי באפליקציות Swift (ללא cloud compute).</p>
             </header>
             <div class="price">
               <span class="price__from" data-i18n="pricing.from">החל מ-</span>
-              <span class="price__num" data-i18n="pricing.trial.range">₪1,200-₪5,000</span>
-              <span class="price__unit" data-i18n="pricing.perTrip">למסע</span>
+              <span class="price__num" data-i18n="pricing.trial.range">₪0</span>
+              <span class="price__unit" data-i18n="pricing.perTrip">ל-3 חודשים</span>
             </div>
             <ul class="checklist checklist--compact">
-              <li data-i18n="pricing.trial.li1">3 ימים: מיני אדוונצ'ר</li>
-              <li data-i18n="pricing.trial.li2">7 ימים: שבוע מסע</li>
-              <li data-i18n="pricing.trial.li3">14 ימים: מסע עומק</li>
-              <li data-i18n="pricing.trial.li4">החזר קרדיט מהניסיון להצטרפות למנוי</li>
+              <li data-i18n="pricing.trial.li1">iOS/macOS native (Swift)</li>
+              <li data-i18n="pricing.trial.li2">Prompt queue + adaptive deep survey</li>
+              <li data-i18n="pricing.trial.li3">Personalization memory with cloud storage</li>
+              <li data-i18n="pricing.trial.li4">שדרוג בכל רגע ל-Tier 2</li>
             </ul>
           </article>
 
-          <article class="card offer offer--featured">
+          <article class="card offer offer--featured" id="cloud-tier">
             <header class="offer__head">
               <div class="offer__badge" data-i18n="pricing.member.badge">לאחר ואלידציה</div>
-              <h2 data-i18n="pricing.member.title">מנוי מסע (גישה רציפה)</h2>
-              <p class="offer__desc" data-i18n="pricing.member.desc">מודל Infrastructure-as-a-Service.</p>
+              <h2 data-i18n="pricing.member.title">Tier 2: Cloud Reasoning Pro</h2>
+              <p class="offer__desc" data-i18n="pricing.member.desc">גישה למודלי reasoning שרתיים, חישוב כבד, ותזמור מתקדם.</p>
             </header>
             <div class="price">
               <span class="price__from" data-i18n="pricing.from">החל מ-</span>
-              <span class="price__num" data-i18n="pricing.member.range">₪3,500-₪5,500</span>
+              <span class="price__num" data-i18n="pricing.member.range">₪149</span>
               <span class="price__unit" data-i18n="pricing.perMonth">לחודש</span>
             </div>
             <ul class="checklist checklist--compact">
-              <li data-i18n="pricing.member.li1">שירות תחזוקה ותמיכה שוטפת</li>
-              <li data-i18n="pricing.member.li2">קרן גרירה/מכונאי מוגדרת</li>
-              <li data-i18n="pricing.member.li3">שמירת פרופיל לקוח והתאמה אישית</li>
-              <li data-i18n="pricing.member.li4">עדיפות זמינות ללקוחות מנוי</li>
+              <li data-i18n="pricing.member.li1">Server reasoning with higher depth and throughput</li>
+              <li data-i18n="pricing.member.li2">Advanced proactive orchestration + premium automation</li>
+              <li data-i18n="pricing.member.li3">Priority support and roadmap previews</li>
+              <li data-i18n="pricing.member.li4">Apple Pay capable checkout via Stripe</li>
             </ul>
           </article>
         </section>
 
         <section class="section__head" style="margin-top:24px" id="included">
-          <h2 data-i18n="pricing.included.title">מה כלול בחינם בכל הזמנה</h2>
+          <h2 data-i18n="pricing.included.title">תוספי השכרת ואן (Atlas Masa Mobility)</h2>
         </section>
         <div class="grid grid--3">
-          <article class="card iconCard">
+          <article class="card iconCard" id="desktop-app">
             <div class="iconCard__icon" aria-hidden="true">🧭</div>
-            <h3 data-i18n="pricing.included.card1.title">תכנון מסלול</h3>
-            <p data-i18n="pricing.included.card1.text">מסלול יום-יום לפי העדפות, עומסים ועונתיות.</p>
+            <h3 data-i18n="pricing.included.card1.title">Onboarding לתחנת העבודה הניידת</h3>
+            <p data-i18n="pricing.included.card1.text">הגדרת סביבת עבודה ותנועה לפי עומס נהיגה, בריאות וקצב משימות.</p>
           </article>
-          <article class="card iconCard">
+          <article class="card iconCard" id="van-rental-addon">
             <div class="iconCard__icon" aria-hidden="true">💧</div>
-            <h3 data-i18n="pricing.included.card2.title">מים/אפור</h3>
-            <p data-i18n="pricing.included.card2.text">תכנון חוקי לנקודות מילוי וריקון מורשות בלבד.</p>
+            <h3 data-i18n="pricing.included.card2.title">חבילת ואן rental</h3>
+            <p data-i18n="pricing.included.card2.text">כולל מים/אפור חוקי, היגיינה ותכנון לינה מסודר לפי אזור ועונה.</p>
           </article>
           <article class="card iconCard">
             <div class="iconCard__icon" aria-hidden="true">📲</div>
-            <h3 data-i18n="pricing.included.card3.title">תמיכה מהירה</h3>
-            <p data-i18n="pricing.included.card3.text">וואטסאפ תפעולי לשאלות חיות בזמן המסע.</p>
+            <h3 data-i18n="pricing.included.card3.title">מסלול צוות ועסקים</h3>
+            <p data-i18n="pricing.included.card3.text">תמחור לפי צי/כמות משתמשים עם SLA ותמיכה תפעולית מותאמת.</p>
           </article>
         </div>
 
         <article class="note" style="margin-top:18px" data-i18n="pricing.note" id="enterprise">
-          המחירים המדויקים נקבעים לפי עונה, זמינות יחידה, ואורך מסע. נשמרים סטנדרטים של שימוש אחראי. אין הנחיות לא חוקיות.
+          Tier 1 מיועד לאימוץ מהיר ולמידה בעלות נמוכה. Tier 2 פותח כוח reasoning ענני כשצריך סקייל.
+          השכרת ואנים מחושבת בנפרד לפי עונה, זמינות ומשך שימוש.
         </article>
 
         <div class="hero__cta" style="margin-top:18px">
-          <a class="btn btn--primary" href="contact.html" data-i18n="pricing.ctaPrimary">קבלת הצעה מותאמת</a>
-          <a class="btn btn--ghost" href="concierge-local.html" data-i18n="pricing.ctaSecondary">בדיקת תרחישים עם עוזר מסע</a>
+          <a class="btn btn--primary" href="signup.html" data-i18n="pricing.ctaPrimary">פתיחת חשבון והתחלת Tier 1</a>
+          <a class="btn btn--ghost" href="contact.html#van-rental" data-i18n="pricing.ctaSecondary">בקשת הצעת השכרת ואן</a>
         </div>
       </div>
     </main>
@@ -151,21 +152,21 @@
           },
           pricing: {
             title: "חבילות ומחירים",
-            sub: "מודל דו-כניסתי: מסע חווייתי לטווח קצר + מנוי מסע לטווח ארוך.",
+            sub: "מודל דו-שכבתי: Tier 1 אפליקציות Swift עם reasoning מקומי, Tier 2 שדרוג reasoning שרתי + הרחבות תפעול.",
             from: "החל מ-",
-            perTrip: "למסע",
+            perTrip: "ל-3 חודשים",
             perMonth: "לחודש",
-            trial: { title: "מסע חווייתי (ניסיון קצר)", desc: "פאזה 1 לאימות מוצר וללמידת לקוח.", range: "₪1,200-₪5,000", li1: "3 ימים: מיני אדוונצ'ר", li2: "7 ימים: שבוע מסע", li3: "14 ימים: מסע עומק", li4: "החזר קרדיט מהניסיון להצטרפות למנוי" },
-            member: { badge: "לאחר ואלידציה", title: "מנוי מסע (גישה רציפה)", desc: "מודל Infrastructure-as-a-Service.", range: "₪3,500-₪5,500", li1: "שירות תחזוקה ותמיכה שוטפת", li2: "קרן גרירה/מכונאי מוגדרת", li3: "שמירת פרופיל לקוח והתאמה אישית", li4: "עדיפות זמינות ללקוחות מנוי" },
+            trial: { title: "Tier 1: Local App Access", desc: "3 חודשי trial עם reasoning מקומי באפליקציות Swift (ללא cloud compute).", range: "₪0", li1: "iOS/macOS native (Swift)", li2: "Prompt queue + adaptive deep survey", li3: "Personalization memory with cloud storage", li4: "שדרוג בכל רגע ל-Tier 2" },
+            member: { badge: "שדרוג פרו", title: "Tier 2: Cloud Reasoning Pro", desc: "גישה למודלי reasoning שרתיים, חישוב כבד, ותזמור מתקדם.", range: "₪149", li1: "Server reasoning with higher depth and throughput", li2: "Advanced proactive orchestration + premium automation", li3: "Priority support and roadmap previews", li4: "Apple Pay capable checkout via Stripe" },
             included: {
-              title: "מה כלול בחינם בכל הזמנה",
-              card1: { title: "תכנון מסלול", text: "מסלול יום-יום לפי העדפות, עומסים ועונתיות." },
-              card2: { title: "מים/אפור", text: "תכנון חוקי לנקודות מילוי וריקון מורשות בלבד." },
-              card3: { title: "תמיכה מהירה", text: "וואטסאפ תפעולי לשאלות חיות בזמן המסע." }
+              title: "תוספי השכרת ואן (Atlas Masa Mobility)",
+              card1: { title: "Onboarding לתחנת העבודה הניידת", text: "הגדרת סביבת עבודה ותנועה לפי עומס נהיגה, בריאות וקצב משימות." },
+              card2: { title: "חבילת ואן rental", text: "כולל מים/אפור חוקי, היגיינה ותכנון לינה מסודר לפי אזור ועונה." },
+              card3: { title: "מסלול צוות ועסקים", text: "תמחור לפי צי/כמות משתמשים עם SLA ותמיכה תפעולית מותאמת." }
             },
-            note: "המחירים המדויקים נקבעים לפי עונה, זמינות יחידה, ואורך מסע. נשמרים סטנדרטים של שימוש אחראי. אין הנחיות לא חוקיות.",
-            ctaPrimary: "קבלת הצעה מותאמת",
-            ctaSecondary: "בדיקת תרחישים עם עוזר מסע"
+            note: "Tier 1 מיועד לאימוץ מהיר ולמידה בעלות נמוכה. Tier 2 פותח כוח reasoning ענני כשצריך סקייל. השכרת ואנים מחושבת בנפרד לפי עונה, זמינות ומשך שימוש.",
+            ctaPrimary: "פתיחת חשבון והתחלת Tier 1",
+            ctaSecondary: "בקשת הצעת השכרת ואן"
           }
         },
         en: {
@@ -179,21 +180,21 @@
           },
           pricing: {
             title: "Packages & Pricing",
-            sub: "Dual entry model: short trial mode plus long-term membership mode.",
+            sub: "Two-layer model: Tier 1 Swift apps with local reasoning, Tier 2 server reasoning + advanced operations.",
             from: "From",
-            perTrip: "per trip",
+            perTrip: "for 3 months",
             perMonth: "per month",
-            trial: { title: "Masa Experience (short trial)", desc: "Phase-1 product validation and customer learning.", range: "₪1,200-₪5,000", li1: "3-day mini adventure", li2: "7-day week journey", li3: "14-day deep experience", li4: "Trial credit applied to membership" },
-            member: { badge: "After validation", title: "Masa Membership (ongoing access)", desc: "Infrastructure-as-a-Service model.", range: "₪3,500-₪5,500", li1: "Ongoing maintenance and support", li2: "Defined towing/mechanic coverage", li3: "Stored user profile and personalization", li4: "Priority availability" },
+            trial: { title: "Tier 1: Local App Access", desc: "3-month trial with local reasoning in native Swift apps (no cloud compute).", range: "₪0", li1: "iOS/macOS native (Swift)", li2: "Prompt queue + adaptive deep survey", li3: "Personalization memory with cloud storage", li4: "Upgrade to Tier 2 anytime" },
+            member: { badge: "Pro upgrade", title: "Tier 2: Cloud Reasoning Pro", desc: "Server reasoning, heavy compute, and advanced orchestration.", range: "₪149", li1: "Higher-depth server reasoning", li2: "Premium proactive orchestration and automations", li3: "Priority support and roadmap previews", li4: "Stripe checkout with Apple Pay support" },
             included: {
-              title: "Included for free in every booking",
-              card1: { title: "Route planning", text: "Day-by-day flow aligned to style, season, and density." },
-              card2: { title: "Water/grey logistics", text: "Legal refill/disposal points only." },
-              card3: { title: "Fast support", text: "Operational WhatsApp support during trips." }
+              title: "Van rental add-ons (Atlas Masa Mobility)",
+              card1: { title: "Mobile workstation onboarding", text: "Configure movement and work profile based on driving load, health, and task cadence." },
+              card2: { title: "Van rental package", text: "Includes legal water/grey routine, hygiene flow, and structured overnight planning." },
+              card3: { title: "Team and business plan", text: "Fleet-based pricing with SLA and tailored operational support." }
             },
-            note: "Final pricing depends on season, availability, and duration. Responsible usage standards apply. No illegal guidance.",
-            ctaPrimary: "Get tailored offer",
-            ctaSecondary: "Run scenarios with concierge"
+            note: "Tier 1 enables low-cost adoption and learning. Tier 2 unlocks server reasoning when scale requires it. Van rental is priced separately by season, availability, and duration.",
+            ctaPrimary: "Create account and start Tier 1",
+            ctaSecondary: "Request van rental quote"
           }
         },
         ar: {
