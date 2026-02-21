@@ -48,6 +48,11 @@ const MAX_NOTE_TAG_LEN: usize = 32;
 const MAX_REWRITE_INSTRUCTION_LEN: usize = 400;
 const MAX_MEMORY_IMPORT_ITEMS: usize = 250;
 const MAX_NOTES_PER_USER: usize = 5_000;
+const MAX_MEMORY_TEXT_LEN: usize = 800;
+const MAX_MEMORY_RECORDS_PER_USER: usize = 3_000;
+const DEFAULT_MEMORY_RETRIEVAL_LIMIT: usize = 12;
+const MAX_MEMORY_RETRIEVAL_LIMIT: usize = 64;
+const TRANSIENT_MEMORY_TTL_DAYS: i64 = 14;
 const DEFAULT_SUBSCRIPTION_BYPASS_EMAILS: &str = "ceo@atlasmasa.com";
 
 #[derive(Clone)]
@@ -66,6 +71,7 @@ pub struct ApiState {
     pub survey_states: Arc<RwLock<HashMap<String, SurveyStateRecord>>>,
     pub feedback_items: Arc<RwLock<Vec<FeedbackRecord>>>,
     pub user_notes: Arc<RwLock<HashMap<String, Vec<UserNoteRecord>>>>,
+    pub user_memories: Arc<RwLock<HashMap<String, Vec<MemoryRecord>>>>,
     pub oauth_states: Arc<RwLock<HashMap<String, OAuthStateRecord>>>,
     pub google_oauth: Option<GoogleOAuthConfig>,
     pub apple_oauth: Option<AppleOAuthConfig>,
@@ -476,6 +482,81 @@ struct NoteRewriteRequest {
     instruction: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MemoryRecord {
+    memory_id: String,
+    user_id: String,
+    memory_type: String,
+    stability: String,
+    source: String,
+    text: String,
+    weight: f32,
+    recency_score: f32,
+    tags: Vec<String>,
+    created_at: String,
+    updated_at: String,
+    expires_at: Option<String>,
+    fingerprint: String,
+}
+
+#[derive(Debug, Clone)]
+struct MemoryIngestEvent {
+    memory_type: String,
+    stability: String,
+    source: String,
+    text: String,
+    weight: f32,
+    tags: Vec<String>,
+    happened_at: Option<chrono::DateTime<chrono::Utc>>,
+    expires_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MemoryRecordsQuery {
+    user_id: Option<String>,
+    q: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MemoryUpsertRequest {
+    user_id: Option<String>,
+    memory_type: Option<String>,
+    stability: Option<String>,
+    source: Option<String>,
+    text: String,
+    weight: Option<f32>,
+    tags: Option<Vec<String>>,
+    expires_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MemoryDeleteRequest {
+    user_id: Option<String>,
+    memory_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MemoryClearRequest {
+    user_id: Option<String>,
+    scope: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct MemoryRetrievedItem {
+    memory_id: String,
+    memory_type: String,
+    stability: String,
+    source: String,
+    text: String,
+    weight: f32,
+    recency_score: f32,
+    relevance_score: f32,
+    final_score: f32,
+    tags: Vec<String>,
+    updated_at: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct MemoryImportItem {
     title: String,
@@ -528,6 +609,7 @@ struct PersistedState {
     survey_states: HashMap<String, SurveyStateRecord>,
     feedback_items: Vec<FeedbackRecord>,
     user_notes: HashMap<String, Vec<UserNoteRecord>>,
+    user_memories: HashMap<String, Vec<MemoryRecord>>,
     passkeys_by_user: HashMap<String, Vec<PasskeyRecord>>,
 }
 
@@ -634,6 +716,7 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         survey_states: Arc::new(RwLock::new(persisted_state.survey_states)),
         feedback_items: Arc::new(RwLock::new(persisted_state.feedback_items)),
         user_notes: Arc::new(RwLock::new(persisted_state.user_notes)),
+        user_memories: Arc::new(RwLock::new(persisted_state.user_memories)),
         oauth_states: Arc::new(RwLock::new(HashMap::new())),
         google_oauth,
         apple_oauth,
@@ -691,6 +774,10 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/v1/notes/upsert", post(note_upsert))
         .route("/v1/notes/rewrite", post(note_rewrite))
         .route("/v1/memory/import", post(memory_import))
+        .route("/v1/memory/records", get(memory_records_list))
+        .route("/v1/memory/upsert", post(memory_upsert))
+        .route("/v1/memory/delete", post(memory_delete))
+        .route("/v1/memory/clear", post(memory_clear))
         .route(
             "/v1/billing/create_checkout_session",
             post(billing_create_checkout_session),
@@ -1729,6 +1816,28 @@ async fn chat(
     }
     let request_user_id = request.user_id.clone();
     let include_proactive = request.include_proactive.unwrap_or(true);
+    if let Some(user_id) = session_user
+        .as_ref()
+        .map(|user| user.user_id.clone())
+        .or(request_user_id.clone())
+    {
+        let (memory_type, stability, weight) = classify_chat_memory(request.text.as_str());
+        let _ = ingest_memory_event_for_user(
+            &state,
+            user_id.as_str(),
+            MemoryIngestEvent {
+                memory_type,
+                stability,
+                source: "chat".to_string(),
+                text: request.text.clone(),
+                weight,
+                tags: Vec::new(),
+                happened_at: Some(chrono::Utc::now()),
+                expires_at: None,
+            },
+        )
+        .await;
+    }
 
     let input = ChatInput {
         session_id: request.session_id.clone(),
@@ -1775,6 +1884,12 @@ async fn chat(
                     .get(&user.user_id)
                     .cloned()
                     .unwrap_or_default();
+                let memory_context = retrieve_user_memory_context(
+                    &state,
+                    user.user_id.as_str(),
+                    request.text.as_str(),
+                    DEFAULT_MEMORY_RETRIEVAL_LIMIT,
+                );
 
                 // Base suggested actions that make daily follow-through easier.
                 response.suggested_actions.push(atlas_core::SuggestedAction {
@@ -1815,6 +1930,10 @@ async fn chat(
                         serde_json::json!(effective_studio_pref),
                     );
                     payload_obj.insert("survey_hints".to_string(), serde_json::json!(survey_hints));
+                    payload_obj.insert(
+                        "memory_context".to_string(),
+                        serde_json::json!(memory_context.clone()),
+                    );
                     if include_proactive {
                         payload_obj.insert(
                             "proactive_feed".to_string(),
@@ -1886,12 +2005,24 @@ async fn chat(
                             .unwrap_or_default()
                     })
                     .unwrap_or_default();
+                let memory_context = premium_user
+                    .as_ref()
+                    .map(|user| {
+                        retrieve_user_memory_context(
+                            &state,
+                            user.user_id.as_str(),
+                            request.text.as_str(),
+                            DEFAULT_MEMORY_RETRIEVAL_LIMIT,
+                        )
+                    })
+                    .unwrap_or_default();
                 if let Ok(premium_reply) = generate_premium_openai_reply(
                     &state,
                     &request,
                     premium_user.as_ref(),
                     survey_state.as_ref(),
                     &notes,
+                    memory_context.as_slice(),
                     response.reply_text.as_str(),
                 )
                 .await
@@ -2053,6 +2184,9 @@ async fn profile_upsert(
         user.clone()
     };
     let _ = persist_user_if_configured(&state, &user_clone).await;
+    if !user_clone.memory_opt_in {
+        let _ = clear_user_memories_by_scope(&state, user_clone.user_id.as_str(), "all").await;
+    }
 
     (
         StatusCode::OK,
@@ -2203,6 +2337,24 @@ async fn note_upsert(
         notes.sort_by(|lhs, rhs| rhs.updated_at.cmp(&lhs.updated_at));
     }
     let _ = persist_notes_if_configured(&state, user_id.as_str()).await;
+    let note_memory_text = format!("{}: {}", note.title, note.content);
+    let _ = ingest_memory_event_for_user(
+        &state,
+        user_id.as_str(),
+        MemoryIngestEvent {
+            memory_type: "insight".to_string(),
+            stability: "permanent".to_string(),
+            source: "note".to_string(),
+            text: note_memory_text,
+            weight: 0.78,
+            tags: note.tags.clone(),
+            happened_at: chrono::DateTime::parse_from_rfc3339(note.updated_at.as_str())
+                .ok()
+                .map(|value| value.with_timezone(&chrono::Utc)),
+            expires_at: None,
+        },
+    )
+    .await;
 
     (
         StatusCode::OK,
@@ -2291,6 +2443,24 @@ async fn note_rewrite(
         }
     }
     let _ = persist_notes_if_configured(&state, user_id.as_str()).await;
+    let rewritten_memory_text = format!("{}: {}", rewritten_note.title, rewritten_note.content);
+    let _ = ingest_memory_event_for_user(
+        &state,
+        user_id.as_str(),
+        MemoryIngestEvent {
+            memory_type: "insight".to_string(),
+            stability: "permanent".to_string(),
+            source: "note_rewrite".to_string(),
+            text: rewritten_memory_text,
+            weight: 0.82,
+            tags: rewritten_note.tags.clone(),
+            happened_at: chrono::DateTime::parse_from_rfc3339(rewritten_note.updated_at.as_str())
+                .ok()
+                .map(|value| value.with_timezone(&chrono::Utc)),
+            expires_at: None,
+        },
+    )
+    .await;
 
     (
         StatusCode::OK,
@@ -2382,6 +2552,7 @@ async fn memory_import(
     }
 
     let imported_count = imported.len();
+    let imported_snapshot = imported.clone();
     {
         let mut notes_map = state.user_notes.write();
         let notes = notes_map.entry(user_id.clone()).or_default();
@@ -2391,6 +2562,26 @@ async fn memory_import(
     }
 
     let _ = persist_notes_if_configured(&state, user_id.as_str()).await;
+    for note in imported_snapshot {
+        let memory_text = format!("{}: {}", note.title, note.content);
+        let _ = ingest_memory_event_for_user(
+            &state,
+            user_id.as_str(),
+            MemoryIngestEvent {
+                memory_type: "insight".to_string(),
+                stability: "permanent".to_string(),
+                source: "import".to_string(),
+                text: memory_text,
+                weight: 0.72,
+                tags: note.tags.clone(),
+                happened_at: chrono::DateTime::parse_from_rfc3339(note.updated_at.as_str())
+                    .ok()
+                    .map(|value| value.with_timezone(&chrono::Utc)),
+                expires_at: None,
+            },
+        )
+        .await;
+    }
     let total_notes = state
         .user_notes
         .read()
@@ -2404,6 +2595,230 @@ async fn memory_import(
             "ok": true,
             "imported": imported_count,
             "total_notes": total_notes
+        })),
+    )
+        .into_response()
+}
+
+async fn memory_records_list(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Query(query): Query<MemoryRecordsQuery>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, query.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let opt_in = user_memory_opt_in(&state, user_id.as_str());
+    if !opt_in {
+        let empty_items: Vec<MemoryRetrievedItem> = Vec::new();
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "memory_opt_in": false,
+                "count": 0,
+                "items": empty_items
+            })),
+        )
+            .into_response();
+    }
+
+    let limit = query
+        .limit
+        .unwrap_or(DEFAULT_MEMORY_RETRIEVAL_LIMIT)
+        .clamp(1, MAX_MEMORY_RETRIEVAL_LIMIT);
+    let search = query.q.unwrap_or_default();
+    let items = retrieve_user_memory_context(&state, user_id.as_str(), search.as_str(), limit);
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "memory_opt_in": true,
+            "count": items.len(),
+            "items": items
+        })),
+    )
+        .into_response()
+}
+
+async fn memory_upsert(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<MemoryUpsertRequest>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, input.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    if !user_memory_opt_in(&state, user_id.as_str()) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "memory_opt_out",
+                "message": "memory ingestion is disabled for this profile"
+            })),
+        )
+            .into_response();
+    }
+
+    let event = MemoryIngestEvent {
+        memory_type: sanitize_memory_type(
+            input
+                .memory_type
+                .unwrap_or_else(|| "insight".to_string())
+                .as_str(),
+        ),
+        stability: sanitize_memory_stability(
+            input
+                .stability
+                .unwrap_or_else(|| "permanent".to_string())
+                .as_str(),
+        ),
+        source: sanitize_memory_source(
+            input
+                .source
+                .unwrap_or_else(|| "manual".to_string())
+                .as_str(),
+        ),
+        text: input.text,
+        weight: input.weight.unwrap_or(0.8),
+        tags: sanitize_note_tags(input.tags.unwrap_or_default()),
+        happened_at: Some(chrono::Utc::now()),
+        expires_at: input
+            .expires_at
+            .as_deref()
+            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.with_timezone(&chrono::Utc)),
+    };
+
+    let ingested = ingest_memory_event_for_user(&state, user_id.as_str(), event).await;
+    if let Some(record) = ingested {
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "memory": record
+            })),
+        )
+            .into_response();
+    }
+
+    (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({
+            "error": "invalid_memory",
+            "message": "text is required"
+        })),
+    )
+        .into_response()
+}
+
+async fn memory_delete(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<MemoryDeleteRequest>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, input.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let memory_id = sanitize_limited_text(input.memory_id.as_str(), 96);
+    if memory_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "invalid_memory_id"
+            })),
+        )
+            .into_response();
+    }
+
+    let deleted = {
+        let mut memories_map = state.user_memories.write();
+        if let Some(records) = memories_map.get_mut(&user_id) {
+            let before = records.len();
+            records.retain(|entry| entry.memory_id != memory_id);
+            before != records.len()
+        } else {
+            false
+        }
+    };
+    if deleted {
+        let _ = persist_memories_if_configured(&state, user_id.as_str()).await;
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "deleted": deleted
+        })),
+    )
+        .into_response()
+}
+
+async fn memory_clear(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<MemoryClearRequest>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, input.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let scope = sanitize_enum_value(
+        input.scope.unwrap_or_else(|| "all".to_string()).as_str(),
+        &["all", "permanent", "transient"],
+        "all",
+    );
+    let cleared = clear_user_memories_by_scope(&state, user_id.as_str(), scope.as_str()).await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "scope": scope,
+            "cleared": cleared
         })),
     )
         .into_response()
@@ -2858,6 +3273,32 @@ async fn survey_answer(
         }
     }
 
+    let survey_question_id =
+        sanitize_limited_text(input.question_id.as_str(), MAX_PROFILE_FIELD_LEN);
+    let survey_answer_value = sanitize_limited_text(input.answer.as_str(), MAX_MEMORY_TEXT_LEN);
+    if !survey_question_id.is_empty() && !survey_answer_value.is_empty() {
+        let (memory_type, stability, weight) =
+            classify_survey_memory(survey_question_id.as_str(), survey_answer_value.as_str());
+        let _ = ingest_memory_event_for_user(
+            &state,
+            user_id.as_str(),
+            MemoryIngestEvent {
+                memory_type,
+                stability,
+                source: "survey".to_string(),
+                text: format!(
+                    "Survey signal: {} => {}",
+                    survey_question_id, survey_answer_value
+                ),
+                weight,
+                tags: sanitize_note_tags(vec![format!("survey_{}", survey_question_id)]),
+                happened_at: Some(chrono::Utc::now()),
+                expires_at: None,
+            },
+        )
+        .await;
+    }
+
     let state_snapshot =
         state
             .survey_states
@@ -3042,6 +3483,34 @@ async fn feedback_submit(
 
     state.feedback_items.write().push(item.clone());
     let _ = persist_feedback_if_configured(&state).await;
+    if let Some(feedback_user_id) = item.user_id.as_ref() {
+        let _ = ingest_memory_event_for_user(
+            &state,
+            feedback_user_id.as_str(),
+            MemoryIngestEvent {
+                memory_type: "friction".to_string(),
+                stability: "transient".to_string(),
+                source: "feedback".to_string(),
+                text: format!(
+                    "Feedback {} [{}]: {}",
+                    item.category, item.severity, item.message
+                ),
+                weight: if item.severity == "critical" {
+                    0.95
+                } else if item.severity == "high" {
+                    0.85
+                } else {
+                    0.72
+                },
+                tags: item.tags.clone(),
+                happened_at: Some(chrono::Utc::now()),
+                expires_at: Some(
+                    chrono::Utc::now() + chrono::Duration::days(TRANSIENT_MEMORY_TTL_DAYS),
+                ),
+            },
+        )
+        .await;
+    }
 
     (
         StatusCode::OK,
@@ -4264,6 +4733,381 @@ fn sanitize_note_tags(tags: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+fn sanitize_memory_type(value: &str) -> String {
+    sanitize_enum_value(
+        value,
+        &[
+            "preference",
+            "mood",
+            "goal",
+            "constraint",
+            "insight",
+            "friction",
+            "identity",
+            "task",
+        ],
+        "insight",
+    )
+}
+
+fn sanitize_memory_stability(value: &str) -> String {
+    sanitize_enum_value(value, &["permanent", "transient"], "transient")
+}
+
+fn sanitize_memory_source(value: &str) -> String {
+    sanitize_enum_value(
+        value,
+        &[
+            "note",
+            "note_rewrite",
+            "survey",
+            "feedback",
+            "chat",
+            "import",
+            "manual",
+            "system",
+        ],
+        "system",
+    )
+}
+
+fn clamp_memory_weight(weight: f32) -> f32 {
+    if !weight.is_finite() {
+        return 0.5;
+    }
+    weight.clamp(0.05, 1.0)
+}
+
+fn memory_fingerprint(memory_type: &str, stability: &str, text: &str) -> String {
+    let normalized = text
+        .trim()
+        .to_lowercase()
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace())
+        .take(300)
+        .collect::<String>();
+    let key = format!("{}|{}|{}", memory_type, stability, normalized);
+    hex_encode(Sha256::digest(key.as_bytes()).as_slice())
+}
+
+fn memory_recency_score(updated_at: &str, now: chrono::DateTime<chrono::Utc>) -> f32 {
+    let updated = chrono::DateTime::parse_from_rfc3339(updated_at)
+        .ok()
+        .map(|value| value.with_timezone(&chrono::Utc))
+        .unwrap_or(now);
+    let age_hours = now.signed_duration_since(updated).num_hours().max(0) as f32;
+    (1.0 / (1.0 + (age_hours / 72.0))).clamp(0.0, 1.0)
+}
+
+fn is_memory_expired(record: &MemoryRecord, now: chrono::DateTime<chrono::Utc>) -> bool {
+    record
+        .expires_at
+        .as_deref()
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .map(|value| value.with_timezone(&chrono::Utc) <= now)
+        .unwrap_or(false)
+}
+
+fn prune_expired_memories(records: &mut Vec<MemoryRecord>, now: chrono::DateTime<chrono::Utc>) {
+    records.retain(|entry| !is_memory_expired(entry, now));
+}
+
+fn classify_chat_memory(text: &str) -> (String, String, f32) {
+    let lower = text.trim().to_lowercase();
+    if lower.is_empty() {
+        return ("insight".to_string(), "transient".to_string(), 0.5);
+    }
+    if [
+        "stressed",
+        "anxious",
+        "overwhelmed",
+        "tired",
+        "רגוע",
+        "לחוץ",
+        "עייף",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+    {
+        return ("mood".to_string(), "transient".to_string(), 0.75);
+    }
+    if ["plan", "goal", "mission", "target", "יעד", "מטרה", "תוכנית"]
+        .iter()
+        .any(|needle| lower.contains(needle))
+    {
+        return ("goal".to_string(), "permanent".to_string(), 0.82);
+    }
+    if [
+        "prefer",
+        "favorite",
+        "like",
+        "dislike",
+        "preferably",
+        "מעדיף",
+        "אוהב",
+        "לא אוהב",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+    {
+        return ("preference".to_string(), "permanent".to_string(), 0.8);
+    }
+    ("insight".to_string(), "transient".to_string(), 0.65)
+}
+
+fn classify_survey_memory(question_id: &str, answer: &str) -> (String, String, f32) {
+    let question = question_id.trim().to_lowercase();
+    let answer = answer.trim().to_lowercase();
+    if [
+        "trip_style",
+        "risk_preference",
+        "voice_preference",
+        "language",
+    ]
+    .iter()
+    .any(|needle| question.contains(needle))
+    {
+        return ("preference".to_string(), "permanent".to_string(), 0.88);
+    }
+    if ["goal", "mission", "wealth", "donation", "career"]
+        .iter()
+        .any(|needle| question.contains(needle) || answer.contains(needle))
+    {
+        return ("goal".to_string(), "permanent".to_string(), 0.9);
+    }
+    if ["stress", "fatigue", "mood", "energy", "burnout"]
+        .iter()
+        .any(|needle| question.contains(needle) || answer.contains(needle))
+    {
+        return ("mood".to_string(), "transient".to_string(), 0.8);
+    }
+    ("insight".to_string(), "transient".to_string(), 0.72)
+}
+
+fn memory_relevance_score(query: &str, record: &MemoryRecord) -> f32 {
+    let query_tokens = tokenize_memory_text(query);
+    if query_tokens.is_empty() {
+        return 0.0;
+    }
+    let mut corpus = record.text.clone();
+    if !record.tags.is_empty() {
+        corpus.push(' ');
+        corpus.push_str(record.tags.join(" ").as_str());
+    }
+    let record_tokens = tokenize_memory_text(corpus.as_str());
+    if record_tokens.is_empty() {
+        return 0.0;
+    }
+    let overlap = query_tokens
+        .iter()
+        .filter(|token| record_tokens.contains(*token))
+        .count();
+    (overlap as f32 / query_tokens.len() as f32).clamp(0.0, 1.0)
+}
+
+fn tokenize_memory_text(text: &str) -> std::collections::HashSet<String> {
+    text.to_lowercase()
+        .split(|ch: char| !ch.is_ascii_alphanumeric() && !ch.is_alphabetic())
+        .filter(|token| token.len() >= 2)
+        .take(256)
+        .map(|token| token.to_string())
+        .collect()
+}
+
+fn ingest_memory_records_if_opted_in(
+    records: &mut Vec<MemoryRecord>,
+    user_id: &str,
+    opt_in: bool,
+    event: MemoryIngestEvent,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<MemoryRecord> {
+    if !opt_in {
+        return None;
+    }
+
+    let text = sanitize_limited_text(event.text.as_str(), MAX_MEMORY_TEXT_LEN);
+    if text.is_empty() {
+        return None;
+    }
+
+    let memory_type = sanitize_memory_type(event.memory_type.as_str());
+    let stability = sanitize_memory_stability(event.stability.as_str());
+    let source = sanitize_memory_source(event.source.as_str());
+    let tags = sanitize_note_tags(event.tags);
+    let happened_at = event.happened_at.unwrap_or(now);
+    let updated_at = happened_at.to_rfc3339();
+    let weight = clamp_memory_weight(event.weight);
+    let recency_score = memory_recency_score(updated_at.as_str(), now);
+    let expires_at = if stability == "transient" {
+        event
+            .expires_at
+            .or_else(|| Some(happened_at + chrono::Duration::days(TRANSIENT_MEMORY_TTL_DAYS)))
+            .map(|value| value.to_rfc3339())
+    } else {
+        None
+    };
+    let fingerprint = memory_fingerprint(memory_type.as_str(), stability.as_str(), text.as_str());
+
+    if let Some(index) = records
+        .iter()
+        .position(|entry| entry.fingerprint == fingerprint)
+    {
+        {
+            let existing = &mut records[index];
+            existing.source = source;
+            existing.text = text;
+            existing.weight = clamp_memory_weight((existing.weight + weight) / 2.0);
+            existing.recency_score = recency_score;
+            existing.updated_at = updated_at;
+            existing.expires_at = expires_at;
+            existing.tags = sanitize_note_tags(
+                existing
+                    .tags
+                    .iter()
+                    .cloned()
+                    .chain(tags)
+                    .collect::<Vec<_>>(),
+            );
+        }
+        let updated = records[index].clone();
+        prune_expired_memories(records, now);
+        return Some(updated);
+    }
+
+    let created = MemoryRecord {
+        memory_id: uuid::Uuid::new_v4().to_string(),
+        user_id: user_id.to_string(),
+        memory_type,
+        stability,
+        source,
+        text,
+        weight,
+        recency_score,
+        tags,
+        created_at: now.to_rfc3339(),
+        updated_at,
+        expires_at,
+        fingerprint,
+    };
+    records.push(created.clone());
+    prune_expired_memories(records, now);
+    records.sort_by(|lhs, rhs| {
+        let lhs_score = lhs.weight * 0.7 + lhs.recency_score * 0.3;
+        let rhs_score = rhs.weight * 0.7 + rhs.recency_score * 0.3;
+        rhs_score.total_cmp(&lhs_score)
+    });
+    records.truncate(MAX_MEMORY_RECORDS_PER_USER);
+    Some(created)
+}
+
+fn retrieve_memory_context_from_records(
+    records: &[MemoryRecord],
+    query: &str,
+    limit: usize,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Vec<MemoryRetrievedItem> {
+    let top_limit = limit.clamp(1, MAX_MEMORY_RETRIEVAL_LIMIT);
+    let mut scored = records
+        .iter()
+        .filter(|record| !is_memory_expired(record, now))
+        .map(|record| {
+            let recency_score = memory_recency_score(record.updated_at.as_str(), now);
+            let relevance_score = memory_relevance_score(query, record);
+            let stability_boost = if record.stability == "permanent" {
+                0.05
+            } else {
+                0.0
+            };
+            let final_score = (record.weight * 0.45
+                + recency_score * 0.3
+                + relevance_score * 0.25
+                + stability_boost)
+                .clamp(0.0, 1.2);
+            MemoryRetrievedItem {
+                memory_id: record.memory_id.clone(),
+                memory_type: record.memory_type.clone(),
+                stability: record.stability.clone(),
+                source: record.source.clone(),
+                text: record.text.clone(),
+                weight: record.weight,
+                recency_score,
+                relevance_score,
+                final_score,
+                tags: record.tags.clone(),
+                updated_at: record.updated_at.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
+    scored.sort_by(|lhs, rhs| rhs.final_score.total_cmp(&lhs.final_score));
+    scored.truncate(top_limit);
+    scored
+}
+
+fn user_memory_opt_in(state: &ApiState, user_id: &str) -> bool {
+    state
+        .users
+        .read()
+        .get(user_id)
+        .map(|user| user.memory_opt_in)
+        .unwrap_or(false)
+}
+
+fn retrieve_user_memory_context(
+    state: &ApiState,
+    user_id: &str,
+    query: &str,
+    limit: usize,
+) -> Vec<MemoryRetrievedItem> {
+    if !user_memory_opt_in(state, user_id) {
+        return Vec::new();
+    }
+    let snapshot = state
+        .user_memories
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default();
+    retrieve_memory_context_from_records(snapshot.as_slice(), query, limit, chrono::Utc::now())
+}
+
+async fn ingest_memory_event_for_user(
+    state: &ApiState,
+    user_id: &str,
+    event: MemoryIngestEvent,
+) -> Option<MemoryRecord> {
+    let now = chrono::Utc::now();
+    let opt_in = user_memory_opt_in(state, user_id);
+    let ingested = {
+        let mut memories_map = state.user_memories.write();
+        let records = memories_map.entry(user_id.to_string()).or_default();
+        ingest_memory_records_if_opted_in(records, user_id, opt_in, event, now)
+    };
+    if ingested.is_some() {
+        let _ = persist_memories_if_configured(state, user_id).await;
+    }
+    ingested
+}
+
+async fn clear_user_memories_by_scope(state: &ApiState, user_id: &str, scope: &str) -> usize {
+    let removed_count = {
+        let mut memories_map = state.user_memories.write();
+        let Some(records) = memories_map.get_mut(user_id) else {
+            return 0;
+        };
+        let before = records.len();
+        match scope {
+            "permanent" => records.retain(|entry| entry.stability != "permanent"),
+            "transient" => records.retain(|entry| entry.stability != "transient"),
+            _ => records.clear(),
+        }
+        before.saturating_sub(records.len())
+    };
+    if removed_count > 0 {
+        let _ = persist_memories_if_configured(state, user_id).await;
+    }
+    removed_count
+}
+
 fn parse_or_default_utc(
     input: Option<&str>,
     fallback: chrono::DateTime<chrono::Utc>,
@@ -4552,6 +5396,18 @@ async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {
 
     sqlx::query(
         r#"
+        CREATE TABLE IF NOT EXISTS user_memories (
+          memory_id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          data_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS passkeys (
           passkey_id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
@@ -4673,6 +5529,20 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
         if let Ok(value) = serde_json::from_str::<UserNoteRecord>(&json) {
             state
                 .user_notes
+                .entry(row.get("user_id"))
+                .or_default()
+                .push(value);
+        }
+    }
+
+    let memories = sqlx::query("SELECT user_id, data_json FROM user_memories")
+        .fetch_all(pool)
+        .await?;
+    for row in memories {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<MemoryRecord>(&json) {
+            state
+                .user_memories
                 .entry(row.get("user_id"))
                 .or_default()
                 .push(value);
@@ -4856,6 +5726,34 @@ async fn persist_notes_if_configured(state: &ApiState, user_id: &str) -> Result<
             .bind(json)
             .execute(pool)
             .await?;
+    }
+    Ok(())
+}
+
+async fn persist_memories_if_configured(state: &ApiState, user_id: &str) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    sqlx::query("DELETE FROM user_memories WHERE user_id = ?1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    let memories = state
+        .user_memories
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default();
+    for memory in memories {
+        let json = serde_json::to_string(&memory)?;
+        sqlx::query(
+            "INSERT INTO user_memories (memory_id, user_id, data_json) VALUES (?1, ?2, ?3)",
+        )
+        .bind(memory.memory_id)
+        .bind(user_id)
+        .bind(json)
+        .execute(pool)
+        .await?;
     }
     Ok(())
 }
@@ -5068,6 +5966,7 @@ async fn generate_premium_openai_reply(
     user: Option<&UserRecord>,
     survey: Option<&SurveyStateRecord>,
     notes: &[UserNoteRecord],
+    memory_context: &[MemoryRetrievedItem],
     fallback_reply: &str,
 ) -> Result<String> {
     let runtime = state
@@ -5093,6 +5992,22 @@ async fn generate_premium_openai_reply(
                 "title": note.title,
                 "content": note.content,
                 "tags": note.tags
+            })
+        })
+        .collect::<Vec<_>>();
+    let memory_context = memory_context
+        .iter()
+        .take(12)
+        .map(|entry| {
+            serde_json::json!({
+                "memory_type": entry.memory_type,
+                "stability": entry.stability,
+                "source": entry.source,
+                "text": entry.text,
+                "weight": entry.weight,
+                "recency_score": entry.recency_score,
+                "relevance_score": entry.relevance_score,
+                "tags": entry.tags
             })
         })
         .collect::<Vec<_>>();
@@ -5123,6 +6038,7 @@ async fn generate_premium_openai_reply(
                         "user": user_context,
                         "survey": survey_context,
                         "notes": notes_context,
+                        "memory_context": memory_context,
                         "fallback_reply": fallback_reply
                     })) }
                 ]
@@ -5426,7 +6342,11 @@ async fn security_headers_middleware(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_clear_cookie, build_session_cookie};
+    use super::{
+        build_clear_cookie, build_session_cookie, ingest_memory_records_if_opted_in,
+        retrieve_memory_context_from_records, MemoryIngestEvent, MemoryRecord,
+    };
+    use chrono::Duration;
 
     #[test]
     fn session_cookie_is_secure_and_domain_scoped() {
@@ -5452,5 +6372,119 @@ mod tests {
         assert!(cookie.contains("SameSite=Lax"));
         assert!(cookie.contains("Domain=atlasmasa.com"));
         assert!(cookie.contains("Max-Age=0"));
+    }
+
+    #[test]
+    fn memory_ingestion_deduplicates_and_refreshes_existing_record() {
+        let now = chrono::Utc::now();
+        let mut records = Vec::new();
+        let first = ingest_memory_records_if_opted_in(
+            &mut records,
+            "user-1",
+            true,
+            MemoryIngestEvent {
+                memory_type: "preference".to_string(),
+                stability: "permanent".to_string(),
+                source: "note".to_string(),
+                text: "Prefers desert routes with low crowds".to_string(),
+                weight: 0.80,
+                tags: vec!["travel".to_string()],
+                happened_at: Some(now - Duration::days(2)),
+                expires_at: None,
+            },
+            now,
+        )
+        .expect("first ingestion should create a memory");
+        assert_eq!(records.len(), 1);
+
+        let second = ingest_memory_records_if_opted_in(
+            &mut records,
+            "user-1",
+            true,
+            MemoryIngestEvent {
+                memory_type: "preference".to_string(),
+                stability: "permanent".to_string(),
+                source: "survey".to_string(),
+                text: "Prefers desert routes with low crowds".to_string(),
+                weight: 0.96,
+                tags: vec!["survey_trip_style".to_string()],
+                happened_at: Some(now),
+                expires_at: None,
+            },
+            now,
+        )
+        .expect("duplicate ingestion should update existing memory");
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(first.memory_id, second.memory_id);
+        assert_eq!(records[0].source, "survey");
+        assert!(records[0].weight > 0.85);
+        assert!(records[0].tags.iter().any(|tag| tag == "survey_trip_style"));
+    }
+
+    #[test]
+    fn memory_retrieval_orders_by_relevance_and_recency() {
+        let now = chrono::Utc::now();
+        let records = vec![
+            MemoryRecord {
+                memory_id: "memory-1".to_string(),
+                user_id: "user-1".to_string(),
+                memory_type: "preference".to_string(),
+                stability: "permanent".to_string(),
+                source: "survey".to_string(),
+                text: "User prefers desert routes and silence".to_string(),
+                weight: 0.95,
+                recency_score: 0.1,
+                tags: vec!["desert".to_string()],
+                created_at: (now - Duration::days(7)).to_rfc3339(),
+                updated_at: (now - Duration::days(3)).to_rfc3339(),
+                expires_at: None,
+                fingerprint: "f1".to_string(),
+            },
+            MemoryRecord {
+                memory_id: "memory-2".to_string(),
+                user_id: "user-1".to_string(),
+                memory_type: "mood".to_string(),
+                stability: "transient".to_string(),
+                source: "chat".to_string(),
+                text: "User feels slightly tired this morning".to_string(),
+                weight: 0.60,
+                recency_score: 1.0,
+                tags: vec!["energy".to_string()],
+                created_at: (now - Duration::hours(5)).to_rfc3339(),
+                updated_at: (now - Duration::hours(3)).to_rfc3339(),
+                expires_at: Some((now + Duration::days(2)).to_rfc3339()),
+                fingerprint: "f2".to_string(),
+            },
+        ];
+
+        let ranked = retrieve_memory_context_from_records(&records, "desert route", 5, now);
+        assert_eq!(ranked.len(), 2);
+        assert_eq!(ranked[0].memory_id, "memory-1");
+        assert!(ranked[0].final_score > ranked[1].final_score);
+    }
+
+    #[test]
+    fn memory_ingestion_respects_privacy_opt_out() {
+        let now = chrono::Utc::now();
+        let mut records = Vec::new();
+        let ingested = ingest_memory_records_if_opted_in(
+            &mut records,
+            "user-1",
+            false,
+            MemoryIngestEvent {
+                memory_type: "goal".to_string(),
+                stability: "permanent".to_string(),
+                source: "chat".to_string(),
+                text: "Build a strong weekly execution cadence".to_string(),
+                weight: 0.88,
+                tags: vec!["execution".to_string()],
+                happened_at: Some(now),
+                expires_at: None,
+            },
+            now,
+        );
+        assert!(ingested.is_none());
+        assert!(records.is_empty());
     }
 }
