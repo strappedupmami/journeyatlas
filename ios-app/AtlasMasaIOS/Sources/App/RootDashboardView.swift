@@ -15,6 +15,9 @@ struct RootDashboardView: View {
             NotesCard()
                 .tabItem { Label("Notes", systemImage: "square.and.pencil") }
 
+            PromptQueueCard()
+                .tabItem { Label("Queue", systemImage: "tray.full") }
+
             SubscriptionCard()
                 .tabItem { Label("Billing", systemImage: "creditcard") }
 

@@ -10,17 +10,24 @@ final class SessionStore: ObservableObject {
     @Published var notes: [UserNote] = []
     @Published var pendingNoteTitle = ""
     @Published var pendingNoteContent = ""
+    @Published var pendingPrompt = ""
+    @Published var promptQueue: [PromptQueueItem] = []
 
     let api: APIClient
+    private let localReasoning = LocalReasoningEngine()
+    private var queueWorkerTask: Task<Void, Never>?
+    private let queueStorageKey = "atlas_macos_prompt_queue_v1"
 
     init(api: APIClient = APIClient()) {
         self.api = api
+        loadPromptQueueFromDisk()
     }
 
     func bootstrap() async {
         await refreshHealth()
         await loadSurvey()
         await refreshFeed()
+        startPromptQueueWorker()
     }
 
     func refreshHealth() async {
@@ -147,5 +154,81 @@ final class SessionStore: ObservableObject {
         if systemOutput.count > 20 {
             systemOutput = Array(systemOutput.prefix(20))
         }
+    }
+
+    func enqueuePrompt() {
+        let cleaned = pendingPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            appendOutput("Write a prompt before queueing.")
+            return
+        }
+
+        promptQueue.append(
+            PromptQueueItem(
+                id: UUID().uuidString,
+                prompt: cleaned,
+                status: .queued,
+                createdAt: Date(),
+                completedAt: nil,
+                errorMessage: nil,
+                output: nil
+            )
+        )
+        pendingPrompt = ""
+        persistPromptQueueToDisk()
+        appendOutput("Prompt queued for local background reasoning.")
+        startPromptQueueWorker()
+    }
+
+    func clearPromptQueue() {
+        promptQueue = []
+        persistPromptQueueToDisk()
+        appendOutput("Prompt queue cleared.")
+    }
+
+    func startPromptQueueWorker() {
+        guard queueWorkerTask == nil else { return }
+        queueWorkerTask = Task { [weak self] in
+            guard let self else { return }
+            await self.runPromptQueueLoop()
+        }
+    }
+
+    private func runPromptQueueLoop() async {
+        while !Task.isCancelled {
+            guard let index = promptQueue.firstIndex(where: { $0.status == .queued }) else {
+                break
+            }
+
+            promptQueue[index].status = .running
+            promptQueue[index].errorMessage = nil
+            persistPromptQueueToDisk()
+
+            let item = promptQueue[index]
+            let output = await localReasoning.reason(prompt: item.prompt, notes: notes)
+            promptQueue[index].status = .done
+            promptQueue[index].completedAt = Date()
+            promptQueue[index].output = output
+            promptQueue[index].errorMessage = nil
+            persistPromptQueueToDisk()
+            appendOutput("Local reasoning complete for queued prompt: \(output.nextAction)")
+        }
+
+        queueWorkerTask = nil
+    }
+
+    private func persistPromptQueueToDisk() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(promptQueue) else { return }
+        UserDefaults.standard.set(data, forKey: queueStorageKey)
+    }
+
+    private func loadPromptQueueFromDisk() {
+        guard let data = UserDefaults.standard.data(forKey: queueStorageKey) else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let restored = try? decoder.decode([PromptQueueItem].self, from: data) else { return }
+        promptQueue = restored
     }
 }

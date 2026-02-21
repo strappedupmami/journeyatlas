@@ -143,6 +143,46 @@
         color: var(--muted);
       }
 
+      .queue-item {
+        display: grid;
+        gap: 6px;
+      }
+
+      .queue-item__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted2);
+      }
+
+      .queue-item__status {
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 10px;
+        padding: 3px 7px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+
+      .queue-item__status--queued {
+        color: #9ad0ff;
+      }
+
+      .queue-item__status--running {
+        color: #ffd28f;
+      }
+
+      .queue-item__status--done {
+        color: #77ffc5;
+      }
+
+      .queue-item__status--failed {
+        color: #ff8a8a;
+      }
+
       .pill-line {
         display: flex;
         flex-wrap: wrap;
@@ -415,6 +455,16 @@
                 <button class="btn btn--ghost" id="voice-btn" type="button" data-i18n="studio.voiceInput">קלט קולי</button>
                 <button class="btn btn--ghost" id="speak-btn" type="button" data-i18n="studio.speak">הקראה</button>
                 <a class="btn btn--ghost" href="homepage.html" data-i18n="studio.back">חזרה לדף הבית</a>
+              </div>
+
+              <div class="field">
+                <label data-i18n="studio.promptQueue">תור פרומפטים (הרצה רציפה)</label>
+                <div class="actions">
+                  <button class="btn btn--ghost" id="queue-add-btn" type="button" data-i18n="studio.queueAdd">הוסף לתור</button>
+                  <button class="btn btn--ghost" id="queue-run-btn" type="button" data-i18n="studio.queueRun">הרץ תור</button>
+                  <button class="btn btn--ghost" id="queue-clear-btn" type="button" data-i18n="studio.queueClear">נקה תור</button>
+                </div>
+                <div class="stack" id="queue-list"></div>
               </div>
             </section>
 
@@ -732,6 +782,10 @@
             promptLabel: "מה תרצה לשאול או לקדם עכשיו?",
             promptPh: "לדוגמה: תן לי תוכנית עבודה ומסלול יומי שידחוף ביצוע",
             send: "שלח",
+            promptQueue: "תור פרומפטים (הרצה רציפה)",
+            queueAdd: "הוסף לתור",
+            queueRun: "הרץ תור",
+            queueClear: "נקה תור",
             voiceInput: "קלט קולי",
             speak: "הקראה",
             back: "חזרה לדף הבית",
@@ -851,6 +905,10 @@
             promptLabel: "What do you want to ask or move forward now?",
             promptPh: "Example: give me an execution plan and daily route rhythm",
             send: "Send",
+            promptQueue: "Prompt queue (sequential run)",
+            queueAdd: "Add to queue",
+            queueRun: "Run queue",
+            queueClear: "Clear queue",
             voiceInput: "Voice input",
             speak: "Speak output",
             back: "Back to homepage",
@@ -961,6 +1019,8 @@
           sentCount: 0,
           lastSentAt: 0,
         },
+        promptQueue: [],
+        queueRunning: false,
       };
 
       const featureSegment = document.getElementById("feature-segment");
@@ -972,6 +1032,10 @@
       const sendBtn = document.getElementById("send-btn");
       const voiceBtn = document.getElementById("voice-btn");
       const speakBtn = document.getElementById("speak-btn");
+      const queueAddBtn = document.getElementById("queue-add-btn");
+      const queueRunBtn = document.getElementById("queue-run-btn");
+      const queueClearBtn = document.getElementById("queue-clear-btn");
+      const queueList = document.getElementById("queue-list");
       const outputBox = document.getElementById("output-box");
       const tagRow = document.getElementById("tag-row");
       const actionList = document.getElementById("action-list");
@@ -1075,6 +1139,7 @@
       ];
       const AUTO_REPORT_MIN_INTERVAL_MS = 3 * 60 * 1000;
       const AUTO_REPORT_MAX_PER_SESSION = 4;
+      const PROMPT_QUEUE_STORAGE_KEY = "atlas_prompt_queue_v1";
 
       function getByPath(objectValue, path) {
         if (!objectValue || !path) return undefined;
@@ -1510,6 +1575,121 @@
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#39;");
+      }
+
+      function normalizeQueueItem(raw) {
+        if (!raw || typeof raw !== "object") return null;
+        const prompt = String(raw.prompt || "").trim();
+        if (!prompt) return null;
+        const status = ["queued", "running", "done", "failed"].includes(raw.status)
+          ? raw.status
+          : "queued";
+        return {
+          id: String(raw.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+          prompt,
+          status,
+          created_at: typeof raw.created_at === "string" ? raw.created_at : new Date().toISOString(),
+          last_result: typeof raw.last_result === "string" ? raw.last_result : "",
+        };
+      }
+
+      function savePromptQueue() {
+        try {
+          localStorage.setItem(PROMPT_QUEUE_STORAGE_KEY, JSON.stringify(state.promptQueue));
+        } catch (_) {}
+      }
+
+      function loadPromptQueue() {
+        try {
+          const raw = localStorage.getItem(PROMPT_QUEUE_STORAGE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) return;
+          state.promptQueue = parsed.map(normalizeQueueItem).filter(Boolean);
+        } catch (_) {
+          state.promptQueue = [];
+        }
+      }
+
+      function renderPromptQueue() {
+        if (!queueList) return;
+        if (!state.promptQueue.length) {
+          queueList.innerHTML = `<div class="tile"><p>${state.locale === "he" ? "אין כרגע פרומפטים בתור." : "No queued prompts right now."}</p></div>`;
+          return;
+        }
+
+        queueList.innerHTML = state.promptQueue
+          .map((item, idx) => {
+            const statusLabel =
+              item.status === "queued"
+                ? state.locale === "he"
+                  ? "ממתין"
+                  : "Queued"
+                : item.status === "running"
+                ? state.locale === "he"
+                  ? "בריצה"
+                  : "Running"
+                : item.status === "done"
+                ? state.locale === "he"
+                  ? "בוצע"
+                  : "Done"
+                : state.locale === "he"
+                ? "נכשל"
+                : "Failed";
+            const statusClass =
+              item.status === "queued"
+                ? "queue-item__status--queued"
+                : item.status === "running"
+                ? "queue-item__status--running"
+                : item.status === "done"
+                ? "queue-item__status--done"
+                : "queue-item__status--failed";
+            return `
+              <div class="tile queue-item">
+                <div class="queue-item__head">
+                  <strong>#${idx + 1}</strong>
+                  <span class="queue-item__status ${statusClass}">${statusLabel}</span>
+                </div>
+                <p>${escapeHtml(item.prompt)}</p>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function addPromptToQueue() {
+        const prompt = (messageEl.value || "").trim();
+        if (!prompt) {
+          renderOutput(
+            state.locale === "he" ? "כתבו פרומפט לפני הוספה לתור" : "Write a prompt before adding to queue",
+            ["queue", "input"]
+          );
+          return;
+        }
+        state.promptQueue.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          prompt,
+          status: "queued",
+          created_at: new Date().toISOString(),
+          last_result: "",
+        });
+        savePromptQueue();
+        renderPromptQueue();
+        messageEl.value = "";
+        renderOutput(
+          state.locale === "he" ? "הפרומפט נוסף לתור." : "Prompt added to queue.",
+          ["queue", "queued"]
+        );
+      }
+
+      function clearPromptQueue() {
+        state.promptQueue = [];
+        savePromptQueue();
+        renderPromptQueue();
+        renderOutput(
+          state.locale === "he" ? "התור נוקה." : "Queue cleared.",
+          ["queue", "cleared"]
+        );
       }
 
       function detectNegativeSignal(text) {
@@ -2591,13 +2771,13 @@
         const text = messageEl.value.trim();
         if (state.mode !== "health" && !text && state.mode !== "trip") {
           renderOutput(state.locale === "he" ? "כתבו שאלה או בחרו הצעה" : "Type a prompt or choose a suggestion", ["input"]);
-          return;
+          return { ok: false, status: 400, reason: "missing_input" };
         }
 
         if (state.mode === "health") {
           await runHealthCheck();
           renderOutput(state.locale === "he" ? "בדיקת מערכת בוצעה" : "System check complete", ["health"]);
-          return;
+          return { ok: true, status: 200, reason: "health_mode" };
         }
 
         sendBtn.disabled = true;
@@ -2621,7 +2801,7 @@
                 "high"
               );
               renderOutput(`${state.locale === "he" ? "יצירת מסלול נכשלה" : "Trip plan failed"} (${trip.status})`, ["trip", "error"], trip.payload);
-              return;
+              return { ok: false, status: trip.status, reason: "trip_failed" };
             }
 
             const summary = trip.payload.summary || (state.locale === "he" ? "נוצר מסלול" : "Trip generated");
@@ -2638,7 +2818,7 @@
                 },
               },
             ]);
-            return;
+            return { ok: true, status: 200, reason: "trip_success" };
           }
 
           collectStudioControls();
@@ -2662,7 +2842,7 @@
               "high"
             );
             renderOutput(`${state.locale === "he" ? "לא הצלחנו לענות" : "Could not answer"} (${result.status})`, ["chat", "error"], result.payload);
-            return;
+            return { ok: false, status: result.status, reason: "chat_failed" };
           }
 
           const payload = result.payload || {};
@@ -2672,8 +2852,48 @@
           if (payload.json_payload && payload.json_payload.proactive_feed) {
             renderFeed(payload.json_payload.proactive_feed);
           }
+          return { ok: true, status: 200, reason: "chat_success" };
         } finally {
           sendBtn.disabled = false;
+        }
+      }
+
+      async function processPromptQueue() {
+        if (state.queueRunning) return;
+        if (!state.promptQueue.length) {
+          renderPromptQueue();
+          return;
+        }
+
+        state.queueRunning = true;
+        if (queueRunBtn) queueRunBtn.disabled = true;
+        const previousMode = state.mode;
+        state.mode = "chat";
+        renderMode();
+        renderOutput(
+          state.locale === "he" ? "מריצים את תור הפרומפטים..." : "Running prompt queue...",
+          ["queue", "running"]
+        );
+
+        try {
+          for (let i = 0; i < state.promptQueue.length; i += 1) {
+            const item = state.promptQueue[i];
+            if (item.status === "done") continue;
+            state.promptQueue[i].status = "running";
+            savePromptQueue();
+            renderPromptQueue();
+            messageEl.value = item.prompt;
+            const result = await sendChat();
+            state.promptQueue[i].status = result && result.ok ? "done" : "failed";
+            state.promptQueue[i].last_result = (result && result.reason) || "";
+            savePromptQueue();
+            renderPromptQueue();
+          }
+        } finally {
+          state.mode = previousMode;
+          renderMode();
+          state.queueRunning = false;
+          if (queueRunBtn) queueRunBtn.disabled = false;
         }
       }
 
@@ -2879,6 +3099,9 @@
         if (signoutBtn) signoutBtn.addEventListener("click", logout);
         if (saveProfileBtn) saveProfileBtn.addEventListener("click", saveProfile);
         sendBtn.addEventListener("click", sendChat);
+        if (queueAddBtn) queueAddBtn.addEventListener("click", addPromptToQueue);
+        if (queueRunBtn) queueRunBtn.addEventListener("click", processPromptQueue);
+        if (queueClearBtn) queueClearBtn.addEventListener("click", clearPromptQueue);
         voiceBtn.addEventListener("click", toggleVoiceInput);
         speakBtn.addEventListener("click", speakOutput);
         saveStudioBtn.addEventListener("click", saveStudioPreferences);
@@ -2908,6 +3131,7 @@
           }
           syncExecutionControls();
           loadProactiveFeed(true);
+          renderPromptQueue();
         });
       }
 
@@ -2965,8 +3189,10 @@
         }
 
         setupEvents();
+        loadPromptQueue();
         renderFeature();
         renderMode();
+        renderPromptQueue();
         setPressed(styleSegment, "style", state.style);
         syncStudioControls();
         syncExecutionControls();
