@@ -1,0 +1,90 @@
+name: release-attestations
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: release-attestations-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  attest-release:
+    name: attest-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+
+      - name: Build release artifacts
+        working-directory: atlas-concierge
+        run: |
+          cargo build --locked --release -p atlas-cli
+
+      - name: Package release bundle
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp atlas-concierge/target/release/concierge release/concierge-linux-x64
+          chmod +x release/concierge-linux-x64
+
+          VERSION="${GITHUB_REF_NAME:-manual}"
+          BUNDLE="atlas-concierge-${VERSION}-linux-x64.tar.gz"
+          tar -C release -czf "release/${BUNDLE}" concierge-linux-x64
+          sha256sum "release/${BUNDLE}" > "release/${BUNDLE}.sha256"
+
+      - name: Build custom attestation predicate
+        run: |
+          set -euo pipefail
+          cat > release/custom-release-predicate.json <<JSON
+          {
+            "_type": "https://atlasmasa.com/attestations/release/v1",
+            "project": "journeyatlas",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "ref": "${GITHUB_REF}",
+            "sha": "${GITHUB_SHA}",
+            "repository": "${GITHUB_REPOSITORY}",
+            "generated_at_utc": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          JSON
+
+      - name: Upload release bundle artifacts
+        uses: actions/upload-artifact@b7c0f7a5ee86f7bfd6fd72f501435b7d0e65fc64
+        with:
+          name: release-bundle
+          path: |
+            release/*.tar.gz
+            release/*.sha256
+            release/custom-release-predicate.json
+          if-no-files-found: error
+
+      - name: Generate artifact provenance attestation
+        uses: actions/attest-build-provenance@96278f2dd745b822603ff95514002c9af4ef5014
+        with:
+          subject-path: release/*.tar.gz
+
+      - name: Generate signed custom release attestation
+        uses: actions/attest@e59cbc1e944ef6e7e73c6f16b211c35d7ea6f6a0
+        with:
+          subject-path: release/*.tar.gz
+          predicate-path: release/custom-release-predicate.json
+          predicate-type: https://atlasmasa.com/attestations/release/v1

@@ -1,0 +1,97 @@
+name: dependency-quarantine
+
+on:
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: dependency-quarantine-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quarantine:
+    name: quarantine
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Run dependency quarantine checks
+        id: quarantine_check
+        continue-on-error: true
+        run: |
+          ./scripts/dependency-quarantine-check.sh --report artifacts/dependency-quarantine-report.md
+
+      - name: Upload quarantine report
+        if: always()
+        uses: actions/upload-artifact@b7c0f7a5ee86f7bfd6fd72f501435b7d0e65fc64
+        with:
+          name: dependency-quarantine-report
+          path: artifacts/dependency-quarantine-report.md
+          if-no-files-found: warn
+
+      - name: Label and comment quarantined PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.quarantine_check.outputs.suspicious == 'true'
+        uses: actions/github-script@ed5974115024ba1fe1d8f84f6e8dfe29a9c70ca1
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.issue.number;
+            const labelName = "dependency-quarantine";
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: labelName });
+            } catch (error) {
+              if (error.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: labelName,
+                  color: "B60205",
+                  description: "Suspicious dependency update requires manual security review"
+                });
+              } else {
+                throw error;
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number,
+              labels: [labelName]
+            });
+
+            const body = [
+              "Dependency quarantine was triggered for this PR.",
+              "",
+              "This update changed dependency-related content in a suspicious pattern.",
+              "Review `artifacts/dependency-quarantine-report.md` from this workflow run before merge.",
+              "",
+              `Run: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body
+            });
+
+      - name: Enforce quarantine gate
+        if: steps.quarantine_check.outputs.suspicious == 'true'
+        run: |
+          echo "Dependency quarantine gate blocked this update."
+          exit 1
