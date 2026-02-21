@@ -48,6 +48,36 @@ struct WorkspacesCard: View {
                                 .font(.system(size: 12, weight: .medium, design: .rounded))
                                 .foregroundStyle(AtlasTheme.textSecondary)
 
+                            if !workspace.sharedMemorySignals.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Shared memory signals")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        .foregroundStyle(AtlasTheme.textPrimary)
+                                    ForEach(workspace.sharedMemorySignals, id: \.self) { signal in
+                                        Text("• \(signal)")
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                                            .foregroundStyle(AtlasTheme.textSecondary)
+                                    }
+                                }
+                            }
+
+                            if !workspace.crossWorkspaceSignals.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Cross-workspace carryover")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        .foregroundStyle(AtlasTheme.textPrimary)
+                                    ForEach(workspace.crossWorkspaceSignals, id: \.self) { signal in
+                                        Text("• \(signal)")
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                                            .foregroundStyle(AtlasTheme.textSecondary)
+                                    }
+                                }
+                            }
+
+                            Text("Memory records linked: \(workspace.memoryRecordCount)")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AtlasTheme.accentWarm)
+
                             ForEach(workspace.citations) { citation in
                                 Link(destination: URL(string: citation.sourceURL) ?? URL(string: "https://atlasmasa.com")!) {
                                     Text("Source: \(citation.title) (\(citation.year))")

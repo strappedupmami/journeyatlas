@@ -34,6 +34,7 @@ final class SessionStore: ObservableObject {
     @Published var memoryInsights: [MemoryInsight] = []
     @Published var tailoredOffers: [TailoredOffer] = []
     @Published var researchStreams: [ResearchExecutionStream] = []
+    @Published var workspaceMemoryRecords: [WorkspaceMemoryRecord] = []
     @Published var workspacePlans: [WorkspacePlan] = []
     @Published var learningPackage: AdaptiveLearningPackage?
     @Published var memoryCollectionEnabled = true
@@ -274,6 +275,7 @@ final class SessionStore: ObservableObject {
         memoryInsights = []
         tailoredOffers = []
         researchStreams = []
+        workspaceMemoryRecords = []
         workspacePlans = []
         feedItems = []
         surveyAnswers = [:]
@@ -513,7 +515,8 @@ final class SessionStore: ObservableObject {
         executionActions = buildExecutionActions()
         tailoredOffers = buildTailoredOffers()
         researchStreams = buildResearchExecutionStreams()
-        workspacePlans = buildWorkspacePlans(from: researchStreams)
+        syncWorkspaceMemoryRecords()
+        workspacePlans = buildWorkspacePlans(from: researchStreams, memoryRecords: workspaceMemoryRecords)
         refreshAdaptiveLearningPackageIfNeeded()
         feedItems = localFeedFromExecutionPlan()
     }
@@ -780,33 +783,372 @@ final class SessionStore: ObservableObject {
         ]
     }
 
-    private func buildWorkspacePlans(from streams: [ResearchExecutionStream]) -> [WorkspacePlan] {
-        guard !streams.isEmpty else { return [] }
+    private func syncWorkspaceMemoryRecords() {
+        guard memoryCollectionEnabled else {
+            workspaceMemoryRecords = []
+            return
+        }
+
+        var merged = workspaceMemoryRecords
+        let now = Date()
+
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: nil,
+            source: .checkin,
+            key: "daily_priority",
+            value: dailyPriority,
+            weight: 0.88,
+            tags: ["daily", "execution"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: nil,
+            source: .checkin,
+            key: "mid_term_goal",
+            value: midTermGoal,
+            weight: 0.83,
+            tags: ["mid_term", "strategy"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: nil,
+            source: .checkin,
+            key: "long_term_vision",
+            value: longTermVision,
+            weight: 0.82,
+            tags: ["long_term", "mission"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .deepWork,
+            source: .checkin,
+            key: "mood",
+            value: checkInMood,
+            weight: 0.72,
+            tags: ["mood", "cognition"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .deepWork,
+            source: .checkin,
+            key: "energy_level",
+            value: "\(checkInEnergy)",
+            weight: 0.74,
+            tags: ["energy", "cognition"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .deepWork,
+            source: .checkin,
+            key: "blockers",
+            value: checkInBlockers,
+            weight: 0.70,
+            tags: ["blockers", "execution"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .deepWork,
+            source: .checkin,
+            key: "gym_today",
+            value: checkInWentToGymToday ? "yes" : "no",
+            weight: 0.65,
+            tags: ["health", "habit"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .wealthOperations,
+            source: .checkin,
+            key: "money_today",
+            value: checkInMadeMoneyToday ? "yes" : "no",
+            weight: 0.80,
+            tags: ["income", "cashflow"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .wealthOperations,
+            source: .checkin,
+            key: "money_signal_note",
+            value: checkInMoneySignalNote,
+            weight: 0.78,
+            tags: ["income", "context"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .mobilityOps,
+            source: .system,
+            key: "workspace_mode",
+            value: workspaceMode,
+            weight: 0.67,
+            tags: ["mobility", "mode"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .mobilityOps,
+            source: .system,
+            key: "travel_region",
+            value: travelRegion,
+            weight: 0.64,
+            tags: ["region", "mobility"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: .mobilityOps,
+            source: .system,
+            key: "annual_distance_km",
+            value: annualDistanceKM,
+            weight: 0.61,
+            tags: ["distance", "mobility"],
+            now: now
+        )
+
+        for (questionID, answer) in surveyAnswers {
+            let lane = inferWorkspaceLane(from: "\(questionID) \(answer)")
+            upsertWorkspaceMemoryRecord(
+                in: &merged,
+                lane: lane,
+                source: .survey,
+                key: "survey:\(questionID)",
+                value: answer,
+                weight: 0.69,
+                tags: ["survey"],
+                now: now
+            )
+        }
+
+        for note in notes.prefix(24) {
+            let body = "\(note.title) \(note.content)"
+            let lane = inferWorkspaceLane(from: body)
+            upsertWorkspaceMemoryRecord(
+                in: &merged,
+                lane: lane,
+                source: .note,
+                key: "note:\(note.noteID)",
+                value: sanitizeWorkspaceMemoryValue(body, maxLength: 180),
+                weight: 0.77,
+                tags: ["note", "memory"],
+                now: now
+            )
+        }
+
+        for action in executionActions.prefix(10) {
+            let lane = inferWorkspaceLane(from: "\(action.title) \(action.details)")
+            upsertWorkspaceMemoryRecord(
+                in: &merged,
+                lane: lane,
+                source: .execution,
+                key: "execution:\(action.id)",
+                value: sanitizeWorkspaceMemoryValue(action.details, maxLength: 150),
+                weight: 0.75,
+                tags: ["execution", action.horizon.lowercased()],
+                now: now
+            )
+        }
+
+        workspaceMemoryRecords = normalizeWorkspaceMemoryRecords(merged, now: now)
+    }
+
+    private func upsertWorkspaceMemoryRecord(
+        in records: inout [WorkspaceMemoryRecord],
+        lane: WorkspaceLane?,
+        source: WorkspaceMemorySource,
+        key: String,
+        value rawValue: String,
+        weight: Double,
+        tags: [String],
+        now: Date
+    ) {
+        let cleanedValue = sanitizeWorkspaceMemoryValue(rawValue, maxLength: 180)
+        guard !cleanedValue.isEmpty else { return }
+        let cleanedKey = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cleanedKey.isEmpty else { return }
+        let normalizedWeight = min(1.0, max(0.05, weight))
+        let normalizedTags = Array(Set(tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }.filter { !$0.isEmpty })).sorted()
+        if let idx = records.firstIndex(where: { $0.lane == lane && $0.source == source && $0.key == cleanedKey }) {
+            let previous = records[idx]
+            records[idx] = WorkspaceMemoryRecord(
+                id: previous.id,
+                lane: lane,
+                source: source,
+                key: cleanedKey,
+                value: cleanedValue,
+                weight: normalizedWeight,
+                tags: normalizedTags,
+                createdAtUTC: previous.createdAtUTC,
+                updatedAtUTC: now
+            )
+            return
+        }
+
+        records.append(
+            WorkspaceMemoryRecord(
+                id: UUID().uuidString,
+                lane: lane,
+                source: source,
+                key: cleanedKey,
+                value: cleanedValue,
+                weight: normalizedWeight,
+                tags: normalizedTags,
+                createdAtUTC: now,
+                updatedAtUTC: now
+            )
+        )
+    }
+
+    private func normalizeWorkspaceMemoryRecords(
+        _ records: [WorkspaceMemoryRecord],
+        now: Date
+    ) -> [WorkspaceMemoryRecord] {
+        let maxAge: TimeInterval = 60 * 60 * 24 * 180
+        var deduped: [String: WorkspaceMemoryRecord] = [:]
+
+        for record in records {
+            guard !record.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            let age = max(0, now.timeIntervalSince(record.updatedAtUTC))
+            guard age <= maxAge else { continue }
+
+            let dedupeKey = "\(record.lane?.rawValue ?? "shared")::\(record.source.rawValue)::\(record.key)"
+            if let existing = deduped[dedupeKey] {
+                if record.updatedAtUTC > existing.updatedAtUTC || (record.updatedAtUTC == existing.updatedAtUTC && record.weight > existing.weight) {
+                    deduped[dedupeKey] = record
+                }
+            } else {
+                deduped[dedupeKey] = record
+            }
+        }
+
+        return deduped.values
+            .sorted { lhs, rhs in
+                let lhsScore = workspaceMemoryScore(lhs, now: now)
+                let rhsScore = workspaceMemoryScore(rhs, now: now)
+                if lhsScore == rhsScore {
+                    return lhs.updatedAtUTC > rhs.updatedAtUTC
+                }
+                return lhsScore > rhsScore
+            }
+            .prefix(220)
+            .map { $0 }
+    }
+
+    private func workspaceMemoryScore(_ record: WorkspaceMemoryRecord, now: Date = Date()) -> Double {
+        let ageSeconds = max(0, now.timeIntervalSince(record.updatedAtUTC))
+        let recencyHalfLife: TimeInterval = 60 * 60 * 24 * 14
+        let recency = exp(-ageSeconds / recencyHalfLife)
+        return (record.weight * 0.72) + (recency * 0.28)
+    }
+
+    private func workspaceMemoryHighlights(
+        from records: [WorkspaceMemoryRecord],
+        limit: Int
+    ) -> [String] {
+        let now = Date()
+        return records
+            .sorted { lhs, rhs in
+                let lhsScore = workspaceMemoryScore(lhs, now: now)
+                let rhsScore = workspaceMemoryScore(rhs, now: now)
+                if lhsScore == rhsScore {
+                    return lhs.updatedAtUTC > rhs.updatedAtUTC
+                }
+                return lhsScore > rhsScore
+            }
+            .prefix(max(0, limit))
+            .map { "\((workspaceSignalLabel(for: $0.key))): \($0.value)" }
+    }
+
+    private func workspaceSignalLabel(for key: String) -> String {
+        let stripped = key
+            .replacingOccurrences(of: "survey:", with: "")
+            .replacingOccurrences(of: "note:", with: "note ")
+            .replacingOccurrences(of: "execution:", with: "execution ")
+            .replacingOccurrences(of: "_", with: " ")
+        return stripped.capitalized
+    }
+
+    private func sanitizeWorkspaceMemoryValue(_ value: String, maxLength: Int) -> String {
+        let redacted = SensitiveDataRedactor.redact(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        return String(redacted.prefix(maxLength))
+    }
+
+    private func inferWorkspaceLane(from text: String) -> WorkspaceLane? {
+        let lower = text.lowercased()
+        if containsAny(lower, ["emergency", "crisis", "incident", "triage", "evacuation", "command", "חירום", "משבר"]) {
+            return .emergencyCommand
+        }
+        if containsAny(lower, ["cash", "revenue", "income", "sales", "pricing", "wealth", "money", "הכנסה", "כסף"]) {
+            return .wealthOperations
+        }
+        if containsAny(lower, ["mobility", "travel", "route", "trip", "fleet", "van", "drive", "נסיעה", "מסלול"]) {
+            return .mobilityOps
+        }
+        if containsAny(lower, ["innovation", "prototype", "architecture", "systems", "technology", "חדשנות", "טכנולוג"]) {
+            return .innovation
+        }
+        if containsAny(lower, ["focus", "cognitive", "fatigue", "sleep", "stress", "attention", "קוגנ", "שינה", "לחץ"]) {
+            return .deepWork
+        }
+        return nil
+    }
+
+    private func buildWorkspacePlans(
+        from streams: [ResearchExecutionStream],
+        memoryRecords: [WorkspaceMemoryRecord]
+    ) -> [WorkspacePlan] {
+        if streams.isEmpty, memoryRecords.isEmpty {
+            return []
+        }
 
         var byLane: [WorkspaceLane: [ResearchExecutionStream]] = [:]
         for stream in streams {
             byLane[workspaceLane(for: stream.domain), default: []].append(stream)
         }
+        for lane in memoryRecords.compactMap(\.lane) {
+            byLane[lane, default: []] = byLane[lane, default: []]
+        }
 
         let topAction = executionActions.first?.details ?? "Execute one critical action in the next 30 minutes."
+        let sharedRecords = memoryRecords.filter { $0.lane == nil }
         let plans = byLane.map { lane, laneStreams -> WorkspacePlan in
-            let primary = laneStreams.max { $0.confidence < $1.confidence } ?? laneStreams[0]
+            let primary = laneStreams.max { $0.confidence < $1.confidence }
+            let laneSpecificRecords = memoryRecords.filter { $0.lane == lane }
+            let crossWorkspaceRecords = memoryRecords.filter { $0.lane != nil && $0.lane != lane }
             let citations = Array(laneStreams.flatMap(\.citations).prefix(3))
-            let mergedEvidence = laneStreams
-                .prefix(2)
-                .map(\.whyItWorks)
-                .joined(separator: " ")
+            var evidenceParts = laneStreams.prefix(2).map(\.whyItWorks)
+            let sharedHighlights = workspaceMemoryHighlights(from: sharedRecords + laneSpecificRecords, limit: 3)
+            let crossHighlights = workspaceMemoryHighlights(from: crossWorkspaceRecords, limit: 2)
+            if !sharedHighlights.isEmpty {
+                evidenceParts.append("Shared signals: \(sharedHighlights.joined(separator: " | "))")
+            }
+            if !crossHighlights.isEmpty {
+                evidenceParts.append("Cross-workspace carryover: \(crossHighlights.joined(separator: " | "))")
+            }
+            let mergedEvidence = evidenceParts.joined(separator: " ")
+            let primaryAction = primary?.executionRecommendation.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let laneAction = executionActions.first(where: { ($0.source == "habit" || $0.source == "check-in") && (inferWorkspaceLane(from: "\($0.title) \($0.details)") ?? lane) == lane })
 
             return WorkspacePlan(
                 id: "workspace-\(lane.rawValue)",
                 lane: lane,
                 title: lane.title,
                 objective: workspaceObjective(for: lane),
-                nextActionNow: primary.executionRecommendation.isEmpty ? topAction : primary.executionRecommendation,
+                nextActionNow: !primaryAction.isEmpty ? primaryAction : (laneAction?.details ?? topAction),
                 protocolChecklist: workspaceProtocolChecklist(for: lane),
                 evidenceSummary: mergedEvidence,
-                confidence: primary.confidence,
-                citations: citations
+                confidence: primary?.confidence ?? 0.58,
+                citations: citations,
+                sharedMemorySignals: sharedHighlights,
+                crossWorkspaceSignals: crossHighlights,
+                memoryRecordCount: sharedRecords.count + laneSpecificRecords.count + crossWorkspaceRecords.count
             )
         }
 
@@ -1458,6 +1800,7 @@ final class SessionStore: ObservableObject {
         let persistedNotes = memoryCollectionEnabled ? notes : []
         let persistedSurveyAnswers = memoryCollectionEnabled ? surveyAnswers : [:]
         let persistedLearningPackage = memoryCollectionEnabled ? learningPackage : nil
+        let persistedWorkspaceMemoryRecords = memoryCollectionEnabled ? workspaceMemoryRecords : []
         let persistedLearningVersion = memoryCollectionEnabled
             ? learningVersion
             : 0
@@ -1487,6 +1830,7 @@ final class SessionStore: ObservableObject {
             workspaceMode: workspaceMode,
             notes: persistedNotes,
             surveyAnswers: persistedSurveyAnswers,
+            workspaceMemoryRecords: persistedWorkspaceMemoryRecords,
             learningPackage: persistedLearningPackage,
             learningVersion: persistedLearningVersion,
             learningFingerprint: persistedLearningFingerprint,
@@ -1589,6 +1933,7 @@ final class SessionStore: ObservableObject {
         workspaceMode = state.workspaceMode
         notes = state.notes
         surveyAnswers = state.surveyAnswers ?? [:]
+        workspaceMemoryRecords = state.workspaceMemoryRecords ?? []
         learningPackage = state.learningPackage
         learningVersion = state.learningVersion ?? (learningPackage?.version ?? 0)
         learningFingerprint = state.learningFingerprint ?? ""
@@ -1628,6 +1973,7 @@ private struct PersistedState: Codable {
     var workspaceMode: String
     var notes: [UserNote]
     var surveyAnswers: [String: String]?
+    var workspaceMemoryRecords: [WorkspaceMemoryRecord]?
     var learningPackage: AdaptiveLearningPackage?
     var learningVersion: Int?
     var learningFingerprint: String?

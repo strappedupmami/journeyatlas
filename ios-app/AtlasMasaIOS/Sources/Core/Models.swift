@@ -415,6 +415,28 @@ enum WorkspaceLane: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum WorkspaceMemorySource: String, Codable, CaseIterable, Identifiable {
+    case survey
+    case note
+    case checkin
+    case execution
+    case system
+
+    var id: String { rawValue }
+}
+
+struct WorkspaceMemoryRecord: Codable, Identifiable, Hashable {
+    let id: String
+    let lane: WorkspaceLane?
+    let source: WorkspaceMemorySource
+    let key: String
+    let value: String
+    let weight: Double
+    let tags: [String]
+    let createdAtUTC: Date
+    let updatedAtUTC: Date
+}
+
 struct WorkspacePlan: Codable, Identifiable, Hashable {
     let id: String
     let lane: WorkspaceLane
@@ -425,6 +447,9 @@ struct WorkspacePlan: Codable, Identifiable, Hashable {
     let evidenceSummary: String
     let confidence: Double
     let citations: [ResearchCitation]
+    let sharedMemorySignals: [String]
+    let crossWorkspaceSignals: [String]
+    let memoryRecordCount: Int
 }
 
 struct AdaptiveQuizQuestion: Codable, Identifiable, Hashable {
