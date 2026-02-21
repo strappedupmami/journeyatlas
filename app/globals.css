@@ -11,6 +11,8 @@
   --accent: #c07c2f;
   --radius: 18px;
   --shadow: 0 20px 40px -30px rgba(7, 35, 33, 0.4);
+  --font-display: "Iowan Old Style", "Times New Roman", "Noto Serif Hebrew", serif;
+  --font-body: "SF Pro Text", "Segoe UI", "Assistant", "Rubik", "Noto Sans Hebrew", sans-serif;
 }
 
 * {

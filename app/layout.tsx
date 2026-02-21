@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
-import { Rubik, Assistant } from "next/font/google";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SITE_DESCRIPTION, SITE_INDEXABLE } from "@/lib/site";
 import "./globals.css";
-
-const rubik = Rubik({
-  subsets: ["hebrew", "latin"],
-  variable: "--font-display",
-  weight: ["400", "500", "700"]
-});
-
-const assistant = Assistant({
-  subsets: ["hebrew", "latin"],
-  variable: "--font-body",
-  weight: ["400", "600", "700"]
-});
 
 export const metadata: Metadata = {
   title: "אטלס מסע | חופשה בלי מלונות",
@@ -29,7 +16,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="he" dir="rtl">
-      <body className={`${rubik.variable} ${assistant.variable}`}>
+      <body>
         <a href="#main-content" className="skip-link">
           דלג לתוכן הראשי
         </a>

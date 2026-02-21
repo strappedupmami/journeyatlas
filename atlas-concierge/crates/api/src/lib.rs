@@ -60,6 +60,10 @@ const MAX_ALARM_LABEL_LEN: usize = 120;
 const MIN_REMINDER_DURATION_MINUTES: u32 = 5;
 const MAX_REMINDER_DURATION_MINUTES: u32 = 8 * 60;
 const MAX_SHORTCUTS_URL_LEN: usize = 1_900;
+const MAX_FEEDBACK_MESSAGE_LEN: usize = 2_000;
+const MAX_FEEDBACK_TAGS: usize = 20;
+const MAX_FEEDBACK_TAG_LEN: usize = 40;
+const DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS: u64 = 300;
 const DEFAULT_SUBSCRIPTION_BYPASS_EMAILS: &str = "ceo@atlasmasa.com";
 
 #[derive(Clone)]
@@ -143,6 +147,7 @@ struct OpenAiRuntimeConfig {
 struct BillingRuntimeConfig {
     stripe_secret_key: String,
     stripe_webhook_secret: Option<String>,
+    stripe_webhook_tolerance_seconds: u64,
     monthly_price_id: String,
     success_url: String,
     cancel_url: String,
@@ -3094,7 +3099,12 @@ async fn billing_stripe_webhook(
             .get("stripe-signature")
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default();
-        if !verify_stripe_webhook_signature(signature, body.as_str(), secret.as_str()) {
+        if !verify_stripe_webhook_signature(
+            signature,
+            body.as_str(),
+            secret.as_str(),
+            runtime.stripe_webhook_tolerance_seconds,
+        ) {
             return StatusCode::UNAUTHORIZED.into_response();
         }
     }
@@ -3685,7 +3695,8 @@ async fn feedback_submit(
     headers: HeaderMap,
     Json(input): Json<FeedbackSubmitRequest>,
 ) -> impl IntoResponse {
-    if input.message.trim().is_empty() {
+    let message = sanitize_limited_text(input.message.trim(), MAX_FEEDBACK_MESSAGE_LEN);
+    if message.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
@@ -3697,6 +3708,33 @@ async fn feedback_submit(
     }
 
     let user_id = resolve_user_id(&state, &headers, input.user_id.clone());
+    let tags = input
+        .tags
+        .unwrap_or_default()
+        .into_iter()
+        .take(MAX_FEEDBACK_TAGS)
+        .map(|value| sanitize_limited_text(value.trim(), MAX_FEEDBACK_TAG_LEN))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let target_employee = sanitize_limited_text(
+        input
+            .target_employee
+            .unwrap_or_else(|| "product_team".to_string())
+            .trim()
+            .to_lowercase()
+            .as_str(),
+        MAX_PROFILE_FIELD_LEN,
+    );
+    let source = sanitize_limited_text(
+        input
+            .source
+            .unwrap_or_else(|| "web".to_string())
+            .trim()
+            .to_lowercase()
+            .as_str(),
+        MAX_PROFILE_FIELD_LEN,
+    );
+
     let item = FeedbackRecord {
         feedback_id: uuid::Uuid::new_v4().to_string(),
         user_id,
@@ -3713,18 +3751,18 @@ async fn feedback_submit(
             &["low", "normal", "high", "critical"],
             "normal",
         ),
-        message: input.message.trim().to_string(),
-        tags: input.tags.unwrap_or_default(),
-        target_employee: input
-            .target_employee
-            .unwrap_or_else(|| "product_team".to_string())
-            .trim()
-            .to_lowercase(),
-        source: input
-            .source
-            .unwrap_or_else(|| "web".to_string())
-            .trim()
-            .to_lowercase(),
+        message,
+        tags,
+        target_employee: if target_employee.is_empty() {
+            "product_team".to_string()
+        } else {
+            target_employee
+        },
+        source: if source.is_empty() {
+            "web".to_string()
+        } else {
+            source
+        },
         status: "new".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
     };
@@ -4346,18 +4384,24 @@ async fn api_key_middleware(
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default();
 
-    if header_key != state.api_key {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "error": "unauthorized",
-                "message": "missing or invalid x-api-key"
-            })),
-        )
-            .into_response();
+    if header_key == state.api_key {
+        return next.run(request).await;
     }
 
-    next.run(request).await
+    // Browser-origin requests from first-party allowed origins are accepted
+    // without x-api-key. This avoids embedding secrets in static web assets.
+    if request_origin_is_allowed(&state, request.headers()) {
+        return next.run(request).await;
+    }
+
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({
+            "error": "unauthorized",
+            "message": "missing or invalid x-api-key, and request origin is not allowed"
+        })),
+    )
+        .into_response()
 }
 
 fn session_user_from_headers(state: &ApiState, headers: &HeaderMap) -> Option<UserRecord> {
@@ -4392,6 +4436,35 @@ fn read_cookie_value(headers: &HeaderMap, cookie_name: &str) -> Option<String> {
             None
         }
     })
+}
+
+fn request_origin_is_allowed(state: &ApiState, headers: &HeaderMap) -> bool {
+    if let Some(origin) = request_origin_from_headers(headers) {
+        return state
+            .allowed_origins
+            .iter()
+            .any(|allowed| allowed == &origin);
+    }
+    false
+}
+
+fn request_origin_from_headers(headers: &HeaderMap) -> Option<String> {
+    let direct_origin = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty());
+    if direct_origin.is_some() {
+        return direct_origin;
+    }
+
+    headers
+        .get(header::REFERER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| Url::parse(value).ok())
+        .map(|url| format!("{}://{}", url.scheme(), url.host_str().unwrap_or_default()))
+        .map(|value| value.trim_end_matches('/').to_string())
+        .filter(|value| !value.ends_with("://") && !value.is_empty())
 }
 
 fn cookie_same_site_attr(value: &str) -> &'static str {
@@ -6384,10 +6457,16 @@ fn build_billing_runtime_config() -> Option<BillingRuntimeConfig> {
     let stripe_webhook_secret = env::var("ATLAS_STRIPE_WEBHOOK_SECRET")
         .ok()
         .filter(|value| !value.trim().is_empty());
+    let stripe_webhook_tolerance_seconds = env::var("ATLAS_STRIPE_WEBHOOK_TOLERANCE_SECONDS")
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .map(|value| value.clamp(30, 86_400))
+        .unwrap_or(DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS);
 
     Some(BillingRuntimeConfig {
         stripe_secret_key,
         stripe_webhook_secret,
+        stripe_webhook_tolerance_seconds,
         monthly_price_id,
         success_url,
         cancel_url,
@@ -7074,9 +7153,14 @@ async fn resolve_user_id_by_customer(state: &ApiState, customer_id: &str) -> Opt
         .map(|row| row.get::<String, _>("user_id"))
 }
 
-fn verify_stripe_webhook_signature(signature: &str, payload: &str, secret: &str) -> bool {
+fn verify_stripe_webhook_signature(
+    signature: &str,
+    payload: &str,
+    secret: &str,
+    tolerance_seconds: u64,
+) -> bool {
     let mut timestamp = "";
-    let mut expected = "";
+    let mut expected_signatures: Vec<&str> = Vec::new();
     for part in signature.split(',') {
         let mut split = part.splitn(2, '=');
         let key = split.next().unwrap_or_default();
@@ -7084,10 +7168,24 @@ fn verify_stripe_webhook_signature(signature: &str, payload: &str, secret: &str)
         if key == "t" {
             timestamp = value;
         } else if key == "v1" {
-            expected = value;
+            expected_signatures.push(value);
         }
     }
-    if timestamp.is_empty() || expected.is_empty() {
+    if timestamp.is_empty() || expected_signatures.is_empty() {
+        return false;
+    }
+    let timestamp_value = match timestamp.parse::<i64>() {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    if tolerance_seconds > 0 {
+        let now = chrono::Utc::now().timestamp();
+        if (now - timestamp_value).abs() > tolerance_seconds as i64 {
+            return false;
+        }
+    }
+
+    if payload.len() > 256 * 1024 {
         return false;
     }
 
@@ -7099,7 +7197,22 @@ fn verify_stripe_webhook_signature(signature: &str, payload: &str, secret: &str)
     mac.update(signed_payload.as_bytes());
     let result = mac.finalize().into_bytes();
     let computed = hex_encode(result.as_slice());
-    constant_time_eq(computed.as_bytes(), expected.as_bytes())
+    expected_signatures
+        .iter()
+        .any(|expected| constant_time_eq(computed.as_bytes(), expected.as_bytes()))
+}
+
+#[cfg(test)]
+fn build_test_stripe_signature(
+    payload: &str,
+    secret: &str,
+    timestamp: i64,
+) -> Result<String, hmac::digest::InvalidLength> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())?;
+    let signed_payload = format!("{}.{}", timestamp, payload);
+    mac.update(signed_payload.as_bytes());
+    let signature = hex_encode(mac.finalize().into_bytes().as_slice());
+    Ok(format!("t={},v1={}", timestamp, signature))
 }
 
 fn constant_time_eq(lhs: &[u8], rhs: &[u8]) -> bool {
@@ -7591,10 +7704,13 @@ async fn security_headers_middleware(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_clear_cookie, build_session_cookie, ingest_memory_records_if_opted_in,
-        prioritize_execution_tasks, retrieve_memory_context_from_records, schedule_minutes_offset,
-        ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
+        build_clear_cookie, build_session_cookie, build_test_stripe_signature,
+        ingest_memory_records_if_opted_in, prioritize_execution_tasks, request_origin_from_headers,
+        retrieve_memory_context_from_records, schedule_minutes_offset,
+        verify_stripe_webhook_signature, ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
+        DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
     };
+    use axum::http::{header, HeaderMap, HeaderValue};
     use chrono::Duration;
 
     #[test]
@@ -7775,5 +7891,61 @@ mod tests {
 
         assert!(!ranked.is_empty());
         assert_eq!(ranked[0].task_id, "daily-a");
+    }
+
+    #[test]
+    fn stripe_webhook_signature_accepts_valid_recent_payload() {
+        let payload = r#"{"type":"checkout.session.completed"}"#;
+        let secret = "whsec_test_secret";
+        let now = chrono::Utc::now().timestamp();
+        let signature = build_test_stripe_signature(payload, secret, now)
+            .expect("signature generation should succeed");
+        assert!(verify_stripe_webhook_signature(
+            signature.as_str(),
+            payload,
+            secret,
+            DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
+        ));
+    }
+
+    #[test]
+    fn stripe_webhook_signature_rejects_replay_outside_tolerance() {
+        let payload = r#"{"type":"checkout.session.completed"}"#;
+        let secret = "whsec_test_secret";
+        let old = chrono::Utc::now().timestamp() - 900;
+        let signature = build_test_stripe_signature(payload, secret, old)
+            .expect("signature generation should succeed");
+        assert!(!verify_stripe_webhook_signature(
+            signature.as_str(),
+            payload,
+            secret,
+            DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
+        ));
+    }
+
+    #[test]
+    fn request_origin_parses_origin_header_first() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("https://atlasmasa.com"),
+        );
+        assert_eq!(
+            request_origin_from_headers(&headers).as_deref(),
+            Some("https://atlasmasa.com")
+        );
+    }
+
+    #[test]
+    fn request_origin_falls_back_to_referer_origin() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::REFERER,
+            HeaderValue::from_static("https://www.atlasmasa.com/concierge-local.html?launch=chat"),
+        );
+        assert_eq!(
+            request_origin_from_headers(&headers).as_deref(),
+            Some("https://www.atlasmasa.com")
+        );
     }
 }

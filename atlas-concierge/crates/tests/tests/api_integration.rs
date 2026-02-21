@@ -52,6 +52,48 @@ async fn chat_requires_api_key() {
 }
 
 #[tokio::test]
+async fn chat_allows_first_party_origin_without_api_key() {
+    let app = build_app(kb_root()).await.expect("app should build");
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/chat")
+        .header("origin", allowed_origin())
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({
+                "text": "Build a daily execution plan"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn chat_blocks_untrusted_origin_without_api_key() {
+    let app = build_app(kb_root()).await.expect("app should build");
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/chat")
+        .header("origin", "https://evil.example")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({
+                "text": "Build a daily execution plan"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn chat_returns_structured_payload() {
     let app = build_app(kb_root()).await.expect("app should build");
 

@@ -635,7 +635,7 @@
               </div>
               <div class="field">
                 <label for="api-key">API Key</label>
-                <input id="api-key" value="dev-atlas-key" />
+                <input id="api-key" value="" />
               </div>
               <div class="raw" id="debug-raw">-</div>
             </details>
@@ -957,6 +957,10 @@
         lastOutput: "",
         lastMomentumGateReason: "",
         listening: false,
+        autoReport: {
+          sentCount: 0,
+          lastSentAt: 0,
+        },
       };
 
       const featureSegment = document.getElementById("feature-segment");
@@ -1069,6 +1073,8 @@
         "גרוע",
         "שבור",
       ];
+      const AUTO_REPORT_MIN_INTERVAL_MS = 3 * 60 * 1000;
+      const AUTO_REPORT_MAX_PER_SESSION = 4;
 
       function getByPath(objectValue, path) {
         if (!objectValue || !path) return undefined;
@@ -1521,6 +1527,9 @@
 
       async function maybeOfferAutoReport(sourceText, sourceTag, severity = "high", force = false) {
         if (!force && !detectNegativeSignal(sourceText)) return;
+        if (!force && state.autoReport.sentCount >= AUTO_REPORT_MAX_PER_SESSION) return;
+        const now = Date.now();
+        if (!force && now - state.autoReport.lastSentAt < AUTO_REPORT_MIN_INTERVAL_MS) return;
 
         const promptText =
           state.locale === "he"
@@ -1539,6 +1548,8 @@
         });
 
         if (result.ok) {
+          state.autoReport.sentCount += 1;
+          state.autoReport.lastSentAt = now;
           renderOutput(
             state.locale === "he"
               ? "דו״ח אנונימי נשלח לצוות המוצר."
@@ -1551,8 +1562,8 @@
 
       async function request(path, method = "GET", body = null, includeKey = true) {
         const headers = {};
-        const key = (apiKeyInput && apiKeyInput.value.trim()) || "dev-atlas-key";
-        if (includeKey) headers["x-api-key"] = key;
+        const key = (apiKeyInput && apiKeyInput.value.trim()) || "";
+        if (includeKey && key) headers["x-api-key"] = key;
         if (body) headers["content-type"] = "application/json";
         const bases = getApiBaseCandidates();
         const networkErrors = [];

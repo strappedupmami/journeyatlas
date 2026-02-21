@@ -37,8 +37,13 @@ Use `atlas-concierge/.env.example` as source of truth. In production, set at lea
 - `ATLAS_WEBAUTHN_ORIGIN=https://atlasmasa.com`
 - `ATLAS_STRIPE_SECRET_KEY`
 - `ATLAS_STRIPE_WEBHOOK_SECRET`
+- `ATLAS_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300`
 - `ATLAS_STRIPE_MONTHLY_PRICE_ID`
 - `ATLAS_OPENAI_API_KEY`
+
+Notes:
+- `ATLAS_API_KEY` is still required for server-to-server clients.
+- First-party browser traffic from `ATLAS_ALLOWED_ORIGINS` is accepted without exposing this key in frontend source.
 
 ## 3) Google OAuth console setup
 In Google Cloud Console:
