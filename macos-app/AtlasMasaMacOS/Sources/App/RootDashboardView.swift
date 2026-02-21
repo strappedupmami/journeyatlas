@@ -2,20 +2,34 @@ import SwiftUI
 
 struct RootDashboardView: View {
     var body: some View {
-        NavigationSplitView {
-            List {
-                NavigationLink("Auth") { AppleSignInCard() }
-                NavigationLink("Adaptive Survey") { AdaptiveSurveyCard() }
-                NavigationLink("Proactive Feed") { ProactiveFeedCard() }
-                NavigationLink("Notes") { NotesCard() }
-                NavigationLink("Prompt Queue") { PromptQueueCard() }
-                NavigationLink("Subscription") { SubscriptionCard() }
-                NavigationLink("System Output") { SystemOutputCard() }
-            }
-            .navigationTitle("Atlas Masa")
-        } detail: {
+        TabView {
+            CommandCenterCard()
+                .tabItem { Label("Command", systemImage: "sparkles.square.filled.on.square") }
+
+            AdaptiveSurveyCard()
+                .tabItem { Label("Survey", systemImage: "point.3.connected.trianglepath.dotted") }
+
+            PromptQueueCard()
+                .tabItem { Label("Queue", systemImage: "tray.full") }
+
+            ProactiveFeedCard()
+                .tabItem { Label("Execution", systemImage: "bolt.heart") }
+
+            NotesCard()
+                .tabItem { Label("Memory", systemImage: "brain.head.profile") }
+
+            MobilityOpsCard()
+                .tabItem { Label("Mobility", systemImage: "car.side") }
+
             AppleSignInCard()
+                .tabItem { Label("Access", systemImage: "person.badge.key") }
+
+            SubscriptionCard()
+                .tabItem { Label("Plans", systemImage: "creditcard") }
+
+            SystemOutputCard()
+                .tabItem { Label("Output", systemImage: "terminal") }
         }
-        .frame(minWidth: 960, minHeight: 620)
+        .tint(AtlasTheme.accentWarm)
     }
 }

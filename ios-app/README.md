@@ -1,28 +1,35 @@
 # Atlas Masa iOS App
 
-SwiftUI scaffold for Atlas Masa mobile client.
+Native Swift Life OS app for movement-based living/work execution.
+
+## Product role
+- **App is the actual Life OS** (local reasoning, queue, memory, orchestration).
+- **Website is the sales layer** (signup, pricing, van rental intake, tier upgrade).
 
 ## Included now
-- Auth shell with native `Sign in with Apple` capture
-- Apple web OAuth launcher (for current backend web flow)
-- Adaptive deep survey screen
-- Notes/memory capture screen
-- Proactive feed screen
-- Subscription placeholder with StoreKit roadmap
-- System output log view
+- Premium red-night visual system + modern serif/sans hierarchy
+- Command Center (daily / mid-term / long-horizon planning)
+- Adaptive deep survey (branching, long-form onboarding)
+- Prompt queue + local reasoning worker
+- Notes + long-term memory insights + local memory wipe control
+- Execution loop (proactive outputs with local-first fallback)
+- Mobility/van rental intent capture for planning alignment
+- Auth access shell: Apple, Google placeholder, passwordless local flow
+- Tiering model in-app:
+  - Tier 1 local reasoning (trial)
+  - Tier 2 cloud reasoning mode switch
 
 ## Project generation
-This repo includes an XcodeGen spec:
-- `ios-app/project.yml`
-
-Generate project:
 ```bash
 brew install xcodegen
 cd /Users/avrohom/Downloads/journeyatlas/ios-app
 xcodegen generate
 ```
 
-Then open `AtlasMasaIOS.xcodeproj` in Xcode.
+Then open `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj` in Xcode.
+
+## Build note
+`xcodebuild` requires full Xcode.app (not only Command Line Tools).
 
 ## API target
 Default API base: `https://api.atlasmasa.com`

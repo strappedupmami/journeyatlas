@@ -112,7 +112,7 @@ struct NotesListResponse: Codable {
     let notes: [UserNote]
 }
 
-struct UserNote: Codable, Identifiable {
+struct UserNote: Codable, Identifiable, Hashable {
     let noteID: String
     let title: String
     let content: String
@@ -173,4 +173,64 @@ struct PromptQueueItem: Codable, Identifiable, Hashable {
     var completedAt: Date?
     var errorMessage: String?
     var output: LocalReasoningOutput?
+}
+
+enum AccountTier: String, Codable, CaseIterable, Identifiable {
+    case localTrial = "local_trial"
+    case cloudPro = "cloud_pro"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .localTrial:
+            return "Tier 1 · Local Reasoning"
+        case .cloudPro:
+            return "Tier 2 · Cloud Reasoning"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .localTrial:
+            return "Runs locally in Swift apps. No cloud compute required."
+        case .cloudPro:
+            return "Server reasoning for deeper workloads and scale."
+        }
+    }
+}
+
+enum AuthProvider: String, Codable, CaseIterable, Identifiable {
+    case apple
+    case google
+    case passkey
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .apple:
+            return "Apple"
+        case .google:
+            return "Google"
+        case .passkey:
+            return "Passwordless"
+        }
+    }
+}
+
+struct ExecutionAction: Codable, Identifiable, Hashable {
+    let id: String
+    var horizon: String
+    var title: String
+    var details: String
+    var priority: Int
+    var source: String
+    var completed: Bool
+}
+
+struct MemoryInsight: Codable, Identifiable, Hashable {
+    let id: String
+    let label: String
+    let value: String
 }
