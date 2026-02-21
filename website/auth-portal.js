@@ -99,14 +99,51 @@
     return normalized;
   }
 
+  function pickPublicKeyOptions(options) {
+    if (!options || typeof options !== "object") return {};
+    if (options.publicKey && typeof options.publicKey === "object") return options.publicKey;
+    if (options.public_key && typeof options.public_key === "object") return options.public_key;
+    return options;
+  }
+
+  function toArrayOrFallback(value, fallback) {
+    return Array.isArray(value) ? value : fallback;
+  }
+
+  function decodeBase64IfString(value) {
+    return typeof value === "string" ? fromBase64Url(value) : value;
+  }
+
   function prepareRegistrationOptions(options) {
-    const normalized = Object.assign({}, options);
-    normalized.challenge = fromBase64Url(normalized.challenge);
-    if (normalized.user && typeof normalized.user.id === "string") {
-      normalized.user = Object.assign({}, normalized.user, {
-        id: fromBase64Url(normalized.user.id),
+    const raw = Object.assign({}, pickPublicKeyOptions(options));
+    const normalized = Object.assign({}, raw);
+
+    normalized.challenge = decodeBase64IfString(raw.challenge);
+    normalized.pubKeyCredParams = toArrayOrFallback(
+      raw.pubKeyCredParams || raw.pub_key_cred_params,
+      [
+        { type: "public-key", alg: -7 },
+        { type: "public-key", alg: -257 },
+      ]
+    );
+
+    const user = raw.user || {};
+    if (user && typeof user === "object") {
+      normalized.user = Object.assign({}, user, {
+        id: decodeBase64IfString(user.id),
       });
     }
+
+    if (!Array.isArray(normalized.excludeCredentials) && Array.isArray(raw.exclude_credentials)) {
+      normalized.excludeCredentials = raw.exclude_credentials;
+    }
+    if (!normalized.authenticatorSelection && raw.authenticator_selection) {
+      normalized.authenticatorSelection = raw.authenticator_selection;
+    }
+    if (!normalized.attestation && raw.attestation_conveyance_preference) {
+      normalized.attestation = raw.attestation_conveyance_preference;
+    }
+
     if (Array.isArray(normalized.excludeCredentials)) {
       normalized.excludeCredentials = normalized.excludeCredentials.map(
         normalizeCredentialDescriptor
@@ -116,8 +153,20 @@
   }
 
   function prepareAuthenticationOptions(options) {
-    const normalized = Object.assign({}, options);
-    normalized.challenge = fromBase64Url(normalized.challenge);
+    const raw = Object.assign({}, pickPublicKeyOptions(options));
+    const normalized = Object.assign({}, raw);
+
+    normalized.challenge = decodeBase64IfString(raw.challenge);
+    if (!Array.isArray(normalized.allowCredentials) && Array.isArray(raw.allow_credentials)) {
+      normalized.allowCredentials = raw.allow_credentials;
+    }
+    if (!normalized.rpId && raw.rp_id) {
+      normalized.rpId = raw.rp_id;
+    }
+    if (!normalized.userVerification && raw.user_verification) {
+      normalized.userVerification = raw.user_verification;
+    }
+
     if (Array.isArray(normalized.allowCredentials)) {
       normalized.allowCredentials = normalized.allowCredentials.map(
         normalizeCredentialDescriptor

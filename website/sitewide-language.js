@@ -231,7 +231,9 @@
       return;
     }
 
-    const headerMount = document.querySelector(".header .header__inner");
+    const headerMount =
+      document.querySelector(".header .header__inner") ||
+      document.querySelector(".auth-header .auth-header__inner");
     const mobileMenuMount = document.querySelector(".nav--mobile .nav__panel");
     const mobileMenuDetails =
       mobileMenuMount && mobileMenuMount.parentElement && mobileMenuMount.parentElement.tagName === "DETAILS"
