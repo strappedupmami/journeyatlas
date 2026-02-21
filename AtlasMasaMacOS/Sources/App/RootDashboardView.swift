@@ -8,6 +8,7 @@ struct RootDashboardView: View {
                 NavigationLink("Adaptive Survey") { AdaptiveSurveyCard() }
                 NavigationLink("Proactive Feed") { ProactiveFeedCard() }
                 NavigationLink("Notes") { NotesCard() }
+                NavigationLink("Prompt Queue") { PromptQueueCard() }
                 NavigationLink("Subscription") { SubscriptionCard() }
                 NavigationLink("System Output") { SystemOutputCard() }
             }

@@ -149,3 +149,28 @@ struct NativeAppleExchangePayload: Encodable {
         case locale
     }
 }
+
+enum PromptQueueStatus: String, Codable, CaseIterable {
+    case queued
+    case running
+    case done
+    case failed
+}
+
+struct LocalReasoningOutput: Codable, Hashable {
+    let model: String
+    let summary: String
+    let nextAction: String
+    let confidence: Double
+    let generatedAt: Date
+}
+
+struct PromptQueueItem: Codable, Identifiable, Hashable {
+    let id: String
+    var prompt: String
+    var status: PromptQueueStatus
+    var createdAt: Date
+    var completedAt: Date?
+    var errorMessage: String?
+    var output: LocalReasoningOutput?
+}
