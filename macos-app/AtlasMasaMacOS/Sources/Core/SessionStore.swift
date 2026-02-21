@@ -34,6 +34,7 @@ final class SessionStore: ObservableObject {
     @Published var memoryInsights: [MemoryInsight] = []
     @Published var tailoredOffers: [TailoredOffer] = []
     @Published var researchStreams: [ResearchExecutionStream] = []
+    @Published var workspacePlans: [WorkspacePlan] = []
     @Published var learningPackage: AdaptiveLearningPackage?
     @Published var memoryCollectionEnabled = true
 
@@ -273,6 +274,7 @@ final class SessionStore: ObservableObject {
         memoryInsights = []
         tailoredOffers = []
         researchStreams = []
+        workspacePlans = []
         feedItems = []
         surveyAnswers = [:]
         learningPackage = nil
@@ -511,6 +513,7 @@ final class SessionStore: ObservableObject {
         executionActions = buildExecutionActions()
         tailoredOffers = buildTailoredOffers()
         researchStreams = buildResearchExecutionStreams()
+        workspacePlans = buildWorkspacePlans(from: researchStreams)
         refreshAdaptiveLearningPackageIfNeeded()
         feedItems = localFeedFromExecutionPlan()
     }
@@ -753,44 +756,135 @@ final class SessionStore: ObservableObject {
         if context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return []
         }
-        let signals: [(String, String, String)] = [
-            (
-                "human-problem-solving",
-                "Human Problem-Solving Design",
-                "Stabilize cognition first (sleep, hydration, pacing), then run a deliberate problem drill."
-            ),
-            (
-                "resilience-systems",
-                "Resilience Systems Design",
-                "Treat incident handling as a protocol: detect, triage, communicate, and recover with logs."
-            ),
-            (
-                "wealth-operations",
-                "Wealth Operations Design",
-                "When revenue cadence is unstable, prioritize one direct money action before optimization work."
-            ),
-            (
-                "mobility-operations",
-                "Mobility Operations Design",
-                "Use legal-safe route and service checkpoints to reduce operational surprises."
-            ),
-        ]
+        let engineStreams = AtlasResearchEngine.shared.buildExecutionStreams(context: context, maxItems: 6)
+        if !engineStreams.isEmpty {
+            return engineStreams
+        }
 
-        return signals.enumerated().map { index, signal in
-            let citation = ResearchCitation(
-                id: "local-citation-\(index)",
-                title: "Atlas local reasoning corpus",
-                year: 2026,
-                sourceURL: "https://atlasmasa.com"
-            )
-            return ResearchExecutionStream(
-                id: "local-stream-\(signal.0)",
-                title: signal.1,
+        let citation = ResearchCitation(
+            id: "local-citation-fallback",
+            title: "Atlas execution corpus fallback",
+            year: 2026,
+            sourceURL: "https://atlasmasa.com"
+        )
+        return [
+            ResearchExecutionStream(
+                id: "local-stream-fallback",
+                domain: "execution",
+                title: "Travel Design lane: Execution Design",
                 executionRecommendation: executionActions.first?.title ?? "Run one focused action block now.",
-                whyItWorks: signal.2,
-                confidence: 0.72,
+                whyItWorks: "Execution quality rises when one immediate action is protected before context switching.",
+                confidence: 0.64,
                 citations: [citation]
             )
+        ]
+    }
+
+    private func buildWorkspacePlans(from streams: [ResearchExecutionStream]) -> [WorkspacePlan] {
+        guard !streams.isEmpty else { return [] }
+
+        var byLane: [WorkspaceLane: [ResearchExecutionStream]] = [:]
+        for stream in streams {
+            byLane[workspaceLane(for: stream.domain), default: []].append(stream)
+        }
+
+        let topAction = executionActions.first?.details ?? "Execute one critical action in the next 30 minutes."
+        let plans = byLane.map { lane, laneStreams -> WorkspacePlan in
+            let primary = laneStreams.max { $0.confidence < $1.confidence } ?? laneStreams[0]
+            let citations = Array(laneStreams.flatMap(\.citations).prefix(3))
+            let mergedEvidence = laneStreams
+                .prefix(2)
+                .map(\.whyItWorks)
+                .joined(separator: " ")
+
+            return WorkspacePlan(
+                id: "workspace-\(lane.rawValue)",
+                lane: lane,
+                title: lane.title,
+                objective: workspaceObjective(for: lane),
+                nextActionNow: primary.executionRecommendation.isEmpty ? topAction : primary.executionRecommendation,
+                protocolChecklist: workspaceProtocolChecklist(for: lane),
+                evidenceSummary: mergedEvidence,
+                confidence: primary.confidence,
+                citations: citations
+            )
+        }
+
+        return plans.sorted { lhs, rhs in
+            if lhs.confidence == rhs.confidence {
+                return lhs.title < rhs.title
+            }
+            return lhs.confidence > rhs.confidence
+        }
+    }
+
+    private func workspaceLane(for domain: String) -> WorkspaceLane {
+        switch domain {
+        case "emergency-response", "emergency-preparedness", "emergency-management", "crisis-management", "crisis-planning", "incident-command":
+            return .emergencyCommand
+        case "wealth":
+            return .wealthOperations
+        case "travel", "mobility", "operations", "safety", "resilience":
+            return .mobilityOps
+        case "technology-innovation", "systems-innovation", "digital-innovation", "physical-innovation", "innovation":
+            return .innovation
+        default:
+            return .deepWork
+        }
+    }
+
+    private func workspaceObjective(for lane: WorkspaceLane) -> String {
+        switch lane {
+        case .emergencyCommand:
+            return "Protect life, stabilize the system, and maintain communication continuity under pressure."
+        case .wealthOperations:
+            return "Increase consistent cash flow with direct daily actions and disciplined weekly review."
+        case .mobilityOps:
+            return "Run legal-safe, low-friction travel operations with resilient fallback routing."
+        case .deepWork:
+            return "Improve human decision quality by controlling biological and cognitive load variables."
+        case .innovation:
+            return "Ship digital-physical innovation loops with clear hypotheses, safety boundaries, and validation."
+        }
+    }
+
+    private func workspaceProtocolChecklist(for lane: WorkspaceLane) -> [String] {
+        switch lane {
+        case .emergencyCommand:
+            return [
+                "Triage and scene safety first.",
+                "Stabilize critical risks and communicate location.",
+                "Escalate through predefined emergency command chain.",
+                "Log timeline and symptoms for handoff."
+            ]
+        case .wealthOperations:
+            return [
+                "Run one direct money action before optimization work.",
+                "Track conversion and pricing signal daily.",
+                "Review margin/cashflow weekly with one adjustment.",
+                "Protect mission-aligned charity and reserve policy."
+            ]
+        case .mobilityOps:
+            return [
+                "Confirm legal route, stop, and overnight options.",
+                "Run continuity checks for power/comms/navigation.",
+                "Set backup service points before departure.",
+                "Review fatigue and safety gates for long segments."
+            ]
+        case .deepWork:
+            return [
+                "Stabilize sleep, hydration, and cognitive load before difficult tasks.",
+                "Execute one deep-work block without notifications.",
+                "Use reflection checkpoint after major decisions.",
+                "Capture one learning signal into memory."
+            ]
+        case .innovation:
+            return [
+                "Define one testable hypothesis and success threshold.",
+                "Run a bounded prototype iteration.",
+                "Validate in simulation before high-risk deployment.",
+                "Record findings and queue the next iteration."
+            ]
         }
     }
 

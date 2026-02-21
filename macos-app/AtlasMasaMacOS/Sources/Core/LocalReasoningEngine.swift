@@ -30,23 +30,35 @@ private struct LocalReasoningModelPayload: Decodable {
     }
 }
 
+private enum LocalModelAttestationStatus {
+    case verified
+    case rejected(reason: String)
+}
+
 actor LocalReasoningEngine {
     private let model: LocalReasoningModelPayload
+    private let attestationStatus: LocalModelAttestationStatus
     private let vocabIndex: [String: Int]
     private let keywordHints: [Set<String>]
     private let keywordBonus: Double
 
     init() {
         let loaded = Self.loadModel()
-        self.model = loaded
-        self.vocabIndex = Dictionary(uniqueKeysWithValues: loaded.vocabulary.enumerated().map { ($1, $0) })
-        let hints = loaded.keywordHints ?? Array(repeating: [], count: loaded.labels.count)
+        self.model = loaded.model
+        self.attestationStatus = loaded.status
+        self.vocabIndex = Dictionary(uniqueKeysWithValues: loaded.model.vocabulary.enumerated().map { ($1, $0) })
+        let hints = loaded.model.keywordHints ?? Array(repeating: [], count: loaded.model.labels.count)
         self.keywordHints = hints.map { Set($0) }
-        self.keywordBonus = loaded.keywordBonus ?? 0.0
+        self.keywordBonus = loaded.model.keywordBonus ?? 0.0
     }
 
     func modelStatusLine() -> String {
-        "Local model active: \(model.modelName) · samples \(model.sampleCount) · trained \(model.trainedAtUTC)"
+        switch attestationStatus {
+        case .verified:
+            return "Local model active: \(model.modelName) · samples \(model.sampleCount) · trained \(model.trainedAtUTC) · attestation verified"
+        case .rejected(let reason):
+            return "Local model fallback active: \(model.modelName) · attestation failed (\(reason))"
+        }
     }
 
     func reason(prompt: String, notes: [UserNote]) async -> LocalReasoningOutput {
@@ -61,8 +73,10 @@ actor LocalReasoningEngine {
             )
         }
 
+        let boundedPrompt = String(normalized.prefix(Self.maxPromptCharacters))
         let noteContext = notes.prefix(4).map { "\($0.title) \($0.content)" }.joined(separator: " ")
-        let combined = noteContext.isEmpty ? normalized : "\(normalized) \(noteContext)"
+        let combinedRaw = noteContext.isEmpty ? boundedPrompt : "\(boundedPrompt) \(noteContext)"
+        let combined = String(combinedRaw.prefix(Self.maxCombinedCharacters))
         let prefersHebrew = Self.containsHebrew(combined)
 
         if let emergency = emergencyOverride(for: combined, prefersHebrew: prefersHebrew) {
@@ -88,7 +102,7 @@ actor LocalReasoningEngine {
 
         return LocalReasoningOutput(
             model: model.modelName,
-            summary: summarize(normalized, labelBrief: labelBrief, notesCount: notes.count, prefersHebrew: prefersHebrew),
+            summary: summarize(boundedPrompt, labelBrief: labelBrief, notesCount: notes.count, prefersHebrew: prefersHebrew),
             nextAction: nextAction,
             confidence: confidence,
             generatedAt: Date()
@@ -287,7 +301,20 @@ actor LocalReasoningEngine {
         )
     }
 
-    private static func loadModel() -> LocalReasoningModelPayload {
+    private static let expectedSchemaVersion = 1
+    private static let expectedModelNamePrefix = "atlas-swift-travel-design-v1-"
+    private static let minimumSampleCount = 400
+    private static let minimumVocabularySize = 400
+    private static let maxPromptCharacters = 4_000
+    private static let maxCombinedCharacters = 8_000
+    private static let requiredLabels: Set<String> = [
+        "travel_design_execution",
+        "travel_design_emergency_command",
+        "travel_design_human_problem_solving",
+        "travel_design_tech_innovation",
+    ]
+
+    private static func loadModel() -> (model: LocalReasoningModelPayload, status: LocalModelAttestationStatus) {
         if let data = defaultLocalReasoningModelJSON.data(using: .utf8),
            let decoded = try? JSONDecoder().decode(LocalReasoningModelPayload.self, from: data),
            decoded.labels.count == decoded.logPriors.count,
@@ -295,10 +322,36 @@ actor LocalReasoningEngine {
            decoded.nextActions.count == decoded.labels.count,
            decoded.labelBriefs.count == decoded.labels.count
         {
-            return decoded
+            if let reason = attestationFailure(for: decoded) {
+                return (fallbackModel(), .rejected(reason: reason))
+            }
+            return (decoded, .verified)
         }
 
-        return fallbackModel()
+        return (fallbackModel(), .rejected(reason: "decode_or_shape_invalid"))
+    }
+
+    private static func attestationFailure(for model: LocalReasoningModelPayload) -> String? {
+        if model.schemaVersion != expectedSchemaVersion {
+            return "schema_mismatch"
+        }
+        if !model.modelName.hasPrefix(expectedModelNamePrefix) {
+            return "model_name_untrusted"
+        }
+        if model.sampleCount < minimumSampleCount {
+            return "sample_count_low"
+        }
+        if model.vocabulary.count < minimumVocabularySize {
+            return "vocab_too_small"
+        }
+        let labelSet = Set(model.labels)
+        if !requiredLabels.isSubset(of: labelSet) {
+            return "required_labels_missing"
+        }
+        if model.logLikelihoods.contains(where: { $0.count != model.vocabulary.count }) {
+            return "likelihood_shape_invalid"
+        }
+        return nil
     }
 
     private static func fallbackModel() -> LocalReasoningModelPayload {

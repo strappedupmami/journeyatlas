@@ -20,6 +20,35 @@ struct ProactiveFeedCard: View {
                 .buttonStyle(AtlasPrimaryButtonStyle())
             }
 
+            AtlasPanel(heading: "Workspace lanes", caption: "Dedicated operational workspaces generated from research + your profile data") {
+                if session.workspacePlans.isEmpty {
+                    Text("No workspace lanes yet. Finish deep survey and check-in.")
+                        .foregroundStyle(AtlasTheme.textSecondary)
+                } else {
+                    ForEach(session.workspacePlans.prefix(3)) { workspace in
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(workspace.title)
+                                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                                    .foregroundStyle(AtlasTheme.textPrimary)
+                                Text(workspace.nextActionNow)
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AtlasTheme.textSecondary)
+                            }
+                            Spacer()
+                            Text("\(Int(workspace.confidence * 100))%")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(AtlasTheme.accentWarm)
+                        }
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.black.opacity(0.2))
+                        )
+                    }
+                }
+            }
+
             AtlasPanel(heading: "Proactive outputs", caption: "What to execute now and why") {
                 if session.feedItems.isEmpty {
                     Text("No items yet. Complete survey and check-in, then refresh feed.")

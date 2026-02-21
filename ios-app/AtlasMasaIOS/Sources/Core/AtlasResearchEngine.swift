@@ -43,6 +43,7 @@ struct AtlasResearchEngineModel {
                 : paper.actionHint
             return ResearchExecutionStream(
                 id: "stream-\(paper.id)",
+                domain: paper.domain,
                 title: "\(titlePrefix): \(lane)",
                 executionRecommendation: recommendation,
                 whyItWorks: paper.actionableInsight,
