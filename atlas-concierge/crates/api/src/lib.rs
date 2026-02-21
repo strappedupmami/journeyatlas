@@ -334,6 +334,8 @@ struct ExecutionCheckinRecord {
     next_action_now: Option<String>,
     energy_level: Option<u8>,
     mood: Option<String>,
+    gym_today: Option<bool>,
+    money_today: Option<bool>,
     created_at: String,
 }
 
@@ -347,6 +349,8 @@ struct ExecutionCheckinRequest {
     next_action_now: Option<String>,
     energy_level: Option<u8>,
     mood: Option<String>,
+    gym_today: Option<bool>,
+    money_today: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3673,6 +3677,8 @@ async fn execution_checkin_submit(
             .mood
             .map(|value| sanitize_limited_text(value.as_str(), MAX_PROFILE_FIELD_LEN))
             .filter(|value| !value.is_empty()),
+        gym_today: input.gym_today,
+        money_today: input.money_today,
         created_at: now.to_rfc3339(),
     };
 
@@ -3689,6 +3695,16 @@ async fn execution_checkin_submit(
     if checkin.energy_level.unwrap_or(3) <= 2 {
         memory_tags.push("low_energy".to_string());
     }
+    match checkin.gym_today {
+        Some(true) => memory_tags.push("gym_done".to_string()),
+        Some(false) => memory_tags.push("gym_missed".to_string()),
+        None => {}
+    }
+    match checkin.money_today {
+        Some(true) => memory_tags.push("money_progress".to_string()),
+        Some(false) => memory_tags.push("money_gap".to_string()),
+        None => {}
+    }
     let _ = ingest_memory_event_for_user(
         &state,
         user_id.as_str(),
@@ -3697,7 +3713,7 @@ async fn execution_checkin_submit(
             stability: "transient".to_string(),
             source: "system".to_string(),
             text: format!(
-                "Check-in focus: {} | blocker: {} | next action: {}",
+                "Check-in focus: {} | blocker: {} | next action: {} | gym_today: {} | money_today: {}",
                 checkin.daily_focus,
                 checkin
                     .blocker
@@ -3706,7 +3722,15 @@ async fn execution_checkin_submit(
                 checkin
                     .next_action_now
                     .clone()
-                    .unwrap_or_else(|| "not_set".to_string())
+                    .unwrap_or_else(|| "not_set".to_string()),
+                checkin
+                    .gym_today
+                    .map(|value| if value { "yes" } else { "no" })
+                    .unwrap_or("unknown"),
+                checkin
+                    .money_today
+                    .map(|value| if value { "yes" } else { "no" })
+                    .unwrap_or("unknown")
             ),
             weight: 0.84,
             tags: memory_tags,
@@ -5405,6 +5429,82 @@ fn extract_checkin_tasks(
             },
         );
     }
+    if let Some(gym_today) = checkin.gym_today {
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: format!("checkin-gym-{}", checkin.checkin_id),
+                title: if locale == "he" {
+                    if gym_today {
+                        "עיגון משמעת בריאותית".to_string()
+                    } else {
+                        "להחזיר מומנטום בריאותי היום".to_string()
+                    }
+                } else if gym_today {
+                    "Lock health discipline momentum".to_string()
+                } else {
+                    "Recover health momentum today".to_string()
+                },
+                detail: if locale == "he" {
+                    if gym_today {
+                        "בוצע אימון היום. עגנו שעת אימון קבועה גם למחר כדי לשמור רצף.".to_string()
+                    } else {
+                        "לא בוצע אימון היום. קבעו בלוק אימון קצר ומדויק לפני סוף היום.".to_string()
+                    }
+                } else if gym_today {
+                    "Gym completed today. Pre-commit tomorrow’s session to preserve streak."
+                        .to_string()
+                } else {
+                    "Gym was missed today. Schedule one precise training block before day-end."
+                        .to_string()
+                },
+                source: "checkin".to_string(),
+                horizon: "daily".to_string(),
+                urgency: if gym_today { 0.58 } else { 0.86 },
+                impact: 0.74,
+                confidence: 0.87,
+            },
+        );
+    }
+    if let Some(money_today) = checkin.money_today {
+        push_task_if_valid(
+            &mut tasks,
+            ExecutionTaskCandidate {
+                task_id: format!("checkin-money-{}", checkin.checkin_id),
+                title: if locale == "he" {
+                    if money_today {
+                        "לנעול התקדמות הכנסה".to_string()
+                    } else {
+                        "יצירת מהלך הכנסה מיידי".to_string()
+                    }
+                } else if money_today {
+                    "Lock income progress".to_string()
+                } else {
+                    "Create an immediate income move".to_string()
+                },
+                detail: if locale == "he" {
+                    if money_today {
+                        "נרשמה התקדמות כספית היום. תעדו מה עבד ושכפלו אותו ל-48 השעות הקרובות."
+                            .to_string()
+                    } else {
+                        "עדיין ללא הכנסה היום. בצעו מהלך אחד: יצירת קשר, הצעה, או סגירה."
+                            .to_string()
+                    }
+                } else if money_today {
+                    "Revenue moved today. Capture what worked and replicate it over the next 48 hours."
+                        .to_string()
+                } else {
+                    "No money signal today yet. Execute one move now: outreach, offer, or close."
+                        .to_string()
+                },
+                source: "checkin".to_string(),
+                horizon: "daily".to_string(),
+                urgency: if money_today { 0.64 } else { 0.92 },
+                impact: 0.84,
+                confidence: 0.89,
+            },
+        );
+    }
     tasks
 }
 
@@ -5718,6 +5818,12 @@ fn build_survey_hints(state: &SurveyStateRecord) -> Vec<String> {
     if let Some(style) = state.answers.get("trip_style") {
         hints.push(format!("trip_style: {}", style));
     }
+    if let Some(gym) = state.answers.get("gym_frequency") {
+        hints.push(format!("gym_frequency: {}", gym));
+    }
+    if let Some(income) = state.answers.get("income_cadence") {
+        hints.push(format!("income_cadence: {}", income));
+    }
     if let Some(wealth) = state.answers.get("wealth_focus") {
         hints.push(format!("wealth_focus: {}", wealth));
     }
@@ -5728,7 +5834,7 @@ fn build_survey_hints(state: &SurveyStateRecord) -> Vec<String> {
 }
 
 fn survey_total_questions(answers: &HashMap<String, String>) -> usize {
-    let mut total = 11;
+    let mut total = 13;
     if answers
         .get("daily_pressure")
         .map(|value| value == "high")
@@ -5985,6 +6091,42 @@ fn next_survey_question(locale: &str, answers: &HashMap<String, String>) -> Opti
                 survey_choice(he, "focus", "פוקוס וקוגניציה", "Focus/cognition"),
                 survey_choice(he, "stress", "הורדת סטרס", "Stress reduction"),
                 survey_choice(he, "nutrition", "תזונה טובה", "Better nutrition"),
+            ],
+            None,
+            None,
+        ));
+    }
+
+    if !answers.contains_key("gym_frequency") {
+        return Some(mk(
+            "gym_frequency",
+            "באיזו תדירות אתה מתאמן כרגע?",
+            "How often do you currently train/work out?",
+            Some("המערכת תשתמש בזה לצ׳ק-אין יומי ובניית עקביות."),
+            Some("This powers daily follow-up check-ins and consistency coaching."),
+            "choice",
+            vec![
+                survey_choice(he, "rarely", "כמעט לא", "Rarely"),
+                survey_choice(he, "sometimes", "לפעמים", "Sometimes"),
+                survey_choice(he, "regularly", "באופן קבוע", "Regularly"),
+            ],
+            None,
+            None,
+        ));
+    }
+
+    if !answers.contains_key("income_cadence") {
+        return Some(mk(
+            "income_cadence",
+            "כמה רציפה ההכנסה שלך כרגע?",
+            "How regular is your income right now?",
+            Some("זה מאפשר למערכת להציע פעולות הכנסה יומיות כשצריך."),
+            Some("This lets Atlas trigger daily income actions when needed."),
+            "choice",
+            vec![
+                survey_choice(he, "none", "ללא הכנסה רציפה", "No regular income"),
+                survey_choice(he, "sometimes", "מדי פעם", "Sometimes"),
+                survey_choice(he, "regularly", "רציפה", "Regularly"),
             ],
             None,
             None,
@@ -6282,6 +6424,8 @@ fn classify_survey_memory(question_id: &str, answer: &str) -> (String, String, f
         "risk_preference",
         "voice_preference",
         "language",
+        "gym_frequency",
+        "income_cadence",
     ]
     .iter()
     .any(|needle| question.contains(needle))
@@ -8034,8 +8178,8 @@ mod tests {
     use super::{
         build_clear_cookie, build_session_cookie, build_test_stripe_signature,
         cloud_requirements_for_endpoint, ingest_memory_records_if_opted_in, is_public_endpoint,
-        prioritize_execution_tasks, request_origin_from_headers,
-        retrieve_memory_context_from_records, schedule_minutes_offset,
+        next_survey_question, prioritize_execution_tasks, request_origin_from_headers,
+        retrieve_memory_context_from_records, schedule_minutes_offset, survey_total_questions,
         verify_stripe_webhook_signature, ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
         DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
     };
@@ -8226,6 +8370,32 @@ mod tests {
 
         assert!(!ranked.is_empty());
         assert_eq!(ranked[0].task_id, "daily-a");
+    }
+
+    #[test]
+    fn survey_includes_gym_and_income_cadence_questions() {
+        let mut answers = std::collections::HashMap::new();
+        answers.insert("primary_goal".to_string(), "wealth".to_string());
+        answers.insert("daily_pressure".to_string(), "medium".to_string());
+        answers.insert("work_hours".to_string(), "6_10".to_string());
+        answers.insert("stress_trigger".to_string(), "overload".to_string());
+        answers.insert("travel_pattern".to_string(), "hybrid".to_string());
+        answers.insert("trip_style".to_string(), "mixed".to_string());
+        answers.insert("health_priority".to_string(), "focus".to_string());
+
+        let gym_q = next_survey_question("en", &answers).expect("gym question should exist");
+        assert_eq!(gym_q.id, "gym_frequency");
+        answers.insert("gym_frequency".to_string(), "regularly".to_string());
+
+        let income_q =
+            next_survey_question("en", &answers).expect("income cadence question should exist");
+        assert_eq!(income_q.id, "income_cadence");
+    }
+
+    #[test]
+    fn survey_total_questions_accounts_for_new_baseline_questions() {
+        let answers = std::collections::HashMap::<String, String>::new();
+        assert_eq!(survey_total_questions(&answers), 13);
     }
 
     #[test]

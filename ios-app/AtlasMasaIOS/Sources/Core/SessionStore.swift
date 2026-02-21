@@ -25,10 +25,14 @@ final class SessionStore: ObservableObject {
     @Published var checkInMood = "Focused"
     @Published var checkInEnergy = 3
     @Published var checkInBlockers = ""
+    @Published var checkInWentToGymToday = false
+    @Published var checkInMadeMoneyToday = false
+    @Published var checkInMoneySignalNote = ""
     @Published var executionActions: [ExecutionAction] = []
     @Published var memoryInsights: [MemoryInsight] = []
     @Published var tailoredOffers: [TailoredOffer] = []
     @Published var researchStreams: [ResearchExecutionStream] = []
+    @Published var learningPackage: AdaptiveLearningPackage?
 
     @Published var pendingFeedback = ""
     @Published var feedbackOfferEnabled = true
@@ -49,6 +53,9 @@ final class SessionStore: ObservableObject {
     private let stateFileName = "session-state-v3.json"
     private let stateBackupFileName = "session-state-v3.bak.json"
     private static let checkpointFormatter = ISO8601DateFormatter()
+    private var surveyAnswers: [String: String] = [:]
+    private var learningVersion = 0
+    private var learningFingerprint = ""
 
     init(api: APIClient = APIClient()) {
         self.api = api
@@ -61,6 +68,7 @@ final class SessionStore: ObservableObject {
     func bootstrap() async {
         appendOutput(await localReasoning.modelStatusLine())
         await refreshHealth()
+        await syncSessionFromServerIfAvailable()
         await loadSurvey()
         await loadNotes()
         await refreshFeed()
@@ -140,6 +148,9 @@ final class SessionStore: ObservableObject {
         accountProvider = nil
         accountLabel = "Guest Operator"
         persistStateToDisk()
+        Task {
+            _ = try? await api.logout()
+        }
         appendOutput("Signed out.")
     }
 
@@ -155,6 +166,7 @@ final class SessionStore: ObservableObject {
         if feedbackOfferEnabled && (checkInMood.lowercased().contains("stressed") || checkInEnergy <= 2 || checkInBlockers.count > 20) {
             appendOutput("Detected friction signal. Offer anonymized product feedback report to team.")
         }
+        Task { await submitExecutionCheckInIfPossible() }
         persistStateToDisk()
     }
 
@@ -178,55 +190,40 @@ final class SessionStore: ObservableObject {
             survey = try await api.surveyNext()
         } catch {
             appendOutput("Survey loaded from local fallback.")
+            let answered = surveyAnswers.count
+            let total = localSurveyTotal()
+            let percent = Int((Double(answered) / Double(max(1, total))) * 100.0)
             survey = SurveyNextResponse(
-                question: SurveyQuestion(
-                    id: "primary_goal",
-                    title: "Which horizon needs the most support right now?",
-                    description: "This drives the proactive execution loop.",
-                    kind: "choice",
-                    required: true,
-                    choices: [
-                        SurveyChoice(value: "daily", label: "Daily execution"),
-                        SurveyChoice(value: "mid", label: "Mid-term project progress"),
-                        SurveyChoice(value: "long", label: "Long-term wealth and mission")
-                    ],
-                    placeholder: nil
-                ),
-                progress: SurveyProgress(answered: 0, total: 24, percent: 0),
-                profileHints: ["Local survey mode active"]
+                question: localSurveyQuestion(),
+                progress: SurveyProgress(answered: answered, total: total, percent: percent),
+                profileHints: ["Local survey mode active", "Gym/income cadence enabled"]
             )
         }
     }
 
     func answerSurvey(_ choice: SurveyChoice) async {
         guard let questionID = survey?.question?.id else { return }
+        surveyAnswers[questionID] = choice.value
         do {
             survey = try await api.submitSurveyAnswer(questionID: questionID, answer: choice.value)
             appendOutput("Survey answer synced.")
         } catch {
             appendOutput("Survey sync unavailable. Applying local branch.")
-            let answered = min((survey?.progress.answered ?? 0) + 1, 24)
-            let percent = Int((Double(answered) / 24.0) * 100)
+            let answered = surveyAnswers.count
+            let total = localSurveyTotal()
+            let percent = Int((Double(answered) / Double(max(1, total))) * 100.0)
             survey = SurveyNextResponse(
-                question: answered >= 24 ? nil : SurveyQuestion(
-                    id: "q_\(answered + 1)",
-                    title: "Deep profile question \(answered + 1)",
-                    description: "Branching local mode for 20-30 minute onboarding depth.",
-                    kind: "choice",
-                    required: true,
-                    choices: [
-                        SurveyChoice(value: "high", label: "High structure"),
-                        SurveyChoice(value: "balanced", label: "Balanced structure"),
-                        SurveyChoice(value: "fluid", label: "Fluid structure")
-                    ],
-                    placeholder: nil
-                ),
-                progress: SurveyProgress(answered: answered, total: 24, percent: percent),
-                profileHints: ["Local depth survey running", "Current preference: \(choice.label)"]
+                question: localSurveyQuestion(),
+                progress: SurveyProgress(answered: answered, total: total, percent: percent),
+                profileHints: [
+                    "Local depth survey running",
+                    "Current preference: \(choice.label)"
+                ]
             )
         }
 
         rebuildInsightsAndExecutionPlan()
+        persistStateToDisk()
     }
 
     func loadNotes() async {
@@ -270,6 +267,10 @@ final class SessionStore: ObservableObject {
         tailoredOffers = []
         researchStreams = []
         feedItems = []
+        surveyAnswers = [:]
+        learningPackage = nil
+        learningVersion = 0
+        learningFingerprint = ""
         persistPromptQueueToDisk()
         persistStateToDisk()
         appendOutput("Local personalization memory cleared by user request.")
@@ -410,7 +411,16 @@ final class SessionStore: ObservableObject {
 
     private func isResourceConstrained() -> Bool {
         let processInfo = ProcessInfo.processInfo
-        let lowPower = processInfo.isLowPowerModeEnabled
+        let lowPower: Bool
+#if os(macOS)
+        if #available(macOS 12.0, *) {
+            lowPower = processInfo.isLowPowerModeEnabled
+        } else {
+            lowPower = false
+        }
+#else
+        lowPower = processInfo.isLowPowerModeEnabled
+#endif
         let thermal = processInfo.thermalState
         if thermal == .serious || thermal == .critical {
             return true
@@ -431,6 +441,38 @@ final class SessionStore: ObservableObject {
         if !longTermVision.isEmpty {
             insights.append(MemoryInsight(id: UUID().uuidString, label: "Long-horizon mission", value: longTermVision))
         }
+        insights.append(
+            MemoryInsight(
+                id: UUID().uuidString,
+                label: "Gym today",
+                value: checkInWentToGymToday ? "Yes" : "Not yet"
+            )
+        )
+        insights.append(
+            MemoryInsight(
+                id: UUID().uuidString,
+                label: "Money progress today",
+                value: checkInMadeMoneyToday ? "Yes" : "Not yet"
+            )
+        )
+        if let gymFrequency = surveyAnswers["gym_frequency"] {
+            insights.append(
+                MemoryInsight(
+                    id: UUID().uuidString,
+                    label: "Gym baseline",
+                    value: gymFrequency
+                )
+            )
+        }
+        if let incomeCadence = surveyAnswers["income_cadence"] {
+            insights.append(
+                MemoryInsight(
+                    id: UUID().uuidString,
+                    label: "Income cadence baseline",
+                    value: incomeCadence
+                )
+            )
+        }
         for note in keyNotes {
             insights.append(MemoryInsight(id: UUID().uuidString, label: note.title, value: String(note.content.prefix(90))))
         }
@@ -439,6 +481,7 @@ final class SessionStore: ObservableObject {
         executionActions = buildExecutionActions()
         tailoredOffers = buildTailoredOffers()
         researchStreams = buildResearchExecutionStreams()
+        refreshAdaptiveLearningPackageIfNeeded()
         feedItems = localFeedFromExecutionPlan()
     }
 
@@ -448,6 +491,8 @@ final class SessionStore: ObservableObject {
         let daily = dailyPriority.isEmpty ? "Set one non-negotiable action for today." : dailyPriority
         let mid = midTermGoal.isEmpty ? "Define one milestone to close this week." : midTermGoal
         let long = longTermVision.isEmpty ? "Define one 90-day wealth/mission objective." : longTermVision
+        let gymBaseline = surveyAnswers["gym_frequency"] ?? "sometimes"
+        let incomeBaseline = surveyAnswers["income_cadence"] ?? "sometimes"
 
         actions.append(
             ExecutionAction(
@@ -494,6 +539,34 @@ final class SessionStore: ObservableObject {
                     details: "Region: \(travelRegion) · annual distance: \(annualDistanceKM) km · mode: \(workspaceMode)",
                     priority: 2,
                     source: "mobility",
+                    completed: false
+                )
+            )
+        }
+
+        if gymBaseline == "regularly" && !checkInWentToGymToday {
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Daily",
+                    title: "Protect physical training consistency",
+                    details: "Your baseline is regular training. Schedule a short gym or mobility session before day-end.",
+                    priority: 1,
+                    source: "habit",
+                    completed: false
+                )
+            )
+        }
+
+        if incomeBaseline == "regularly", !checkInMadeMoneyToday {
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Daily",
+                    title: "Trigger one revenue action now",
+                    details: "Income baseline is regular. Execute one direct money move: outreach, offer, or close.",
+                    priority: 1,
+                    source: "habit",
                     completed: false
                 )
             )
@@ -658,13 +731,20 @@ final class SessionStore: ObservableObject {
             .prefix(6)
             .map { "\($0.title) \($0.content)" }
             .joined(separator: " ")
+        let surveyText = surveyAnswers
+            .map { "\($0.key) \($0.value)" }
+            .joined(separator: " ")
         return [
             dailyPriority,
             midTermGoal,
             longTermVision,
             checkInBlockers,
             checkInMood,
+            checkInMoneySignalNote,
+            checkInWentToGymToday ? "gym_done" : "gym_pending",
+            checkInMadeMoneyToday ? "money_progress" : "money_pending",
             workspaceMode,
+            surveyText,
             noteText
         ]
         .joined(separator: " ")
@@ -674,6 +754,410 @@ final class SessionStore: ObservableObject {
     private func containsAny(_ value: String, _ needles: [String]) -> Bool {
         let lower = value.lowercased()
         return needles.contains { lower.contains($0) }
+    }
+
+    private func syncSessionFromServerIfAvailable() async {
+        do {
+            let me = try await api.authMe()
+            let provider = AuthProvider(rawValue: me.user.provider) ?? .passkey
+            let resolvedName = me.user.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? me.user.email
+                : me.user.name
+            markSignedIn(provider: provider, accountName: resolvedName)
+            appendOutput("Secure account session verified with API.")
+        } catch {
+            if isSignedIn {
+                appendOutput("Using local secure session cache. API verification will retry.")
+            }
+        }
+    }
+
+    private func submitExecutionCheckInIfPossible() async {
+        guard isSignedIn else { return }
+        let focus = dailyPriority.trimmingCharacters(in: .whitespacesAndNewlines)
+        let payload = ExecutionCheckinPayload(
+            userID: nil,
+            dailyFocus: focus.isEmpty ? "Define and execute one critical action block today." : focus,
+            midTermFocus: midTermGoal.trimmedNil(),
+            longTermFocus: longTermVision.trimmedNil(),
+            blocker: checkInBlockers.trimmedNil(),
+            nextActionNow: executionActions.first?.details.trimmedNil(),
+            energyLevel: max(1, min(5, checkInEnergy)),
+            mood: checkInMood.trimmedNil(),
+            gymToday: checkInWentToGymToday,
+            moneyToday: checkInMadeMoneyToday
+        )
+
+        do {
+            let response = try await api.submitExecutionCheckin(payload: payload)
+            feedItems = response.feed.items
+            appendOutput(
+                "Check-in synced: gym today = \(checkInWentToGymToday ? "yes" : "no"), money today = \(checkInMadeMoneyToday ? "yes" : "no")."
+            )
+        } catch {
+            appendOutput("Check-in saved locally. Cloud sync pending: \(error.localizedDescription)")
+        }
+    }
+
+    private func localSurveyTotal() -> Int {
+        24
+    }
+
+    private func localSurveyQuestion() -> SurveyQuestion? {
+        let pressure = surveyAnswers["daily_pressure"] ?? ""
+        let workHours = surveyAnswers["work_hours"] ?? ""
+        let stress = surveyAnswers["stress_trigger"] ?? ""
+
+        if surveyAnswers["primary_goal"] == nil {
+            return localQuestion(
+                id: "primary_goal",
+                title: "What is your primary goal for the next 90 days?",
+                description: "This sets the operating direction for planning and execution.",
+                choices: [
+                    SurveyChoice(value: "wealth", label: "Build income/wealth"),
+                    SurveyChoice(value: "stability", label: "Personal stability"),
+                    SurveyChoice(value: "health", label: "Health and energy"),
+                    SurveyChoice(value: "mixed", label: "Mix of all")
+                ]
+            )
+        }
+
+        if surveyAnswers["daily_pressure"] == nil {
+            return localQuestion(
+                id: "daily_pressure",
+                title: "How much daily pressure are you under?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "low", label: "Low"),
+                    SurveyChoice(value: "medium", label: "Medium"),
+                    SurveyChoice(value: "high", label: "High")
+                ]
+            )
+        }
+
+        if pressure == "high", surveyAnswers["pressure_source"] == nil {
+            return localQuestion(
+                id: "pressure_source",
+                title: "What is the main source of pressure right now?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "money", label: "Money"),
+                    SurveyChoice(value: "time", label: "Time"),
+                    SurveyChoice(value: "uncertainty", label: "Uncertainty"),
+                    SurveyChoice(value: "relationships", label: "Relationships/team")
+                ]
+            )
+        }
+
+        if surveyAnswers["work_hours"] == nil {
+            return localQuestion(
+                id: "work_hours",
+                title: "Average work hours per day?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "under_6", label: "Up to 6"),
+                    SurveyChoice(value: "6_10", label: "6-10"),
+                    SurveyChoice(value: "10_plus", label: "10+")
+                ]
+            )
+        }
+
+        if workHours == "10_plus", surveyAnswers["break_structure"] == nil {
+            return localQuestion(
+                id: "break_structure",
+                title: "How should Atlas manage your breaks?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "strict", label: "Strict schedule"),
+                    SurveyChoice(value: "flex", label: "Adaptive to workload"),
+                    SurveyChoice(value: "manual", label: "Manual only")
+                ]
+            )
+        }
+
+        if surveyAnswers["stress_trigger"] == nil {
+            return localQuestion(
+                id: "stress_trigger",
+                title: "What usually triggers stress/procrastination?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "uncertainty", label: "Uncertainty"),
+                    SurveyChoice(value: "fatigue", label: "Fatigue"),
+                    SurveyChoice(value: "overload", label: "Task overload"),
+                    SurveyChoice(value: "social", label: "Social noise/notifications")
+                ]
+            )
+        }
+
+        if stress == "uncertainty", surveyAnswers["proactive_alerts"] == nil {
+            return localQuestion(
+                id: "proactive_alerts",
+                title: "Which proactive alerts help you most?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "daily_brief", label: "Daily brief"),
+                    SurveyChoice(value: "risk_alerts", label: "Risk alerts"),
+                    SurveyChoice(value: "execution", label: "Execution nudges")
+                ]
+            )
+        }
+
+        let standardQuestions: [SurveyQuestion] = [
+            localQuestion(
+                id: "travel_pattern",
+                title: "What is your movement pattern?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "daily_commute", label: "Heavy daily commuting"),
+                    SurveyChoice(value: "multi_day", label: "Multi-day rolling travel"),
+                    SurveyChoice(value: "hybrid", label: "Hybrid")
+                ]
+            ),
+            localQuestion(
+                id: "trip_style",
+                title: "What is your preferred trip style?",
+                description: "Used to tune routes and recommendations.",
+                choices: [
+                    SurveyChoice(value: "mixed", label: "Mixed"),
+                    SurveyChoice(value: "beach", label: "Beach"),
+                    SurveyChoice(value: "north", label: "North"),
+                    SurveyChoice(value: "desert", label: "Desert")
+                ]
+            ),
+            localQuestion(
+                id: "health_priority",
+                title: "Top health priority right now?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "sleep", label: "Sleep"),
+                    SurveyChoice(value: "focus", label: "Focus/cognition"),
+                    SurveyChoice(value: "stress", label: "Stress reduction"),
+                    SurveyChoice(value: "nutrition", label: "Better nutrition")
+                ]
+            ),
+            localQuestion(
+                id: "gym_frequency",
+                title: "How often do you currently train/work out?",
+                description: "This powers daily habit follow-ups.",
+                choices: [
+                    SurveyChoice(value: "rarely", label: "Rarely"),
+                    SurveyChoice(value: "sometimes", label: "Sometimes"),
+                    SurveyChoice(value: "regularly", label: "Regularly")
+                ]
+            ),
+            localQuestion(
+                id: "income_cadence",
+                title: "How regular is your income right now?",
+                description: "Atlas uses this to trigger income-focused daily actions when needed.",
+                choices: [
+                    SurveyChoice(value: "none", label: "No regular income"),
+                    SurveyChoice(value: "sometimes", label: "Sometimes"),
+                    SurveyChoice(value: "regularly", label: "Regularly")
+                ]
+            ),
+            localQuestion(
+                id: "wealth_focus",
+                title: "In the next two years, what matters more?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "income_growth", label: "Income growth"),
+                    SurveyChoice(value: "capital", label: "Capital building"),
+                    SurveyChoice(value: "both", label: "Both")
+                ]
+            ),
+            localQuestion(
+                id: "charity_commitment",
+                title: "How do you want to include charity in planning?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "fixed_percent", label: "Fixed percent of income"),
+                    SurveyChoice(value: "milestones", label: "By milestones"),
+                    SurveyChoice(value: "later", label: "Later")
+                ]
+            ),
+            localQuestion(
+                id: "support_style",
+                title: "What coaching style do you prefer?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "direct", label: "Direct and sharp"),
+                    SurveyChoice(value: "coach", label: "Supportive coach"),
+                    SurveyChoice(value: "strategic", label: "Long-term strategic")
+                ]
+            ),
+            localQuestion(
+                id: "voice_preference",
+                title: "Do you want continuous voice conversation with Atlas?",
+                description: "This can be changed later in settings.",
+                choices: [
+                    SurveyChoice(value: "yes", label: "Yes"),
+                    SurveyChoice(value: "sometimes", label: "Sometimes"),
+                    SurveyChoice(value: "no", label: "No")
+                ]
+            )
+        ]
+
+        if let next = standardQuestions.first(where: { surveyAnswers[$0.id] == nil }) {
+            return next
+        }
+
+        let answered = surveyAnswers.count
+        if answered >= localSurveyTotal() {
+            return nil
+        }
+        let index = answered + 1
+        return localQuestion(
+            id: "reflection_\(index)",
+            title: "Adaptive reflection \(index)",
+            description: "Long-term memory quality improves when you answer with concrete constraints.",
+            choices: [
+                SurveyChoice(value: "constraint", label: "I need tighter constraints"),
+                SurveyChoice(value: "execution", label: "I need cleaner execution flow"),
+                SurveyChoice(value: "resilience", label: "I need stronger resilience planning")
+            ]
+        )
+    }
+
+    private func localQuestion(
+        id: String,
+        title: String,
+        description: String?,
+        choices: [SurveyChoice]
+    ) -> SurveyQuestion {
+        SurveyQuestion(
+            id: id,
+            title: title,
+            description: description,
+            kind: "choice",
+            required: true,
+            choices: choices,
+            placeholder: nil
+        )
+    }
+
+    private func refreshAdaptiveLearningPackageIfNeeded() {
+        let fingerprint = adaptiveLearningFingerprint()
+        guard fingerprint != learningFingerprint else { return }
+
+        let signalStrength = surveyAnswers.count + min(notes.count, 8) + (dailyPriority.isEmpty ? 0 : 2)
+        guard signalStrength >= 5 else { return }
+
+        learningVersion += 1
+        learningFingerprint = fingerprint
+        learningPackage = buildAdaptiveLearningPackage(version: learningVersion)
+        if let learningPackage {
+            appendOutput("Generated adaptive learning pack v\(learningPackage.version) (quiz + podcast brief).")
+        }
+    }
+
+    private func adaptiveLearningFingerprint() -> String {
+        let sortedSurvey = surveyAnswers
+            .sorted(by: { $0.key < $1.key })
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: "|")
+        let topNotes = notes.prefix(3).map { "\($0.title):\($0.content.prefix(80))" }.joined(separator: "|")
+        let execution = [dailyPriority, midTermGoal, longTermVision, checkInBlockers].joined(separator: "|")
+        return [sortedSurvey, topNotes, execution, checkInMood, "\(checkInEnergy)", checkInWentToGymToday ? "gym=1" : "gym=0", checkInMadeMoneyToday ? "money=1" : "money=0"]
+            .joined(separator: "||")
+            .lowercased()
+    }
+
+    private func buildAdaptiveLearningPackage(version: Int) -> AdaptiveLearningPackage {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let gymFrequency = surveyAnswers["gym_frequency"] ?? "sometimes"
+        let incomeCadence = surveyAnswers["income_cadence"] ?? "sometimes"
+        let pressure = surveyAnswers["daily_pressure"] ?? "medium"
+        let priority = surveyAnswers["primary_goal"] ?? "mixed"
+
+        let rationale = "Version \(version) generated from new memory signals (survey: \(surveyAnswers.count), notes: \(notes.count), pressure: \(pressure), goal: \(priority))."
+        let quiz = [
+            AdaptiveQuizQuestion(
+                id: "q\(version)-1",
+                prompt: "Given your current pressure level, what should happen first each morning?",
+                options: [
+                    "Start reactive communication immediately",
+                    "Run a 20-30 minute execution block on one critical outcome",
+                    "Wait for motivation"
+                ],
+                preferredAnswerIndex: 1,
+                explanation: "Focused first-block execution protects cognitive bandwidth and reduces drift."
+            ),
+            AdaptiveQuizQuestion(
+                id: "q\(version)-2",
+                prompt: "Your gym baseline is \(gymFrequency). If training is missed today, what is the best recovery move?",
+                options: [
+                    "Ignore and reset next week",
+                    "Schedule one concrete session before day-end and pre-commit tomorrow",
+                    "Compensate with extra notifications"
+                ],
+                preferredAnswerIndex: 1,
+                explanation: "Short recovery loops preserve consistency better than perfection targets."
+            ),
+            AdaptiveQuizQuestion(
+                id: "q\(version)-3",
+                prompt: "Income cadence is \(incomeCadence). Which action should Atlas push when no money moved today?",
+                options: [
+                    "Wait for a better market day",
+                    "Execute one direct money action now (outreach/offer/close)",
+                    "Rewrite the plan for hours"
+                ],
+                preferredAnswerIndex: 1,
+                explanation: "When cash flow is unstable, high-leverage direct actions matter more than theory."
+            ),
+            AdaptiveQuizQuestion(
+                id: "q\(version)-4",
+                prompt: "Which behavior best builds long-term problem-solving capacity?",
+                options: [
+                    "Only consume content",
+                    "Deliberate drills + reflection + constraint-aware execution",
+                    "Constantly switch goals"
+                ],
+                preferredAnswerIndex: 1,
+                explanation: "Skill growth compounds through deliberate practice and reflective adaptation."
+            )
+        ]
+
+        let podcastTitle = "Atlas Learning Brief v\(version): Execution, Resilience, and Wealth Flow"
+        let podcastSummary = "A profile-tuned briefing on daily execution discipline, crisis resilience, and income momentum loops."
+        let segments = [
+            AdaptivePodcastSegment(
+                id: "s\(version)-1",
+                title: "State of play",
+                talkingPoints: [
+                    "Current pressure: \(pressure)",
+                    "Primary operating objective: \(priority)",
+                    "Immediate constraints from your latest memory signals"
+                ]
+            ),
+            AdaptivePodcastSegment(
+                id: "s\(version)-2",
+                title: "Today’s execution protocol",
+                talkingPoints: [
+                    "One critical action block in the next 30 minutes",
+                    "Gym status today: \(checkInWentToGymToday ? "completed" : "pending")",
+                    "Money status today: \(checkInMadeMoneyToday ? "progress made" : "no movement yet")"
+                ]
+            ),
+            AdaptivePodcastSegment(
+                id: "s\(version)-3",
+                title: "Resilience and innovation loop",
+                talkingPoints: [
+                    "Stabilize energy and attention before high-stakes decisions",
+                    "Run one deliberate problem-solving drill",
+                    "Document one learning signal for tomorrow’s upgraded plan"
+                ]
+            )
+        ]
+
+        return AdaptiveLearningPackage(
+            version: version,
+            generatedAtUTC: now,
+            rationale: rationale,
+            quiz: quiz,
+            podcastTitle: podcastTitle,
+            podcastSummary: podcastSummary,
+            podcastSegments: segments
+        )
     }
 
     private func markSignedIn(provider: AuthProvider, accountName: String) {
@@ -793,12 +1277,19 @@ final class SessionStore: ObservableObject {
             checkInMood: checkInMood,
             checkInEnergy: checkInEnergy,
             checkInBlockers: checkInBlockers,
+            checkInWentToGymToday: checkInWentToGymToday,
+            checkInMadeMoneyToday: checkInMadeMoneyToday,
+            checkInMoneySignalNote: checkInMoneySignalNote,
             pendingFeedback: pendingFeedback,
             vanRentalNeeded: vanRentalNeeded,
             travelRegion: travelRegion,
             annualDistanceKM: annualDistanceKM,
             workspaceMode: workspaceMode,
-            notes: notes
+            notes: notes,
+            surveyAnswers: surveyAnswers,
+            learningPackage: learningPackage,
+            learningVersion: learningVersion,
+            learningFingerprint: learningFingerprint
         )
 
         let encoder = JSONEncoder()
@@ -868,12 +1359,19 @@ final class SessionStore: ObservableObject {
         checkInMood = state.checkInMood
         checkInEnergy = state.checkInEnergy
         checkInBlockers = state.checkInBlockers
+        checkInWentToGymToday = state.checkInWentToGymToday ?? false
+        checkInMadeMoneyToday = state.checkInMadeMoneyToday ?? false
+        checkInMoneySignalNote = state.checkInMoneySignalNote ?? ""
         pendingFeedback = state.pendingFeedback
         vanRentalNeeded = state.vanRentalNeeded
         travelRegion = state.travelRegion
         annualDistanceKM = state.annualDistanceKM
         workspaceMode = state.workspaceMode
         notes = state.notes
+        surveyAnswers = state.surveyAnswers ?? [:]
+        learningPackage = state.learningPackage
+        learningVersion = state.learningVersion ?? (learningPackage?.version ?? 0)
+        learningFingerprint = state.learningFingerprint ?? ""
     }
 
     private func stateFileURL(fileName: String) -> URL? {
@@ -899,10 +1397,24 @@ private struct PersistedState: Codable {
     var checkInMood: String
     var checkInEnergy: Int
     var checkInBlockers: String
+    var checkInWentToGymToday: Bool?
+    var checkInMadeMoneyToday: Bool?
+    var checkInMoneySignalNote: String?
     var pendingFeedback: String
     var vanRentalNeeded: Bool
     var travelRegion: String
     var annualDistanceKM: String
     var workspaceMode: String
     var notes: [UserNote]
+    var surveyAnswers: [String: String]?
+    var learningPackage: AdaptiveLearningPackage?
+    var learningVersion: Int?
+    var learningFingerprint: String?
+}
+
+private extension String {
+    func trimmedNil() -> String? {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
 }

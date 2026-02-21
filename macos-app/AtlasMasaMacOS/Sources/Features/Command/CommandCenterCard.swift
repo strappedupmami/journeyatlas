@@ -5,7 +5,7 @@ struct CommandCenterCard: View {
 
     var body: some View {
         AtlasScreen(
-            title: "Atlas Masa Life OS",
+            title: "Atlas/אטלס Life OS",
             subtitle: "Swift-native command center for daily, mid-term, and long-horizon execution"
         ) {
             AtlasPanel(
@@ -44,6 +44,14 @@ struct CommandCenterCard: View {
                     Stepper("Energy: \(session.checkInEnergy)/5", value: $session.checkInEnergy, in: 1 ... 5)
                         .foregroundStyle(AtlasTheme.textPrimary)
                     TextField("Mood", text: $session.checkInMood)
+                        .atlasFieldStyle()
+                    Toggle("Went to the gym / training today", isOn: $session.checkInWentToGymToday)
+                        .tint(AtlasTheme.accent)
+                        .foregroundStyle(AtlasTheme.textPrimary)
+                    Toggle("Made money progress today", isOn: $session.checkInMadeMoneyToday)
+                        .tint(AtlasTheme.accent)
+                        .foregroundStyle(AtlasTheme.textPrimary)
+                    TextField("Money progress note (optional)", text: $session.checkInMoneySignalNote)
                         .atlasFieldStyle()
 
                     Button("Apply check-in and refresh execution plan") {

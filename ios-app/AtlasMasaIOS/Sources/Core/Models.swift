@@ -150,6 +150,88 @@ struct NativeAppleExchangePayload: Encodable {
     }
 }
 
+struct AuthSessionUser: Codable {
+    let userID: String
+    let provider: String
+    let email: String
+    let name: String
+    let locale: String
+    let memoryOptIn: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case provider
+        case email
+        case name
+        case locale
+        case memoryOptIn = "memory_opt_in"
+    }
+}
+
+struct AuthMeResponse: Codable {
+    let user: AuthSessionUser
+}
+
+struct ExecutionCheckinPayload: Encodable {
+    let userID: String?
+    let dailyFocus: String
+    let midTermFocus: String?
+    let longTermFocus: String?
+    let blocker: String?
+    let nextActionNow: String?
+    let energyLevel: Int?
+    let mood: String?
+    let gymToday: Bool?
+    let moneyToday: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case dailyFocus = "daily_focus"
+        case midTermFocus = "mid_term_focus"
+        case longTermFocus = "long_term_focus"
+        case blocker
+        case nextActionNow = "next_action_now"
+        case energyLevel = "energy_level"
+        case mood
+        case gymToday = "gym_today"
+        case moneyToday = "money_today"
+    }
+}
+
+struct ExecutionCheckinRecord: Codable {
+    let checkinID: String
+    let dailyFocus: String
+    let midTermFocus: String?
+    let longTermFocus: String?
+    let blocker: String?
+    let nextActionNow: String?
+    let energyLevel: Int?
+    let mood: String?
+    let gymToday: Bool?
+    let moneyToday: Bool?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case checkinID = "checkin_id"
+        case dailyFocus = "daily_focus"
+        case midTermFocus = "mid_term_focus"
+        case longTermFocus = "long_term_focus"
+        case blocker
+        case nextActionNow = "next_action_now"
+        case energyLevel = "energy_level"
+        case mood
+        case gymToday = "gym_today"
+        case moneyToday = "money_today"
+        case createdAt = "created_at"
+    }
+}
+
+struct ExecutionCheckinResponse: Codable {
+    let ok: Bool
+    let checkin: ExecutionCheckinRecord
+    let feed: ProactiveFeedResponse
+}
+
 enum PromptQueueStatus: String, Codable, CaseIterable {
     case queued
     case running
@@ -170,7 +252,11 @@ struct PromptQueueItem: Codable, Identifiable, Hashable {
     var prompt: String
     var status: PromptQueueStatus
     var createdAt: Date
+    var startedAt: Date? = nil
     var completedAt: Date?
+    var lastCheckpointAt: Date? = nil
+    var progress: Double? = nil
+    var checkpointNote: String? = nil
     var errorMessage: String?
     var output: LocalReasoningOutput?
 }
@@ -233,4 +319,96 @@ struct MemoryInsight: Codable, Identifiable, Hashable {
     let id: String
     let label: String
     let value: String
+}
+
+enum AtlasOfferCategory: String, Codable, CaseIterable, Identifiable {
+    case localIntelligence = "local_intelligence"
+    case travelMobility = "travel_mobility"
+    case wealthOperations = "wealth_operations"
+    case resilienceSafety = "resilience_safety"
+    case productivitySystems = "productivity_systems"
+
+    var id: String { rawValue }
+}
+
+enum AtlasOfferType: String, Codable, CaseIterable, Identifiable {
+    case feature
+    case service
+    case membership
+    case rental
+
+    var id: String { rawValue }
+}
+
+struct TailoredOffer: Codable, Identifiable, Hashable {
+    let id: String
+    let category: AtlasOfferCategory
+    let type: AtlasOfferType
+    let title: String
+    let summary: String
+    let rationale: String
+    let priority: Int
+    let callToAction: String
+}
+
+struct AtlasResearchPaper: Codable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let year: Int
+    let domain: String
+    let actionableInsight: String
+    let actionHint: String
+    let sourceURL: String
+    let keywords: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case year
+        case domain
+        case actionableInsight = "actionable_insight"
+        case actionHint = "action_hint"
+        case sourceURL = "source_url"
+        case keywords
+    }
+}
+
+struct ResearchCitation: Codable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let year: Int
+    let sourceURL: String
+}
+
+struct ResearchExecutionStream: Codable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let executionRecommendation: String
+    let whyItWorks: String
+    let confidence: Double
+    let citations: [ResearchCitation]
+}
+
+struct AdaptiveQuizQuestion: Codable, Identifiable, Hashable {
+    let id: String
+    let prompt: String
+    let options: [String]
+    let preferredAnswerIndex: Int
+    let explanation: String
+}
+
+struct AdaptivePodcastSegment: Codable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let talkingPoints: [String]
+}
+
+struct AdaptiveLearningPackage: Codable, Hashable {
+    let version: Int
+    let generatedAtUTC: String
+    let rationale: String
+    let quiz: [AdaptiveQuizQuestion]
+    let podcastTitle: String
+    let podcastSummary: String
+    let podcastSegments: [AdaptivePodcastSegment]
 }
