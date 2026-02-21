@@ -1,7 +1,7 @@
 import Foundation
 
 actor LocalReasoningEngine {
-    private let modelName = "burn-local-reasoner-v1"
+    private let modelName = "atlas-swift-local-reasoner-v2"
 
     func reason(prompt: String, notes: [UserNote]) async -> LocalReasoningOutput {
         let normalized = prompt.trimmingCharacters(in: .whitespacesAndNewlines)

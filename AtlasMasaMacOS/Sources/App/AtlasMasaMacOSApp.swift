@@ -8,6 +8,7 @@ struct AtlasMasaMacOSApp: App {
         WindowGroup {
             RootDashboardView()
                 .environmentObject(session)
+                .preferredColorScheme(.dark)
                 .task {
                     await session.bootstrap()
                 }
