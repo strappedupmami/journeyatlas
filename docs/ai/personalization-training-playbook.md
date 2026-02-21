@@ -65,3 +65,10 @@ Recommended tag taxonomy:
 - Add TTL + archival policies by memory type.
 - Add user-facing memory audit timeline (what was learned, when, and why).
 - Add explicit consent toggles for each memory source class.
+
+## 6) Local app model loop
+
+For iOS/macOS on-device model updates, use:
+- `/Users/avrohom/Downloads/journeyatlas/docs/ai/local-model-training.md`
+
+This loop trains and regenerates local Swift model payloads without cloud inference.

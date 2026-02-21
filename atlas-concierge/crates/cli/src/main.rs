@@ -12,6 +12,8 @@ use atlas_retrieval::HybridRetriever;
 use atlas_storage::Store;
 use clap::{Parser, Subcommand};
 
+mod local_reasoner;
+
 #[derive(Debug, Parser)]
 #[command(name = "concierge")]
 #[command(about = "Atlas Concierge CLI")]
@@ -44,6 +46,10 @@ enum Command {
         #[command(subcommand)]
         command: KbCommand,
     },
+    Model {
+        #[command(subcommand)]
+        command: ModelCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -60,21 +66,28 @@ enum KbCommand {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum ModelCommand {
+    TrainLocalReasoner(local_reasoner::TrainLocalReasonerArgs),
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     init_tracing("atlas_cli");
     let cli = Cli::parse();
 
-    let agent = build_agent(&cli.kb_root).await?;
-
     match cli.command {
-        Command::Chat => run_chat(agent).await?,
+        Command::Chat => {
+            let agent = build_agent(&cli.kb_root).await?;
+            run_chat(agent).await?;
+        }
         Command::PlanTrip {
             style,
             days,
             locale,
             people,
         } => {
+            let agent = build_agent(&cli.kb_root).await?;
             let style = TripStyle::parse(&style).context("invalid --style value")?;
             let locale = Locale::from_optional_str(Some(&locale));
 
@@ -92,6 +105,7 @@ async fn main() -> Result<()> {
         }
         Command::Ops { command } => match command {
             OpsCommand::Checklist { kind } => {
+                let agent = build_agent(&cli.kb_root).await?;
                 let kind = OpsChecklistType::parse(&kind).context("invalid checklist kind")?;
                 let checklist = agent.ops_checklist(kind).await?;
                 println!("{}", serde_json::to_string_pretty(&checklist)?);
@@ -99,8 +113,14 @@ async fn main() -> Result<()> {
         },
         Command::Kb { command } => match command {
             KbCommand::Search { query, limit } => {
+                let agent = build_agent(&cli.kb_root).await?;
                 let hits = agent.kb_search(&query, limit);
                 println!("{}", serde_json::to_string_pretty(&hits)?);
+            }
+        },
+        Command::Model { command } => match command {
+            ModelCommand::TrainLocalReasoner(args) => {
+                local_reasoner::train_and_write(args)?;
             }
         },
     }

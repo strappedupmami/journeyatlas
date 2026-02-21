@@ -1,0 +1,69 @@
+{"prompt":"I keep overthinking and delaying; what should I do in the next 15 minutes?","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+{"prompt":"I need to move from planning to action right now.","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+{"prompt":"Give me a direct now-now move for today so I stop drifting.","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+{"prompt":"I have too many tasks, help me start one immediate block.","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+{"prompt":"Need ruthless execution mode for this morning.","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+{"prompt":"I keep postponing important work; what is the next move now?","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+{"prompt":"Break this paralysis and put me in motion immediately.","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+{"prompt":"Tell me the first concrete action and ignore everything else.","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+{"prompt":"I need daily momentum right now with zero fluff.","label":"execution_now","next_action":"Execute one high-impact step in the next 15 minutes, then lock the next checkpoint."}
+
+{"prompt":"I need more cash this month and I have to move fast.","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+{"prompt":"How do I improve revenue while traveling constantly?","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+{"prompt":"Give me the highest leverage sales action for today.","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+{"prompt":"I need to close clients and protect cash flow this week.","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+{"prompt":"What should I do first if I need money urgently for operations?","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+{"prompt":"I want to build wealth from this system, not just survive.","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+{"prompt":"Help me prioritize actions that directly increase incoming revenue.","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+{"prompt":"Need enterprise clients for atlas masa operations.","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+{"prompt":"Give me a business move with immediate monetization potential.","label":"revenue_focus","next_action":"Prioritize one direct revenue move now and schedule a same-day follow-up."}
+
+{"prompt":"What if something goes wrong and I have no signal or phone battery?","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+{"prompt":"I need emergency continuity planning for life on the road.","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+{"prompt":"How do I stay safe if everything fails at once during travel?","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+{"prompt":"Design fallback systems for communication and power loss.","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+{"prompt":"I need the safest path to keep capability under uncertainty.","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+{"prompt":"How should I protect myself in remote areas overnight?","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+{"prompt":"Create a defense-in-depth plan for mobile living emergencies.","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+{"prompt":"I need a safe harbor route if breakdown happens at night.","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+{"prompt":"Continuity of capability is my priority, where do we start?","label":"resilience_safety","next_action":"Run continuity checks: power, comms, offline navigation, and safe-harbor path."}
+
+{"prompt":"I am stressed and cognitively overloaded, need a stable protocol.","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+{"prompt":"My brain is fried and I need to recover without losing progress.","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+{"prompt":"How do we adapt planning after a physically and mentally intense event?","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+{"prompt":"Need low stimulation routine to regain focus and decision quality.","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+{"prompt":"I need rest mode then a controlled return to high performance.","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+{"prompt":"What should I do when fatigue and anxiety spike at once?","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+{"prompt":"I want to avoid burnout while keeping mission momentum.","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+{"prompt":"Plan a restorative day with one meaningful execution target.","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+{"prompt":"Give me a recovery-first execution framework for today.","label":"health_recovery","next_action":"Reduce cognitive load, stabilize recovery conditions, and execute one low-friction action."}
+
+{"prompt":"Passkey signup fails with 502 and I need root-cause now.","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+{"prompt":"My deploy is broken and build logs show dependency conflicts.","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+{"prompt":"How do I fix OAuth callback errors on production quickly?","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+{"prompt":"The app says unauthorized from API; help me debug methodically.","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+{"prompt":"Railway domain is returning 404 application not found.","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+{"prompt":"Survey endpoint returns 502 and UI is broken.","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+{"prompt":"Need to close production auth gaps and confirm with tests.","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+{"prompt":"CI is failing and pipeline security checks are blocking merge.","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+{"prompt":"Why is Sign in with Apple invalid_request response_mode issue happening?","label":"technical_debug","next_action":"Capture the failing signal, isolate one root cause, and apply a minimal verified fix."}
+
+{"prompt":"I need a long-term plan to scale atlas masa into a major ecosystem.","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+{"prompt":"Help me align daily actions with a 10-year mission.","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+{"prompt":"How do we design for decades of product evolution and speed?","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+{"prompt":"I need strategy for budget and luxury product lines together.","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+{"prompt":"What is the smartest order for website, apps, and vehicles roadmap?","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+{"prompt":"Create a high-confidence strategy for wealth building and resilience.","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+{"prompt":"I want economic empowerment architecture that compounds over years.","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+{"prompt":"Help me balance immediate shipping with deep infrastructure goals.","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+{"prompt":"I need a mission-safe long horizon operating plan.","label":"strategy_long_horizon","next_action":"Define the next strategic milestone and commit one measurable action this week."}
+
+{"prompt":"Build a compliant travel route with legal overnight options.","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}
+{"prompt":"Need a road-work-living itinerary with reliable service stops.","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}
+{"prompt":"How do we run high-mileage operations with less friction daily?","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}
+{"prompt":"I need a plan for dump refill laundry maintenance coworking points.","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}
+{"prompt":"What is the practical route and backup route for this trip?","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}
+{"prompt":"Schedule travel with work blocks and regulated overnight parking.","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}
+{"prompt":"Plan mobility logistics for business travel and deep work execution.","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}
+{"prompt":"I want an operations-first travel plan, not tourist fluff.","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}
+{"prompt":"Need legal campground and caravan business route constraints in Israel.","label":"travel_ops","next_action":"Confirm route legality, service points, and overnight fallback before departure."}

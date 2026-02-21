@@ -305,7 +305,9 @@ dependencies = [
  "atlas-observability",
  "atlas-retrieval",
  "atlas-storage",
+ "chrono",
  "clap",
+ "serde",
  "serde_json",
  "tokio",
 ]

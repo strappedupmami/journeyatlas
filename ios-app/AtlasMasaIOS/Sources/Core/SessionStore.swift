@@ -53,6 +53,7 @@ final class SessionStore: ObservableObject {
     }
 
     func bootstrap() async {
+        appendOutput(await localReasoning.modelStatusLine())
         await refreshHealth()
         await loadSurvey()
         await loadNotes()
