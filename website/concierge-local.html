@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Atlas Masa AI Studio | אטלס מסע</title>
+    <title>Atlas/אטלס AI Studio | אטלס</title>
     <meta
       name="description"
       content="מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת וזרם ביצוע."
@@ -299,7 +299,7 @@
   <body>
     <header class="header">
       <div class="container header__inner">
-        <a class="brand" href="homepage.html" aria-label="Atlas Masa home">
+        <a class="brand" href="homepage.html" aria-label="Atlas/אטלס home">
           <span class="brand__mark" aria-hidden="true">
             <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
               <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
@@ -309,7 +309,7 @@
             </svg>
           </span>
           <span class="brand__text">
-            <span class="brand__name">אטלס מסע</span>
+            <span class="brand__name">אטלס</span>
             <span class="brand__tag">AI Studio</span>
           </span>
         </a>
@@ -333,7 +333,7 @@
           <div class="nav__item nav__item--menu">
             <a class="nav__trigger" href="vans-company-future.html" data-i18n="studio.nav.theory">תיאוריה</a>
             <div class="nav__menu" role="menu" aria-label="Vans and company sections">
-              <a class="nav__menu-link" href="vans-company-future.html#brands">Atlas Masa and BlackHaven</a>
+              <a class="nav__menu-link" href="vans-company-future.html#brands">Atlas/אטלס and BlackHaven</a>
               <a class="nav__menu-link" href="vans-company-future.html#platform">Vehicle platform roadmap</a>
               <a class="nav__menu-link" href="vans-company-future.html#operations">Operations and safe harbor hubs</a>
             </div>
@@ -379,7 +379,7 @@
     <main class="section">
       <div class="container concierge-app">
         <div class="section__head">
-          <span class="pill" data-i18n="studio.pill">Atlas Masa AI</span>
+          <span class="pill" data-i18n="studio.pill">Atlas/אטלס AI</span>
           <h1 data-i18n="studio.title">סטודיו AI לניהול חיים, עבודה ותנועה</h1>
           <p class="sub" data-i18n="studio.sub">
             הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח,
@@ -407,8 +407,8 @@
               <h3 data-i18n="studio.authTitle">גישה מאובטחת לחשבון</h3>
               <p id="user-status" class="subtle" data-i18n="studio.authGuest">לא מחוברים. מומלץ להתחבר כדי לשמור זיכרון ארוך-טווח.</p>
               <div class="actions">
-                <a class="btn btn--ghost" href="signin.html" data-i18n="studio.authPortalSignin">Passwordless (more secure) Sign in</a>
-                <a class="btn btn--ghost" href="signup.html" data-i18n="studio.authPortalSignup">Passwordless (more secure) Sign up</a>
+                <a class="btn btn--ghost" id="auth-portal-signin-link" href="signin.html" data-i18n="studio.authPortalSignin">Passwordless (more secure) Sign in</a>
+                <a class="btn btn--ghost" id="auth-portal-signup-link" href="signup.html" data-i18n="studio.authPortalSignup">Passwordless (more secure) Sign up</a>
                 <button class="btn btn--primary" id="subscribe-monthly" type="button" data-i18n="studio.subscribeMonthly" style="display:none">מנוי חודשי (Apple Pay)</button>
                 <button class="btn btn--ghost" id="signout-btn" type="button" data-i18n="studio.authSignout" style="display:none">התנתקות</button>
               </div>
@@ -717,7 +717,7 @@
       window.ATLAS_PAGE_I18N = {
         he: {
           meta: {
-            title: "Atlas Masa AI Studio | אטלס מסע",
+            title: "Atlas/אטלס AI Studio | אטלס",
             description:
               "מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת וזרם ביצוע.",
           },
@@ -730,7 +730,7 @@
               login: "התחברות",
               signup: "הרשמה",
             },
-            pill: "Atlas Masa AI",
+            pill: "Atlas/אטלס AI",
             title: "סטודיו AI לניהול חיים, עבודה ותנועה",
             sub: "הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח, ומספקת זרם ביצוע כדי לקדם אותך ביום-יום.",
             featureTitle: "איזה פיצ׳ר מפעילים עכשיו?",
@@ -844,7 +844,7 @@
         },
         en: {
           meta: {
-            title: "Atlas Masa AI Studio",
+            title: "Atlas/אטלס AI Studio",
             description:
               "Personal AI for movement, work, and life: concierge, response studio, adaptive survey, and execution stream.",
           },
@@ -857,7 +857,7 @@
               login: "Log in",
               signup: "Sign up",
             },
-            pill: "Atlas Masa AI",
+            pill: "Atlas/אטלס AI",
             title: "AI Studio for Life, Work, and Mobility",
             sub: "Concierge is only one feature. This system builds long-term memory, proactive outputs, and daily execution support.",
             featureTitle: "Which feature do you want now?",
@@ -1046,6 +1046,8 @@
       const activeLocaleLabel = document.getElementById("active-locale-label");
       const voiceStatus = document.getElementById("voice-status");
       const userStatus = document.getElementById("user-status");
+      const authPortalSigninLink = document.getElementById("auth-portal-signin-link");
+      const authPortalSignupLink = document.getElementById("auth-portal-signup-link");
       const googleSigninBtn = document.getElementById("google-signin");
       const appleSigninBtn = document.getElementById("apple-signin");
       const passkeySigninBtn = document.getElementById("passkey-signin");
@@ -1169,12 +1171,32 @@
       function inferApiBase() {
         const host = window.location.hostname;
         if (host === "localhost" || host === "127.0.0.1") return "http://localhost:8080";
-        if (host === "atlasmasa.com" || host === "www.atlasmasa.com") return window.location.origin;
+        if (host === "atlasmasa.com" || host === "www.atlasmasa.com") return "https://api.atlasmasa.com";
         return `${window.location.protocol}//${host}:8080`;
       }
 
       function normalizeApiBase(value) {
         return String(value || "").trim().replace(/\/+$/, "");
+      }
+
+      function sanitizeApiBase(value) {
+        const normalized = normalizeApiBase(value);
+        if (!normalized) return "";
+        try {
+          const url = new URL(normalized);
+          const host = (url.hostname || "").toLowerCase();
+          if (!/^https?:$/.test(url.protocol)) return "";
+          if (
+            host === "atlasmasa.com" ||
+            host === "www.atlasmasa.com" ||
+            host === window.location.hostname.toLowerCase()
+          ) {
+            return "https://api.atlasmasa.com";
+          }
+          return normalizeApiBase(url.toString());
+        } catch (_) {
+          return "";
+        }
       }
 
       function getApiBaseCandidates() {
@@ -1198,12 +1220,8 @@
           isProdDomain ? "https://api.atlasmasa.com" : "",
           inferApiBase(),
         ]
-          .map(normalizeApiBase)
+          .map(sanitizeApiBase)
           .filter(Boolean);
-
-        if (host === "atlasmasa.com" || host === "www.atlasmasa.com") {
-          candidates.push(window.location.origin);
-        }
 
         return [...new Set(candidates)];
       }
@@ -1545,6 +1563,8 @@
         if (!state.user) {
           userStatus.textContent = t("studio.authGuest");
           signoutBtn.style.display = "none";
+          if (authPortalSigninLink) authPortalSigninLink.style.display = "inline-flex";
+          if (authPortalSignupLink) authPortalSignupLink.style.display = "inline-flex";
           subscribeMonthlyBtn.style.display = "none";
           subscribeMonthlyBtn.disabled = false;
           subscribeMonthlyBtn.style.opacity = "1";
@@ -1560,6 +1580,8 @@
           : "";
         userStatus.textContent = `${state.user.name || state.user.email} • ${state.user.provider}${subscriptionTag ? ` • ${subscriptionTag}` : ""}`;
         signoutBtn.style.display = "inline-flex";
+        if (authPortalSigninLink) authPortalSigninLink.style.display = "none";
+        if (authPortalSignupLink) authPortalSignupLink.style.display = "none";
         const showSubscriptionCta = !founderBypass && !hasActiveSubscription;
         subscribeMonthlyBtn.textContent = t("studio.subscribeMonthly");
         subscribeMonthlyBtn.title = "";
@@ -1910,35 +1932,109 @@
         return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
       }
 
-      function prepareRegistrationOptions(options) {
-        const normalized = Object.assign({}, options);
-        if (typeof options.challenge === "string") {
-          normalized.challenge = fromBase64Url(options.challenge);
+      function pickPublicKeyOptions(options) {
+        if (!options || typeof options !== "object") return {};
+        if (options.publicKey && typeof options.publicKey === "object") return options.publicKey;
+        if (options.public_key && typeof options.public_key === "object") return options.public_key;
+        return options;
+      }
+
+      function normalizeCredentialDescriptor(credential) {
+        if (!credential || typeof credential !== "object") return credential;
+        const normalized = Object.assign({}, credential);
+        if (typeof normalized.id === "string") {
+          normalized.id = fromBase64Url(normalized.id);
         }
-        normalized.user = Object.assign({}, options.user, {
-          id: typeof options.user.id === "string" ? fromBase64Url(options.user.id) : options.user.id,
-        });
-        if (Array.isArray(options.excludeCredentials)) {
-          normalized.excludeCredentials = options.excludeCredentials.map((credential) =>
-            Object.assign({}, credential, {
-              id: typeof credential.id === "string" ? fromBase64Url(credential.id) : credential.id,
+        return normalized;
+      }
+
+      function coercePubKeyCredParams(value) {
+        if (Array.isArray(value)) {
+          return value
+            .map((item) => {
+              if (!item || typeof item !== "object") return null;
+              return {
+                type: String(item.type || "public-key"),
+                alg: Number(item.alg),
+              };
             })
+            .filter((item) => item && Number.isFinite(item.alg));
+        }
+        if (value && typeof value === "object") {
+          return coercePubKeyCredParams(Object.values(value));
+        }
+        return [];
+      }
+
+      function prepareRegistrationOptions(options) {
+        const raw = Object.assign({}, pickPublicKeyOptions(options));
+        const normalized = Object.assign({}, raw);
+        if (typeof raw.challenge === "string") {
+          normalized.challenge = fromBase64Url(raw.challenge);
+        }
+        const params = coercePubKeyCredParams(raw.pubKeyCredParams || raw.pub_key_cred_params);
+        normalized.pubKeyCredParams =
+          params.length > 0
+            ? params
+            : [
+                { type: "public-key", alg: -7 },
+                { type: "public-key", alg: -257 },
+              ];
+
+        const user = raw.user || {};
+        normalized.user = Object.assign({}, user, {
+          id: typeof user.id === "string" ? fromBase64Url(user.id) : user.id,
+        });
+
+        if (!Array.isArray(normalized.excludeCredentials) && Array.isArray(raw.exclude_credentials)) {
+          normalized.excludeCredentials = raw.exclude_credentials;
+        }
+        if (!normalized.authenticatorSelection && raw.authenticator_selection) {
+          normalized.authenticatorSelection = raw.authenticator_selection;
+        }
+        if (!normalized.attestation && raw.attestation_conveyance_preference) {
+          normalized.attestation = raw.attestation_conveyance_preference;
+        }
+        if (Array.isArray(normalized.excludeCredentials)) {
+          normalized.excludeCredentials = normalized.excludeCredentials.map(
+            normalizeCredentialDescriptor
           );
+        }
+
+        if (!normalized.challenge || !(normalized.challenge instanceof ArrayBuffer)) {
+          throw new Error("Passkey challenge payload is invalid.");
+        }
+        if (!normalized.user || !(normalized.user.id instanceof ArrayBuffer)) {
+          throw new Error("Passkey user payload is invalid.");
+        }
+        if (!Array.isArray(normalized.pubKeyCredParams) || normalized.pubKeyCredParams.length === 0) {
+          throw new Error("Passkey pubKeyCredParams payload is invalid.");
         }
         return normalized;
       }
 
       function prepareAuthenticationOptions(options) {
-        const normalized = Object.assign({}, options);
-        if (typeof options.challenge === "string") {
-          normalized.challenge = fromBase64Url(options.challenge);
+        const raw = Object.assign({}, pickPublicKeyOptions(options));
+        const normalized = Object.assign({}, raw);
+        if (typeof raw.challenge === "string") {
+          normalized.challenge = fromBase64Url(raw.challenge);
         }
-        if (Array.isArray(options.allowCredentials)) {
-          normalized.allowCredentials = options.allowCredentials.map((credential) =>
-            Object.assign({}, credential, {
-              id: typeof credential.id === "string" ? fromBase64Url(credential.id) : credential.id,
-            })
+        if (!Array.isArray(normalized.allowCredentials) && Array.isArray(raw.allow_credentials)) {
+          normalized.allowCredentials = raw.allow_credentials;
+        }
+        if (!normalized.rpId && raw.rp_id) {
+          normalized.rpId = raw.rp_id;
+        }
+        if (!normalized.userVerification && raw.user_verification) {
+          normalized.userVerification = raw.user_verification;
+        }
+        if (Array.isArray(normalized.allowCredentials)) {
+          normalized.allowCredentials = normalized.allowCredentials.map(
+            normalizeCredentialDescriptor
           );
+        }
+        if (!normalized.challenge || !(normalized.challenge instanceof ArrayBuffer)) {
+          throw new Error("Passkey challenge payload is invalid.");
         }
         return normalized;
       }
@@ -2134,7 +2230,7 @@
         }
 
         const email = getIdentityEmail();
-        const displayName = state.user && state.user.name ? state.user.name : "Atlas Masa Member";
+        const displayName = state.user && state.user.name ? state.user.name : "Atlas/אטלס Member";
         const startPayload = {
           display_name: displayName,
           locale: state.locale,
@@ -2832,7 +2928,7 @@
                 action_type: "create_reminder",
                 label: state.locale === "he" ? "תזכורת ליציאה למסלול" : "Reminder for trip departure",
                 payload: {
-                  title: "Atlas Masa trip departure",
+                  title: "Atlas/אטלס trip departure",
                   details: summary,
                   due_at_utc: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
                   reminders_app: state.studio.reminders_app,
@@ -2924,7 +3020,7 @@
         const payload = action.payload || {};
         if (action.action_type === "create_reminder") {
           const result = await request("/v1/actions/reminder", "POST", {
-            title: payload.title || "Atlas Masa reminder",
+            title: payload.title || "Atlas/אטלס reminder",
             details: payload.details || "",
             due_at_utc: payload.due_at_utc,
             reminders_app: payload.reminders_app || state.studio.reminders_app,
@@ -3206,7 +3302,13 @@
         handleStatusFromQuery();
         handleLaunchFromQuery();
         if (apiBaseInput) {
-          apiBaseInput.value = inferApiBase();
+          const candidates = getApiBaseCandidates();
+          apiBaseInput.value = candidates[0] || inferApiBase();
+          try {
+            if (apiBaseInput.value) {
+              window.localStorage.setItem("atlas_api_base", apiBaseInput.value);
+            }
+          } catch (_) {}
         }
 
         setupEvents();
@@ -3231,6 +3333,8 @@
 
         // Unprompted proactive refresh loop (mobile-safe cadence).
         setInterval(() => {
+          if (document.visibilityState !== "visible") return;
+          if (!navigator.onLine) return;
           if (state.studio.proactive_mode !== "disabled") {
             loadProactiveFeed(true);
           }

@@ -25,6 +25,7 @@ use hmac::{Hmac, Mac};
 use parking_lot::RwLock;
 use rand::{rng, RngCore};
 use reqwest::Client;
+use ring::signature::{RsaPublicKeyComponents, RSA_PKCS1_2048_8192_SHA256};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
@@ -774,9 +775,8 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         env::var("ATLAS_SESSION_COOKIE_NAME").unwrap_or_else(|_| "atlas_session".to_string());
     let cookie_domain = env::var("ATLAS_SESSION_COOKIE_DOMAIN")
         .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "localhost".to_string());
+        .and_then(|value| sanitize_cookie_domain(value.as_str()))
+        .unwrap_or_default();
     let cookie_secure = true;
     let cookie_same_site = sanitize_enum_value(
         env::var("ATLAS_COOKIE_SAMESITE")
@@ -980,13 +980,50 @@ struct AppleTokenResponse {
 }
 
 #[derive(Debug, Deserialize)]
+struct AppleJwtHeader {
+    alg: Option<String>,
+    kid: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum JwtAudienceClaim {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl JwtAudienceClaim {
+    fn includes(&self, expected: &str) -> bool {
+        match self {
+            Self::Single(value) => value == expected,
+            Self::Multiple(values) => values.iter().any(|value| value == expected),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
 struct AppleIdTokenClaims {
-    aud: Option<String>,
+    aud: Option<JwtAudienceClaim>,
+    iss: Option<String>,
     exp: Option<i64>,
     nonce: Option<String>,
     email: Option<String>,
     email_verified: Option<serde_json::Value>,
     locale: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AppleJwksResponse {
+    keys: Vec<AppleJwkRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AppleJwkRecord {
+    kid: Option<String>,
+    kty: Option<String>,
+    alg: Option<String>,
+    n: Option<String>,
+    e: Option<String>,
 }
 
 async fn auth_google_start(
@@ -1200,7 +1237,7 @@ async fn auth_google_callback(
         userinfo.email.to_lowercase(),
         userinfo
             .name
-            .unwrap_or_else(|| "Atlas Masa User".to_string()),
+            .unwrap_or_else(|| "Atlas/אטלס User".to_string()),
         userinfo.locale.unwrap_or_else(|| "en".to_string()),
         now,
     )
@@ -1407,19 +1444,41 @@ async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQue
         }
     };
 
-    let Some(claims) = parse_untrusted_jwt_payload::<AppleIdTokenClaims>(token.id_token.as_str())
-    else {
+    let claims = match verify_apple_id_token(
+        &state.http_client,
+        token.id_token.as_str(),
+        config.client_id.as_str(),
+    )
+    .await
+    {
+        Ok(value) => value,
+        Err(_) => {
+            let target = format!(
+                "{}{}?auth=error&reason=id_token_verification_failed",
+                config.frontend_origin,
+                pending.return_to.as_str()
+            );
+            return Redirect::to(target.as_str()).into_response();
+        }
+    };
+
+    if !claims
+        .aud
+        .as_ref()
+        .map(|aud| aud.includes(config.client_id.as_str()))
+        .unwrap_or(false)
+    {
         let target = format!(
-            "{}{}?auth=error&reason=id_token_parse_failed",
+            "{}{}?auth=error&reason=invalid_audience",
             config.frontend_origin,
             pending.return_to.as_str()
         );
         return Redirect::to(target.as_str()).into_response();
-    };
+    }
 
-    if claims.aud.as_deref() != Some(config.client_id.as_str()) {
+    if claims.iss.as_deref() != Some("https://appleid.apple.com") {
         let target = format!(
-            "{}{}?auth=error&reason=invalid_audience",
+            "{}{}?auth=error&reason=invalid_issuer",
             config.frontend_origin,
             pending.return_to.as_str()
         );
@@ -1476,7 +1535,7 @@ async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQue
     let display_name = email
         .split('@')
         .next()
-        .unwrap_or("Atlas Masa User")
+        .unwrap_or("Atlas/אטלס User")
         .trim()
         .to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -1485,7 +1544,7 @@ async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQue
         "apple",
         email,
         if display_name.is_empty() {
-            "Atlas Masa User".to_string()
+            "Atlas/אטלס User".to_string()
         } else {
             display_name
         },
@@ -1552,7 +1611,7 @@ async fn auth_passkey_register_start(
     let display_name = input
         .display_name
         .clone()
-        .unwrap_or_else(|| "Atlas Masa User".to_string());
+        .unwrap_or_else(|| "Atlas/אטלס User".to_string());
     let locale = input.locale.clone().unwrap_or_else(|| "en".to_string());
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -2024,7 +2083,7 @@ async fn chat(
                         _ => "Create reminder".to_string(),
                     },
                     payload: serde_json::json!({
-                        "title": "Atlas Masa follow-up",
+                        "title": "Atlas/אטלס follow-up",
                         "details": "Review plan and execute first action",
                         "due_at_utc": (chrono::Utc::now() + chrono::Duration::hours(2)).to_rfc3339(),
                         "reminders_app": effective_studio_pref.reminders_app
@@ -2039,7 +2098,7 @@ async fn chat(
                             _ => "Create alarm".to_string(),
                         },
                         payload: serde_json::json!({
-                            "label": "Atlas Masa focus sprint",
+                            "label": "Atlas/אטלס focus sprint",
                             "time_local": "08:30",
                             "days": ["Mon", "Tue", "Wed", "Thu", "Sun"],
                             "alarms_app": effective_studio_pref.alarms_app
@@ -2092,7 +2151,7 @@ async fn chat(
                         _ => "Create reminder".to_string(),
                     },
                     payload: serde_json::json!({
-                        "title": "Atlas Masa guest follow-up",
+                        "title": "Atlas/אטלס guest follow-up",
                         "details": "Execute your next step",
                         "due_at_utc": (chrono::Utc::now() + chrono::Duration::hours(2)).to_rfc3339(),
                         "reminders_app": guest_pref.reminders_app
@@ -4474,33 +4533,35 @@ async fn api_key_middleware(
         return next.run(request).await;
     }
 
-    // Browser-origin requests from first-party allowed origins are accepted
-    // without x-api-key. This avoids embedding secrets in static web assets.
+    // Browser requests can skip x-api-key only when:
+    // 1) origin is first-party allowlisted, and
+    // 2) a valid session cookie already resolves to a user.
+    // This blocks spoofed anonymous Origin headers from bypassing service-key checks.
     if !request_origin_is_allowed(&state, request.headers()) {
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
                 "error": "unauthorized",
-                "message": "missing or invalid x-api-key, and request origin is not allowed"
+                "message": "missing or invalid x-api-key"
             })),
         )
             .into_response();
     }
 
+    let Some(session_user) = session_user_from_headers(&state, request.headers()) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "not_authenticated",
+                "message": "session is required when x-api-key is absent"
+            })),
+        )
+            .into_response();
+    };
+
     let (needs_cloud_storage, needs_cloud_compute) = cloud_requirements_for_endpoint(path.as_str());
     if needs_cloud_storage || needs_cloud_compute {
-        let Some(user) = session_user_from_headers(&state, request.headers()) else {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({
-                    "error": "not_authenticated",
-                    "message": "sign in first to access cloud features"
-                })),
-            )
-                .into_response();
-        };
-
-        let subscription = subscription_access_for_user(&state, &user).await;
+        let subscription = subscription_access_for_user(&state, &session_user).await;
         let storage_ok = !needs_cloud_storage || subscription.cloud_storage_enabled;
         let compute_ok = !needs_cloud_compute || subscription.cloud_compute_enabled;
         if !storage_ok || !compute_ok {
@@ -4571,22 +4632,11 @@ fn request_origin_is_allowed(state: &ApiState, headers: &HeaderMap) -> bool {
 }
 
 fn request_origin_from_headers(headers: &HeaderMap) -> Option<String> {
-    let direct_origin = headers
+    headers
         .get(header::ORIGIN)
         .and_then(|value| value.to_str().ok())
         .map(|value| value.trim().trim_end_matches('/').to_string())
-        .filter(|value| !value.is_empty());
-    if direct_origin.is_some() {
-        return direct_origin;
-    }
-
-    headers
-        .get(header::REFERER)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| Url::parse(value).ok())
-        .map(|url| format!("{}://{}", url.scheme(), url.host_str().unwrap_or_default()))
-        .map(|value| value.trim_end_matches('/').to_string())
-        .filter(|value| !value.ends_with("://") && !value.is_empty())
+        .filter(|value| !value.is_empty())
 }
 
 fn cookie_same_site_attr(value: &str) -> &'static str {
@@ -4615,7 +4665,9 @@ fn build_session_cookie(
     if secure {
         segments.push("Secure".to_string());
     }
-    segments.push(format!("Domain={domain}"));
+    if !domain.trim().is_empty() {
+        segments.push(format!("Domain={domain}"));
+    }
     segments.join("; ")
 }
 
@@ -4631,7 +4683,9 @@ fn build_clear_cookie(cookie_name: &str, secure: bool, same_site: &str, domain: 
     if secure {
         segments.push("Secure".to_string());
     }
-    segments.push(format!("Domain={domain}"));
+    if !domain.trim().is_empty() {
+        segments.push(format!("Domain={domain}"));
+    }
     segments.join("; ")
 }
 
@@ -4641,7 +4695,7 @@ fn default_company_status() -> CompanyStatusRecord {
         current_focus: vec![
             "Mobile-first AI concierge and studio".to_string(),
             "Deep personalization and proactive support".to_string(),
-            "Atlas Masa travel/work ecosystem MVP".to_string(),
+            "Atlas/אטלס travel/work ecosystem MVP".to_string(),
         ],
         upcoming: vec![
             "Expanded user account intelligence".to_string(),
@@ -4649,7 +4703,7 @@ fn default_company_status() -> CompanyStatusRecord {
             "Pilot-ready operations and legal routing".to_string(),
         ],
         open_for_investment: true,
-        message: "Atlas Masa is open to strategic partnerships and investments while building a long-term mobility ecosystem.".to_string(),
+        message: "Atlas/אטלס is open to strategic partnerships and investments while building a long-term mobility ecosystem.".to_string(),
     }
 }
 
@@ -6041,6 +6095,25 @@ fn sanitize_enum_value(value: &str, allowed: &[&str], default_value: &str) -> St
     }
 }
 
+fn sanitize_cookie_domain(value: &str) -> Option<String> {
+    let normalized = value
+        .trim()
+        .trim_start_matches('.')
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if normalized.is_empty() {
+        return None;
+    }
+    if normalized
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '.' || ch == '-')
+    {
+        Some(normalized)
+    } else {
+        None
+    }
+}
+
 fn sanitize_limited_text(value: &str, max_chars: usize) -> String {
     value.trim().chars().take(max_chars).collect::<String>()
 }
@@ -6604,7 +6677,7 @@ fn build_webauthn_runtime() -> Option<WebauthnRuntimeConfig> {
         .unwrap_or_else(|| "https://atlasmasa.com".to_string());
     let rp_name = env::var("ATLAS_WEBAUTHN_RP_NAME")
         .ok()
-        .unwrap_or_else(|| "Atlas Masa".to_string());
+        .unwrap_or_else(|| "Atlas/אטלס".to_string());
 
     let origin_url = Url::parse(origin.as_str()).ok()?;
     let builder = WebauthnBuilder::new(rp_id.as_str(), &origin_url)
@@ -6634,10 +6707,103 @@ fn sanitize_return_to(value: &str) -> String {
     "/concierge-local.html".to_string()
 }
 
-fn parse_untrusted_jwt_payload<T: for<'de> serde::Deserialize<'de>>(token: &str) -> Option<T> {
-    let payload_b64 = token.split('.').nth(1)?;
-    let payload_raw = URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
-    serde_json::from_slice::<T>(&payload_raw).ok()
+async fn verify_apple_id_token(
+    http_client: &Client,
+    id_token: &str,
+    expected_client_id: &str,
+) -> Result<AppleIdTokenClaims> {
+    let mut segments = id_token.split('.');
+    let header_segment = segments
+        .next()
+        .context("apple id_token missing header segment")?;
+    let payload_segment = segments
+        .next()
+        .context("apple id_token missing payload segment")?;
+    let signature_segment = segments
+        .next()
+        .context("apple id_token missing signature segment")?;
+    if segments.next().is_some() {
+        anyhow::bail!("apple id_token has invalid segment count");
+    }
+
+    let header_bytes = URL_SAFE_NO_PAD
+        .decode(header_segment)
+        .context("failed to decode apple id_token header segment")?;
+    let header: AppleJwtHeader =
+        serde_json::from_slice(&header_bytes).context("failed to parse apple id_token header")?;
+    if header.alg.as_deref() != Some("RS256") {
+        anyhow::bail!("unexpected apple id_token signing algorithm");
+    }
+    let Some(kid) = header.kid.as_deref() else {
+        anyhow::bail!("apple id_token missing kid");
+    };
+
+    let payload_bytes = URL_SAFE_NO_PAD
+        .decode(payload_segment)
+        .context("failed to decode apple id_token payload segment")?;
+    let claims: AppleIdTokenClaims =
+        serde_json::from_slice(&payload_bytes).context("failed to parse apple id_token claims")?;
+
+    let signature = URL_SAFE_NO_PAD
+        .decode(signature_segment)
+        .context("failed to decode apple id_token signature segment")?;
+
+    let jwks = http_client
+        .get("https://appleid.apple.com/auth/keys")
+        .send()
+        .await
+        .context("failed to fetch apple jwks")?
+        .error_for_status()
+        .context("apple jwks non-success status")?
+        .json::<AppleJwksResponse>()
+        .await
+        .context("failed to parse apple jwks")?;
+
+    let Some(jwk) = jwks.keys.into_iter().find(|record| {
+        let key_id_match = record.kid.as_deref() == Some(kid);
+        let key_type_ok = record.kty.as_deref().unwrap_or_default() == "RSA";
+        let alg_ok = record.alg.as_deref().unwrap_or_default() == "RS256";
+        key_id_match && key_type_ok && alg_ok
+    }) else {
+        anyhow::bail!("apple jwk for token kid not found");
+    };
+
+    let n = jwk.n.context("apple jwk missing modulus")?;
+    let e = jwk.e.context("apple jwk missing exponent")?;
+    let modulus = URL_SAFE_NO_PAD
+        .decode(n.as_bytes())
+        .context("failed to decode apple jwk modulus")?;
+    let exponent = URL_SAFE_NO_PAD
+        .decode(e.as_bytes())
+        .context("failed to decode apple jwk exponent")?;
+
+    let signed_payload = format!("{header_segment}.{payload_segment}");
+    let public_key = RsaPublicKeyComponents {
+        n: modulus.as_slice(),
+        e: exponent.as_slice(),
+    };
+    public_key
+        .verify(
+            &RSA_PKCS1_2048_8192_SHA256,
+            signed_payload.as_bytes(),
+            signature.as_slice(),
+        )
+        .map_err(|_| anyhow::anyhow!("apple id_token signature verification failed"))?;
+
+    let valid_iss = claims.iss.as_deref() == Some("https://appleid.apple.com");
+    if !valid_iss {
+        anyhow::bail!("apple id_token issuer mismatch");
+    }
+    let valid_aud = claims
+        .aud
+        .as_ref()
+        .map(|aud| aud.includes(expected_client_id))
+        .unwrap_or(false);
+    if !valid_aud {
+        anyhow::bail!("apple id_token audience mismatch");
+    }
+
+    Ok(claims)
 }
 
 fn bool_from_jsonish(value: &serde_json::Value) -> Option<bool> {
@@ -6693,6 +6859,8 @@ fn is_public_endpoint(path: &str) -> bool {
     matches!(
         path,
         "/health"
+            | "/v1/auth/me"
+            | "/v1/auth/logout"
             | "/v1/auth/google/start"
             | "/v1/auth/google/callback"
             | "/v1/auth/apple/start"
@@ -7533,7 +7701,7 @@ async fn generate_premium_openai_reply(
         })
         .collect::<Vec<_>>();
 
-    let system_prompt = "You are Atlas Masa Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum.";
+    let system_prompt = "You are Atlas/אטלס Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum.";
     let payload = serde_json::json!({
         "model": runtime.model,
         "reasoning": {
@@ -7865,7 +8033,7 @@ async fn security_headers_middleware(
 mod tests {
     use super::{
         build_clear_cookie, build_session_cookie, build_test_stripe_signature,
-        cloud_requirements_for_endpoint, ingest_memory_records_if_opted_in,
+        cloud_requirements_for_endpoint, ingest_memory_records_if_opted_in, is_public_endpoint,
         prioritize_execution_tasks, request_origin_from_headers,
         retrieve_memory_context_from_records, schedule_minutes_offset,
         verify_stripe_webhook_signature, ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
@@ -7898,6 +8066,12 @@ mod tests {
         assert!(cookie.contains("SameSite=Lax"));
         assert!(cookie.contains("Domain=atlasmasa.com"));
         assert!(cookie.contains("Max-Age=0"));
+    }
+
+    #[test]
+    fn session_cookie_can_be_host_only_without_domain_attribute() {
+        let cookie = build_session_cookie("atlas_session", "session123", 3600, true, "strict", "");
+        assert!(!cookie.contains("Domain="));
     }
 
     #[test]
@@ -8098,21 +8272,22 @@ mod tests {
     }
 
     #[test]
-    fn request_origin_falls_back_to_referer_origin() {
+    fn request_origin_does_not_trust_referer_without_origin_header() {
         let mut headers = HeaderMap::new();
         headers.insert(
             header::REFERER,
             HeaderValue::from_static("https://www.atlasmasa.com/concierge-local.html?launch=chat"),
         );
-        assert_eq!(
-            request_origin_from_headers(&headers).as_deref(),
-            Some("https://www.atlasmasa.com")
-        );
+        assert_eq!(request_origin_from_headers(&headers), None);
     }
 
     #[test]
     fn cloud_requirements_classify_paths_correctly() {
         assert_eq!(cloud_requirements_for_endpoint("/v1/chat"), (false, true));
+        assert_eq!(
+            cloud_requirements_for_endpoint("/v1/plan_trip"),
+            (false, true)
+        );
         assert_eq!(
             cloud_requirements_for_endpoint("/v1/notes/upsert"),
             (true, false)
@@ -8125,5 +8300,13 @@ mod tests {
             cloud_requirements_for_endpoint("/v1/auth/me"),
             (false, false)
         );
+    }
+
+    #[test]
+    fn public_endpoints_include_session_probe_and_logout() {
+        assert!(is_public_endpoint("/health"));
+        assert!(is_public_endpoint("/v1/auth/me"));
+        assert!(is_public_endpoint("/v1/auth/logout"));
+        assert!(!is_public_endpoint("/v1/profile/upsert"));
     }
 }

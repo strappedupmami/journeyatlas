@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#0b1220" />
-    <title>Atlas Masa | Sign In</title>
+    <title>Atlas/אטלס | Sign In</title>
     <meta
       name="description"
-      content="Sign in to Atlas Masa with Apple, Google, or Passwordless (more secure) passkey sign-in."
+      content="Sign in to Atlas/אטלס with Apple, Google, or Passwordless (more secure) passkey sign-in."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="styles.css" />
@@ -201,6 +201,9 @@
         flex: 1 1 220px;
         text-align: center;
       }
+      .atlas-lang-switcher {
+        display: none !important;
+      }
       @media (max-width: 680px) {
         .auth-header__inner {
           flex-wrap: wrap;
@@ -215,12 +218,12 @@
       }
     </style>
   </head>
-  <body data-auth-mode="signin">
+  <body data-auth-mode="signin" data-language-switcher="off">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="auth-header">
       <div class="container auth-header__inner">
-        <a class="auth-brand" href="homepage.html" aria-label="Atlas Masa home">
+        <a class="auth-brand" href="homepage.html" aria-label="Atlas/אטלס home">
           <span class="auth-brand__mark" aria-hidden="true">
             <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
               <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
@@ -230,7 +233,7 @@
             </svg>
           </span>
           <span>
-            <span class="auth-brand__name">Atlas Masa</span><br />
+            <span class="auth-brand__name">Atlas/אטלס</span><br />
             <span class="auth-brand__sub">Account Access</span>
           </span>
         </a>
@@ -248,7 +251,7 @@
     <main id="main" class="auth-shell">
       <div class="container auth-wrap">
         <section class="auth-card" aria-label="Account signin">
-          <span class="auth-kicker">Atlas Masa Access</span>
+          <span class="auth-kicker">Atlas/אטלס Access</span>
           <h1 class="auth-title" id="auth-title">Welcome back</h1>
           <p class="auth-subtitle" id="auth-subtitle">
             Classic, secure account access. Use Apple, Google, or Passwordless (more secure) sign in.

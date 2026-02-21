@@ -966,3 +966,25 @@ section[id]{
   .btn, .guide{transition:none}
   .guide:hover{transform:none}
 }
+
+@media (max-width: 900px), (prefers-reduced-motion: reduce) {
+  .header,
+  .auth-header {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(9, 6, 11, 0.92) !important;
+  }
+
+  .hero__cinema,
+  .card,
+  .nav__panel,
+  .auth-card {
+    box-shadow: none !important;
+  }
+
+  .hero__cinema::after,
+  .hero__card::before,
+  .steps__item::before {
+    display: none !important;
+  }
+}

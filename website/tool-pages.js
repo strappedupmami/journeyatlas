@@ -139,7 +139,7 @@
       title: "Memory Import Workspace",
       kicker: "AI Context Tool",
       subtitle:
-        "Import structured memories from external sources into Atlas Masa context layers.",
+        "Import structured memories from external sources into Atlas/אטלס context layers.",
       launch: "memory",
       summary: [
         "Brings Notebook/Thread insights into your operational context.",
@@ -192,16 +192,38 @@
     return String(value || "").trim().replace(/\/+$/, "");
   }
 
+  function sanitizeApiBase(value) {
+    const normalized = normalizeApiBase(value);
+    if (!normalized) return "https://api.atlasmasa.com";
+    try {
+      const url = new URL(normalized);
+      const host = (url.hostname || "").toLowerCase();
+      if (!/^https?:$/.test(url.protocol)) return "https://api.atlasmasa.com";
+      if (
+        host === "atlasmasa.com" ||
+        host === "www.atlasmasa.com" ||
+        host === window.location.hostname.toLowerCase()
+      ) {
+        return "https://api.atlasmasa.com";
+      }
+      return normalizeApiBase(url.toString());
+    } catch (_error) {
+      return "https://api.atlasmasa.com";
+    }
+  }
+
   function getApiBase() {
     const params = new URLSearchParams(window.location.search);
     const fromQuery = params.get("api_base");
     if (fromQuery) {
-      const normalized = normalizeApiBase(fromQuery);
+      const normalized = sanitizeApiBase(fromQuery);
       window.localStorage.setItem("atlas_api_base", normalized);
       return normalized;
     }
     const fromStorage = window.localStorage.getItem("atlas_api_base");
-    return normalizeApiBase(fromStorage || "https://api.atlasmasa.com");
+    const normalized = sanitizeApiBase(fromStorage || "https://api.atlasmasa.com");
+    window.localStorage.setItem("atlas_api_base", normalized);
+    return normalized;
   }
 
   const apiBase = getApiBase();
@@ -215,7 +237,7 @@
   const openBtn = document.getElementById("open-tool-btn");
   const fullBtn = document.getElementById("open-studio-btn");
 
-  document.title = `Atlas Masa | ${def.title}`;
+  document.title = `Atlas/אטלס | ${def.title}`;
   if (titleEl) titleEl.textContent = def.title;
   if (subtitleEl) subtitleEl.textContent = def.subtitle;
   if (kickerEl) kickerEl.textContent = def.kicker;

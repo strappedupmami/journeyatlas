@@ -16,7 +16,7 @@
   const stayOnAuthPage = params.get("stay_auth") === "1";
 
   if (mode === "signin") {
-    document.title = "Atlas Masa | Sign In";
+    document.title = "Atlas/אטלס | Sign In";
     if (titleEl) titleEl.textContent = "Welcome back";
     if (subtitleEl) {
       subtitleEl.textContent =
@@ -47,15 +47,37 @@
     return String(value || "").trim().replace(/\/+$/, "");
   }
 
+  function sanitizeApiBase(value) {
+    const normalized = normalizeApiBase(value);
+    if (!normalized) return "https://api.atlasmasa.com";
+    try {
+      const url = new URL(normalized);
+      const host = (url.hostname || "").toLowerCase();
+      if (!/^https?:$/.test(url.protocol)) return "https://api.atlasmasa.com";
+      if (
+        host === "atlasmasa.com" ||
+        host === "www.atlasmasa.com" ||
+        host === window.location.hostname.toLowerCase()
+      ) {
+        return "https://api.atlasmasa.com";
+      }
+      return normalizeApiBase(url.toString());
+    } catch (_error) {
+      return "https://api.atlasmasa.com";
+    }
+  }
+
   function getApiBase() {
     const fromQuery = params.get("api_base");
     if (fromQuery) {
-      const normalized = normalizeApiBase(fromQuery);
+      const normalized = sanitizeApiBase(fromQuery);
       window.localStorage.setItem("atlas_api_base", normalized);
       return normalized;
     }
     const fromStorage = window.localStorage.getItem("atlas_api_base");
-    return normalizeApiBase(fromStorage || "https://api.atlasmasa.com");
+    const normalized = sanitizeApiBase(fromStorage || "https://api.atlasmasa.com");
+    window.localStorage.setItem("atlas_api_base", normalized);
+    return normalized;
   }
 
   const API_BASE = getApiBase();
@@ -118,18 +140,39 @@
     return typeof value === "string" ? fromBase64Url(value) : value;
   }
 
+  function coercePubKeyCredParams(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map(function (item) {
+          if (!item || typeof item !== "object") return null;
+          return {
+            type: String(item.type || "public-key"),
+            alg: Number(item.alg),
+          };
+        })
+        .filter(function (item) {
+          return item && Number.isFinite(item.alg);
+        });
+    }
+    if (value && typeof value === "object") {
+      return coercePubKeyCredParams(Object.values(value));
+    }
+    return [];
+  }
+
   function prepareRegistrationOptions(options) {
     const raw = Object.assign({}, pickPublicKeyOptions(options));
     const normalized = Object.assign({}, raw);
 
     normalized.challenge = decodeBase64IfString(raw.challenge);
-    normalized.pubKeyCredParams = toArrayOrFallback(
-      raw.pubKeyCredParams || raw.pub_key_cred_params,
-      [
-        { type: "public-key", alg: -7 },
-        { type: "public-key", alg: -257 },
-      ]
-    );
+    const params = coercePubKeyCredParams(raw.pubKeyCredParams || raw.pub_key_cred_params);
+    normalized.pubKeyCredParams =
+      params.length > 0
+        ? params
+        : [
+            { type: "public-key", alg: -7 },
+            { type: "public-key", alg: -257 },
+          ];
 
     const user = raw.user || {};
     if (user && typeof user === "object") {
@@ -153,6 +196,16 @@
         normalizeCredentialDescriptor
       );
     }
+
+    if (!normalized.challenge || !(normalized.challenge instanceof ArrayBuffer)) {
+      throw new Error("Passkey challenge payload is invalid.");
+    }
+    if (!normalized.user || !(normalized.user.id instanceof ArrayBuffer)) {
+      throw new Error("Passkey user payload is invalid.");
+    }
+    if (!Array.isArray(normalized.pubKeyCredParams) || normalized.pubKeyCredParams.length === 0) {
+      throw new Error("Passkey pubKeyCredParams payload is invalid.");
+    }
     return normalized;
   }
 
@@ -175,6 +228,10 @@
       normalized.allowCredentials = normalized.allowCredentials.map(
         normalizeCredentialDescriptor
       );
+    }
+
+    if (!normalized.challenge || !(normalized.challenge instanceof ArrayBuffer)) {
+      throw new Error("Passkey challenge payload is invalid.");
     }
     return normalized;
   }
@@ -345,7 +402,7 @@
       "/v1/auth/passkey/register/start",
       "POST",
       {
-        display_name: "Atlas Masa Member",
+        display_name: "Atlas/אטלס Member",
         locale: (document.documentElement.lang || "en").slice(0, 2),
       },
       false
@@ -399,7 +456,14 @@
   }
 
   async function verifySessionAfterAuth() {
-    const result = await fetchJson("/v1/auth/me", "GET", undefined, false);
+    let result = await fetchJson("/v1/auth/me", "GET", undefined, false);
+    if (!(result.ok && result.payload && result.payload.user)) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 220));
+        result = await fetchJson("/v1/auth/me", "GET", undefined, false);
+        if (result.ok && result.payload && result.payload.user) break;
+      }
+    }
     setButtonsLoading(false);
 
     if (result.ok && result.payload && result.payload.user) {
@@ -436,7 +500,11 @@
   }
 
   async function redirectIfAlreadyAuthenticated() {
-    const result = await fetchJson("/v1/auth/me", "GET", undefined, false);
+    let result = await fetchJson("/v1/auth/me", "GET", undefined, false);
+    if (!(result.ok && result.payload && result.payload.user)) {
+      await new Promise((resolve) => window.setTimeout(resolve, 120));
+      result = await fetchJson("/v1/auth/me", "GET", undefined, false);
+    }
     if (!(result.ok && result.payload && result.payload.user)) return;
     if (stayOnAuthPage) return;
     setStatus("You are already signed in. Redirecting...", "ok");

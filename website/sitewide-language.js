@@ -294,7 +294,12 @@
   function init() {
     ensureFavicon();
     injectStyles();
-    injectUI();
+    const uiMode =
+      (document.body && document.body.getAttribute("data-language-switcher")) || "on";
+    const disableSwitcher = uiMode.toLowerCase() === "off";
+    if (!disableSwitcher) {
+      injectUI();
+    }
 
     let preferred = "he";
     try {
