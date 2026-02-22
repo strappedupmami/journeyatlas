@@ -168,6 +168,9 @@ final class AtlasMasaIOSTests: XCTestCase {
 
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-route" }))
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-compounding" }))
+        XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-corpus-ladder" }))
+        XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-corpus-promotion" || $0.source == "wealth-corpus-business" }))
+        XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-income-ladder-ai_software" }))
     }
 
     @MainActor
@@ -272,6 +275,48 @@ final class AtlasMasaIOSTests: XCTestCase {
         businessStore.applyDailyCheckIn()
         XCTAssertTrue(businessStore.executionActions.contains(where: { $0.source == "career-fit" }))
         XCTAssertTrue(businessStore.executionActions.contains(where: { $0.source == "customer-growth-sprint" }))
+        XCTAssertTrue(businessStore.executionActions.contains(where: { $0.source == "wealth-corpus-business" }))
         XCTAssertTrue(businessStore.tailoredOffers.contains(where: { $0.id == "offer-customer-growth-engine" }))
+        XCTAssertTrue(businessStore.tailoredOffers.contains(where: { $0.id == "offer-business-playbook-ai_software" }))
+    }
+
+    @MainActor
+    func testRealEstateIndustryCorpusAppearsInExecutionAndOffers() async {
+        let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
+
+        for _ in 0 ..< 130 {
+            await store.loadSurvey()
+            guard let question = store.survey?.question else { break }
+            let choice: SurveyChoice
+            switch question.id {
+            case "primary_goal":
+                choice = question.choices.first(where: { $0.value == "wealth" }) ?? question.choices.first!
+            case "wealth_vehicle":
+                choice = question.choices.first(where: { $0.value == "business_builder" }) ?? question.choices.first!
+            case "industry_focus":
+                choice = question.choices.first(where: { $0.value == "real_estate" }) ?? question.choices.first!
+            case "business_model_focus":
+                choice = question.choices.first(where: { $0.value == "local_service" }) ?? question.choices.first!
+            case "growth_priority":
+                choice = question.choices.first(where: { $0.value == "grow_business_customer_base" }) ?? question.choices.first!
+            case "customer_growth_focus":
+                choice = question.choices.first(where: { $0.value == "lead_generation" }) ?? question.choices.first!
+            default:
+                choice = question.choices.first!
+            }
+            await store.answerSurvey(choice)
+        }
+
+        store.applyDailyCheckIn()
+
+        XCTAssertTrue(store.executionActions.contains(where: {
+            $0.source == "wealth-corpus-ladder" && $0.title.contains("Real Estate")
+        }))
+        XCTAssertTrue(store.executionActions.contains(where: {
+            $0.source == "wealth-corpus-business" && $0.title.contains("Real Estate")
+        }))
+        XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-income-ladder-real_estate" }))
+        XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-business-playbook-real_estate" }))
     }
 }

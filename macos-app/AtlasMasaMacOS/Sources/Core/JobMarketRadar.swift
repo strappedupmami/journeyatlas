@@ -342,5 +342,105 @@ enum JobMarketRadar {
             salaryCeilingKUSD: 340,
             remoteFriendly: false
         ),
+        RoleTemplate(
+            id: "commercial-real-estate-broker-miami",
+            title: "Commercial Real Estate Broker",
+            track: "real_estate_track",
+            industryTags: ["real_estate", "enterprise_sales"],
+            location: "Miami, USA",
+            salaryBandUSD: "$180k-$520k",
+            salaryCeilingKUSD: 520,
+            remoteFriendly: false
+        ),
+        RoleTemplate(
+            id: "real-estate-asset-manager-london",
+            title: "Real Estate Asset Manager",
+            track: "real_estate_track",
+            industryTags: ["real_estate", "finance"],
+            location: "London, UK",
+            salaryBandUSD: "$200k-$480k",
+            salaryCeilingKUSD: 480,
+            remoteFriendly: false
+        ),
+        RoleTemplate(
+            id: "industrial-logistics-network-lead-singapore",
+            title: "Logistics Network Optimization Lead",
+            track: "operations",
+            industryTags: ["operations_logistics", "software_ai"],
+            location: "Singapore",
+            salaryBandUSD: "$190k-$360k",
+            salaryCeilingKUSD: 360,
+            remoteFriendly: false
+        ),
+        RoleTemplate(
+            id: "hospital-operations-chief-toronto",
+            title: "Healthcare Operations Chief",
+            track: "operations",
+            industryTags: ["healthcare", "operations_logistics"],
+            location: "Toronto, Canada",
+            salaryBandUSD: "$220k-$430k",
+            salaryCeilingKUSD: 430,
+            remoteFriendly: false
+        ),
+        RoleTemplate(
+            id: "global-media-monetization-director-nyc",
+            title: "Global Media Monetization Director",
+            track: "media_revenue",
+            industryTags: ["media_creator", "enterprise_sales"],
+            location: "New York, USA",
+            salaryBandUSD: "$210k-$520k",
+            salaryCeilingKUSD: 520,
+            remoteFriendly: true
+        ),
+        RoleTemplate(
+            id: "creator-partnerships-lead-la",
+            title: "Creator Partnerships Lead",
+            track: "media_revenue",
+            industryTags: ["media_creator", "software_ai"],
+            location: "Los Angeles, USA",
+            salaryBandUSD: "$170k-$360k",
+            salaryCeilingKUSD: 360,
+            remoteFriendly: true
+        ),
+        RoleTemplate(
+            id: "ai-solutions-architect-berlin",
+            title: "AI Solutions Architect",
+            track: "engineering",
+            industryTags: ["software_ai", "enterprise_sales"],
+            location: "Berlin, Germany",
+            salaryBandUSD: "$190k-$390k",
+            salaryCeilingKUSD: 390,
+            remoteFriendly: true
+        ),
+        RoleTemplate(
+            id: "enterprise-revenue-operations-lead-dublin",
+            title: "Revenue Operations Lead",
+            track: "operations",
+            industryTags: ["enterprise_sales", "software_ai"],
+            location: "Dublin, Ireland",
+            salaryBandUSD: "$170k-$320k",
+            salaryCeilingKUSD: 320,
+            remoteFriendly: true
+        ),
+        RoleTemplate(
+            id: "private-credit-analyst-chicago",
+            title: "Private Credit Analyst",
+            track: "finance_track",
+            industryTags: ["finance", "real_estate"],
+            location: "Chicago, USA",
+            salaryBandUSD: "$180k-$420k",
+            salaryCeilingKUSD: 420,
+            remoteFriendly: false
+        ),
+        RoleTemplate(
+            id: "high-end-remodeling-project-manager-texas",
+            title: "High-End Remodeling Project Manager",
+            track: "trade_mastery",
+            industryTags: ["skilled_trades", "real_estate"],
+            location: "Austin, USA",
+            salaryBandUSD: "$150k-$320k",
+            salaryCeilingKUSD: 320,
+            remoteFriendly: false
+        ),
     ]
 }

@@ -88,6 +88,395 @@ final class SessionStore: ObservableObject {
         let details: String
     }
 
+    private struct WealthIncomeLadderStep: Hashable {
+        let stage: String
+        let annualIncomeBandUSD: String
+        let leverageMove: String
+    }
+
+    private struct WealthBusinessPlaybookStep: Hashable {
+        let phase: String
+        let objective: String
+        let keyActions: [String]
+        let metricTarget: String
+    }
+
+    private struct WealthIndustryCorpusProfile: Hashable {
+        let id: String
+        let title: String
+        let incomeLadder: [WealthIncomeLadderStep]
+        let promotionPlaybook: [String]
+        let businessPlaybook: [WealthBusinessPlaybookStep]
+        let customerChannels: [String]
+    }
+
+    private static let wealthIndustryAliases: [String: String] = [
+        "software_ai": "ai_software",
+        "cybersecurity": "ai_software",
+        "enterprise_sales": "sales",
+        "finance": "finance",
+        "skilled_trades": "trades",
+        "healthcare": "healthcare",
+        "operations_logistics": "logistics",
+        "real_estate": "real_estate",
+        "media_creator": "media",
+    ]
+
+    private static let wealthIndustryCorpus: [String: WealthIndustryCorpusProfile] = [
+        "ai_software": WealthIndustryCorpusProfile(
+            id: "ai_software",
+            title: "AI / Software",
+            incomeLadder: [
+                WealthIncomeLadderStep(stage: "Builder foundation", annualIncomeBandUSD: "$60k-$120k", leverageMove: "Ship production features and learn one cloud/runtime stack deeply."),
+                WealthIncomeLadderStep(stage: "Mid-level impact", annualIncomeBandUSD: "$120k-$220k", leverageMove: "Own measurable product outcomes and reduce cycle time."),
+                WealthIncomeLadderStep(stage: "Senior/staff leverage", annualIncomeBandUSD: "$220k-$420k", leverageMove: "Lead architecture and mentor teams while driving business metrics."),
+                WealthIncomeLadderStep(stage: "Principal/director", annualIncomeBandUSD: "$350k-$700k+", leverageMove: "Shape roadmap, multiply teams, and negotiate scope with executives."),
+                WealthIncomeLadderStep(stage: "Owner/operator upside", annualIncomeBandUSD: "$500k-$2M+", leverageMove: "Productize expertise via AI automation agency, B2B SaaS, or licensing."),
+            ],
+            promotionPlaybook: [
+                "Map role rubric to weekly scorecard with manager.",
+                "Publish impact memo every week (revenue, quality, cycle time).",
+                "Build sponsor map across product, engineering, and GTM.",
+                "Package promotion case with quantified evidence + compensation benchmark.",
+            ],
+            businessPlaybook: [
+                WealthBusinessPlaybookStep(
+                    phase: "Niche selection",
+                    objective: "Pick a high-pain vertical where automation yields ROI in 30-90 days.",
+                    keyActions: ["Run 15 customer interviews", "Quantify current manual cost", "Define one transformation offer"],
+                    metricTarget: "3 design partners in 2 weeks"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Offer launch",
+                    objective: "Ship productized service or MVP with strict scope.",
+                    keyActions: ["Fixed deliverable + timeline", "Case-study instrumentation", "Weekly ROI report"],
+                    metricTarget: "First paid pilot >$5k MRR equivalent"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Distribution",
+                    objective: "Create repeatable outbound + inbound engine.",
+                    keyActions: ["Founder-led outreach", "Authority content", "Referral flywheel"],
+                    metricTarget: "20 qualified opportunities/month"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Scale",
+                    objective: "Convert services into leverage assets.",
+                    keyActions: ["Templatize delivery", "Layer software workflow", "Add retention/expansion offers"],
+                    metricTarget: "Net revenue retention >105%"
+                ),
+            ],
+            customerChannels: ["Founder-led outbound", "Technical content", "Partner referrals", "Product-led signups"]
+        ),
+        "sales": WealthIndustryCorpusProfile(
+            id: "sales",
+            title: "Sales",
+            incomeLadder: [
+                WealthIncomeLadderStep(stage: "SDR/BDR", annualIncomeBandUSD: "$55k-$110k OTE", leverageMove: "Master pipeline generation and qualification consistency."),
+                WealthIncomeLadderStep(stage: "AE / closing role", annualIncomeBandUSD: "$120k-$300k OTE", leverageMove: "Increase close rate and average contract value."),
+                WealthIncomeLadderStep(stage: "Enterprise / strategic", annualIncomeBandUSD: "$250k-$600k OTE", leverageMove: "Own multi-stakeholder cycles and expansion strategy."),
+                WealthIncomeLadderStep(stage: "Sales leadership", annualIncomeBandUSD: "$300k-$900k+", leverageMove: "Build team systems: forecast accuracy, coaching cadence, and territory design."),
+                WealthIncomeLadderStep(stage: "Revenue business owner", annualIncomeBandUSD: "$500k-$2M+", leverageMove: "Launch agency/advisory or vertical reseller with recurring contracts."),
+            ],
+            promotionPlaybook: [
+                "Track quota attainment + quality pipeline weekly.",
+                "Prove deal coaching impact on teammates.",
+                "Document forecast accuracy and strategic account wins.",
+                "Negotiate role scope tied to revenue influence.",
+            ],
+            businessPlaybook: [
+                WealthBusinessPlaybookStep(
+                    phase: "ICP precision",
+                    objective: "Focus on one profitable buyer segment.",
+                    keyActions: ["Define target account profile", "Rewrite messaging to pain + ROI", "Build objection map"],
+                    metricTarget: "Reply rate >8%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Acquisition",
+                    objective: "Run multi-channel demand generation.",
+                    keyActions: ["Outbound sequences", "Warm intro network", "Short educational webinars"],
+                    metricTarget: "15 qualified calls/month"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Conversion",
+                    objective: "Increase win rate and deal speed.",
+                    keyActions: ["Discovery scripts", "Proof-first proposals", "Time-boxed next-step discipline"],
+                    metricTarget: "Win rate >25%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Expansion",
+                    objective: "Compound account value.",
+                    keyActions: ["Land-and-expand motion", "Quarterly business reviews", "Referral asks"],
+                    metricTarget: "Expansion revenue >25% of new revenue"
+                ),
+            ],
+            customerChannels: ["Outbound sequencing", "Channel partners", "Referrals", "Events/webinars"]
+        ),
+        "finance": WealthIndustryCorpusProfile(
+            id: "finance",
+            title: "Finance",
+            incomeLadder: [
+                WealthIncomeLadderStep(stage: "Analyst foundation", annualIncomeBandUSD: "$70k-$150k", leverageMove: "Build modeling, reporting, and risk discipline."),
+                WealthIncomeLadderStep(stage: "Associate / senior analyst", annualIncomeBandUSD: "$150k-$300k", leverageMove: "Own transaction execution or portfolio analysis quality."),
+                WealthIncomeLadderStep(stage: "VP / portfolio lead", annualIncomeBandUSD: "$250k-$600k", leverageMove: "Drive deal strategy, stakeholder trust, and risk-adjusted returns."),
+                WealthIncomeLadderStep(stage: "Director/partner track", annualIncomeBandUSD: "$500k-$1.5M+", leverageMove: "Source proprietary opportunities and lead capital allocation."),
+                WealthIncomeLadderStep(stage: "Capital owner/operator", annualIncomeBandUSD: "$1M-$5M+", leverageMove: "Launch fund, advisory platform, or cash-flowing asset portfolio."),
+            ],
+            promotionPlaybook: [
+                "Track deal quality, speed, and downside protection.",
+                "Build trusted relationships with decision-makers.",
+                "Publish concise investment/operating memos.",
+                "Negotiate compensation with market and impact benchmarks.",
+            ],
+            businessPlaybook: [
+                WealthBusinessPlaybookStep(
+                    phase: "Offer structure",
+                    objective: "Define advisory, brokerage, or operator model with clear fee economics.",
+                    keyActions: ["Model margin by service line", "Set risk controls", "Document client onboarding"],
+                    metricTarget: "Gross margin >45%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Trust acquisition",
+                    objective: "Build authority and credibility.",
+                    keyActions: ["Publish informed analyses", "Case-study track record", "Warm network mobilization"],
+                    metricTarget: "10 qualified introductions/month"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Conversion",
+                    objective: "Close high-value retained mandates.",
+                    keyActions: ["Discovery and suitability process", "Transparent pricing", "Clear downside scenarios"],
+                    metricTarget: "Close rate >20%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Compounding",
+                    objective: "Retain and expand client accounts.",
+                    keyActions: ["Quarterly reviews", "Adjacent service expansion", "Referral compounding"],
+                    metricTarget: "Retention >85%"
+                ),
+            ],
+            customerChannels: ["Network intros", "Thought leadership", "Strategic partnerships", "Client referrals"]
+        ),
+        "trades": WealthIndustryCorpusProfile(
+            id: "trades",
+            title: "Skilled Trades",
+            incomeLadder: [
+                WealthIncomeLadderStep(stage: "Apprentice", annualIncomeBandUSD: "$45k-$80k", leverageMove: "Stack certifications and reliability reputation."),
+                WealthIncomeLadderStep(stage: "Licensed technician", annualIncomeBandUSD: "$80k-$140k", leverageMove: "Master premium scopes and emergency response jobs."),
+                WealthIncomeLadderStep(stage: "Lead tech / foreman", annualIncomeBandUSD: "$120k-$220k", leverageMove: "Increase project throughput and quality control."),
+                WealthIncomeLadderStep(stage: "Specialist contractor", annualIncomeBandUSD: "$180k-$380k", leverageMove: "Own niche high-margin jobs and repeat contracts."),
+                WealthIncomeLadderStep(stage: "Multi-crew owner", annualIncomeBandUSD: "$350k-$1.5M+", leverageMove: "Standardize dispatch, QA, and maintenance plans across teams."),
+            ],
+            promotionPlaybook: [
+                "Document zero-callback quality and speed metrics.",
+                "Get advanced licensure for premium scopes.",
+                "Lead safety + training programs to prove leadership readiness.",
+                "Negotiate compensation from profitability impact, not hours alone.",
+            ],
+            businessPlaybook: [
+                WealthBusinessPlaybookStep(
+                    phase: "Niche specialization",
+                    objective: "Focus on high-margin service categories.",
+                    keyActions: ["Analyze local demand", "Select profitable niches", "Build standard service packages"],
+                    metricTarget: "Average ticket size +25%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Dispatch system",
+                    objective: "Reduce downtime and no-show losses.",
+                    keyActions: ["Route optimization", "SMS confirmation", "Time-window reliability"],
+                    metricTarget: "Utilization >75%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Contract compounding",
+                    objective: "Build recurring maintenance revenue.",
+                    keyActions: ["Service agreements", "Commercial accounts", "Seasonal bundles"],
+                    metricTarget: "Recurring revenue >40%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Scale crew",
+                    objective: "Grow without service quality collapse.",
+                    keyActions: ["Playbook training", "QA checklist", "Supervisor cadence"],
+                    metricTarget: "Callback rate <3%"
+                ),
+            ],
+            customerChannels: ["Local SEO", "Property managers", "Commercial contracts", "Referral loops"]
+        ),
+        "healthcare": WealthIndustryCorpusProfile(
+            id: "healthcare",
+            title: "Healthcare",
+            incomeLadder: [
+                WealthIncomeLadderStep(stage: "Support/entry clinical", annualIncomeBandUSD: "$50k-$95k", leverageMove: "Build credential base and patient outcome discipline."),
+                WealthIncomeLadderStep(stage: "Licensed clinician", annualIncomeBandUSD: "$90k-$180k", leverageMove: "Develop specialty skills and high-demand procedural competence."),
+                WealthIncomeLadderStep(stage: "Advanced specialist", annualIncomeBandUSD: "$180k-$420k", leverageMove: "Pursue scarce expertise with measurable care outcomes."),
+                WealthIncomeLadderStep(stage: "Department lead/director", annualIncomeBandUSD: "$250k-$600k", leverageMove: "Own service-line quality, economics, and staffing systems."),
+                WealthIncomeLadderStep(stage: "Practice/platform owner", annualIncomeBandUSD: "$500k-$2M+", leverageMove: "Operate clinics or telehealth platforms with recurring care programs."),
+            ],
+            promotionPlaybook: [
+                "Track patient outcomes + throughput + quality signals.",
+                "Build specialty certifications that shift compensation tiers.",
+                "Lead protocol and training upgrades in your unit.",
+                "Negotiate from service-line impact and quality outcomes.",
+            ],
+            businessPlaybook: [
+                WealthBusinessPlaybookStep(
+                    phase: "Care model design",
+                    objective: "Choose high-demand service line with clear value proposition.",
+                    keyActions: ["Define patient segment", "Package treatment path", "Set compliance framework"],
+                    metricTarget: "Patient satisfaction >90%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Acquisition",
+                    objective: "Build referral and digital pipeline.",
+                    keyActions: ["Physician referral network", "Outcome-focused content", "Local search optimization"],
+                    metricTarget: "New patient growth >10% monthly"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Retention",
+                    objective: "Increase repeat and preventive care engagement.",
+                    keyActions: ["Follow-up automation", "Care plan adherence", "Membership/plan options"],
+                    metricTarget: "Retention >75%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Expansion",
+                    objective: "Scale capacity with quality control.",
+                    keyActions: ["Standard operating protocols", "Staff training loops", "Utilization dashboard"],
+                    metricTarget: "Provider utilization >80%"
+                ),
+            ],
+            customerChannels: ["Referral networks", "Local health partnerships", "Search + reviews", "Telehealth funnels"]
+        ),
+        "logistics": WealthIndustryCorpusProfile(
+            id: "logistics",
+            title: "Logistics",
+            incomeLadder: [
+                WealthIncomeLadderStep(stage: "Coordinator/dispatcher", annualIncomeBandUSD: "$50k-$95k", leverageMove: "Master routing reliability and exception handling."),
+                WealthIncomeLadderStep(stage: "Planner/supervisor", annualIncomeBandUSD: "$90k-$160k", leverageMove: "Improve on-time metrics and cost per route."),
+                WealthIncomeLadderStep(stage: "Ops manager", annualIncomeBandUSD: "$150k-$280k", leverageMove: "Drive throughput, labor efficiency, and SLA quality."),
+                WealthIncomeLadderStep(stage: "Regional director/VP", annualIncomeBandUSD: "$250k-$500k", leverageMove: "Lead multi-site optimization and vendor economics."),
+                WealthIncomeLadderStep(stage: "3PL/platform owner", annualIncomeBandUSD: "$450k-$3M+", leverageMove: "Build specialized logistics network with recurring contracts."),
+            ],
+            promotionPlaybook: [
+                "Track on-time delivery, damage rate, and cost-to-serve.",
+                "Lead cross-functional process upgrades with quantifiable gains.",
+                "Own escalation and recovery playbooks for critical incidents.",
+                "Negotiate role scope with proven margin and reliability impact.",
+            ],
+            businessPlaybook: [
+                WealthBusinessPlaybookStep(
+                    phase: "Segment and promise",
+                    objective: "Select vertical and SLA promise with clear differentiation.",
+                    keyActions: ["Pick lane specialization", "Define SLA tiers", "Map unit economics"],
+                    metricTarget: "Contribution margin >25%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Acquire accounts",
+                    objective: "Win anchor customers with measurable reliability.",
+                    keyActions: ["Direct outreach", "Broker/channel partnerships", "Pilot program offers"],
+                    metricTarget: "5 anchor accounts in 90 days"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Operational discipline",
+                    objective: "Increase throughput without service failures.",
+                    keyActions: ["Standard load planning", "Exception escalation matrix", "Driver/crew scorecards"],
+                    metricTarget: "On-time >97%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Contract expansion",
+                    objective: "Expand wallet share and term length.",
+                    keyActions: ["Upsell premium services", "Multi-site rollout", "Quarterly value reviews"],
+                    metricTarget: "NRR >110%"
+                ),
+            ],
+            customerChannels: ["Direct B2B outbound", "Freight broker networks", "Industry partnerships", "RFP pipelines"]
+        ),
+        "real_estate": WealthIndustryCorpusProfile(
+            id: "real_estate",
+            title: "Real Estate",
+            incomeLadder: [
+                WealthIncomeLadderStep(stage: "Analyst/assistant", annualIncomeBandUSD: "$55k-$110k", leverageMove: "Learn underwriting, comps, and deal operations."),
+                WealthIncomeLadderStep(stage: "Licensed agent/broker associate", annualIncomeBandUSD: "$90k-$220k", leverageMove: "Build pipeline discipline and niche positioning."),
+                WealthIncomeLadderStep(stage: "Top producer / acquisitions manager", annualIncomeBandUSD: "$200k-$500k", leverageMove: "Scale transaction volume with referral systems."),
+                WealthIncomeLadderStep(stage: "Team lead / principal broker", annualIncomeBandUSD: "$400k-$1M+", leverageMove: "Build team machine for lead conversion and execution quality."),
+                WealthIncomeLadderStep(stage: "Portfolio owner/developer", annualIncomeBandUSD: "$800k-$5M+", leverageMove: "Compound cash-flowing assets and development upside."),
+            ],
+            promotionPlaybook: [
+                "Track conversion rate and average transaction value.",
+                "Build referral network with lenders, attorneys, and operators.",
+                "Systematize lead response and pipeline follow-up cadence.",
+                "Negotiate split/compensation from measurable production impact.",
+            ],
+            businessPlaybook: [
+                WealthBusinessPlaybookStep(
+                    phase: "Market selection",
+                    objective: "Pick one niche market and asset class.",
+                    keyActions: ["Define neighborhood thesis", "Map demand/supply", "Set clear buy box"],
+                    metricTarget: "20 qualified leads/month"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Lead machine",
+                    objective: "Build predictable inbound + outbound channels.",
+                    keyActions: ["Local content + SEO", "Referral partnerships", "Direct outreach cadence"],
+                    metricTarget: "Lead-to-meeting >25%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Conversion",
+                    objective: "Improve close ratio and deal economics.",
+                    keyActions: ["Discovery script", "Offer strategy", "Negotiation playbook"],
+                    metricTarget: "Close rate >18%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Portfolio compounding",
+                    objective: "Turn transactions into recurring wealth engine.",
+                    keyActions: ["Asset management dashboard", "Refinance/rehab strategy", "Cash reserve discipline"],
+                    metricTarget: "DSCR >1.25 across portfolio"
+                ),
+            ],
+            customerChannels: ["Local SEO + listings", "Referral partnerships", "Investor circles", "Direct owner outreach"]
+        ),
+        "media": WealthIndustryCorpusProfile(
+            id: "media",
+            title: "Media",
+            incomeLadder: [
+                WealthIncomeLadderStep(stage: "Creator/editor foundation", annualIncomeBandUSD: "$45k-$100k", leverageMove: "Build audience consistency and content system."),
+                WealthIncomeLadderStep(stage: "Strategist/producer", annualIncomeBandUSD: "$90k-$180k", leverageMove: "Drive measurable audience and retention growth."),
+                WealthIncomeLadderStep(stage: "Growth/brand lead", annualIncomeBandUSD: "$150k-$320k", leverageMove: "Monetize distribution via sponsorship and product funnels."),
+                WealthIncomeLadderStep(stage: "Media executive", annualIncomeBandUSD: "$250k-$700k+", leverageMove: "Lead multi-channel monetization and team systems."),
+                WealthIncomeLadderStep(stage: "Media company owner", annualIncomeBandUSD: "$500k-$3M+", leverageMove: "Build diversified revenue: ads, subscriptions, products, licensing."),
+            ],
+            promotionPlaybook: [
+                "Track audience retention, watch-time, and monetization per asset.",
+                "Own flagship content properties tied to revenue outcomes.",
+                "Build sponsor + distribution partner network.",
+                "Negotiate role growth based on revenue and brand impact.",
+            ],
+            businessPlaybook: [
+                WealthBusinessPlaybookStep(
+                    phase: "Audience niche",
+                    objective: "Select one audience with urgent recurring problems.",
+                    keyActions: ["Define content thesis", "Consistency calendar", "Audience feedback loop"],
+                    metricTarget: "30-day retention trend up"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Monetization baseline",
+                    objective: "Launch first repeatable revenue stream.",
+                    keyActions: ["Sponsorship packages", "Affiliate stacks", "Service/product funnel"],
+                    metricTarget: "First $10k monthly revenue"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Offer expansion",
+                    objective: "Add higher-margin products and community engines.",
+                    keyActions: ["Digital products", "Membership/community", "B2B brand services"],
+                    metricTarget: "Blended gross margin >60%"
+                ),
+                WealthBusinessPlaybookStep(
+                    phase: "Brand system scale",
+                    objective: "Scale output without burnout.",
+                    keyActions: ["Editorial SOPs", "Production team pods", "Channel-specific analytics"],
+                    metricTarget: "Consistent weekly publishing + QoQ growth"
+                ),
+            ],
+            customerChannels: ["Organic content", "Short-form distribution", "Brand partnerships", "Community/email list"]
+        ),
+    ]
+
     init(api: APIClient = APIClient()) {
         self.api = api
         restoreStateFromDisk()
@@ -695,6 +1084,7 @@ final class SessionStore: ObservableObject {
             jobTrack: jobTrack,
             runwayMonths: runwayMonths
         )
+        let industryProfile = wealthIndustryProfile(for: industryFocus)
 
         actions.append(
             ExecutionAction(
@@ -845,6 +1235,57 @@ final class SessionStore: ObservableObject {
             ExecutionAction(
                 id: UUID().uuidString,
                 horizon: "Wealth",
+                title: "\(industryProfile.title) income ladder",
+                details: incomeLadderExecutionDetails(
+                    profile: industryProfile,
+                    wealthVehicle: wealthVehicle,
+                    jobTrack: jobTrack
+                ),
+                priority: 1,
+                source: "wealth-corpus-ladder",
+                completed: false
+            )
+        )
+
+        if careerDecision.mode == .employee || careerDecision.mode == .hybrid {
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Career",
+                    title: "\(industryProfile.title) promotion playbook",
+                    details: promotionPlaybookExecutionDetails(
+                        profile: industryProfile,
+                        promotionHorizon: promotionHorizon
+                    ),
+                    priority: 1,
+                    source: "wealth-corpus-promotion",
+                    completed: false
+                )
+            )
+        }
+
+        if careerDecision.mode == .business || careerDecision.mode == .hybrid {
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Business",
+                    title: "\(industryProfile.title) customer growth playbook",
+                    details: businessPlaybookExecutionDetails(
+                        profile: industryProfile,
+                        businessModel: businessModel,
+                        customerGrowthFocus: customerGrowthFocus
+                    ),
+                    priority: 1,
+                    source: "wealth-corpus-business",
+                    completed: false
+                )
+            )
+        }
+
+        actions.append(
+            ExecutionAction(
+                id: UUID().uuidString,
+                horizon: "Wealth",
                 title: "Protect compounding autopilot",
                 details: compoundingProtocolDetails(plan: compoundingPlan),
                 priority: 2,
@@ -910,15 +1351,40 @@ final class SessionStore: ObservableObject {
             )
         }
 
-        return actions
-            .sorted { lhs, rhs in
-                if lhs.priority == rhs.priority {
-                    return lhs.title < rhs.title
-                }
-                return lhs.priority < rhs.priority
+        let sorted = actions.sorted { lhs, rhs in
+            if lhs.priority == rhs.priority {
+                return lhs.title < rhs.title
             }
-            .prefix(10)
-            .map { $0 }
+            return lhs.priority < rhs.priority
+        }
+
+        var selected = Array(sorted.prefix(10))
+        let pinnedSources: [String] = [
+            "career-fit",
+            "wealth-route",
+            "wealth-compounding",
+            "wealth-corpus-ladder",
+        ]
+
+        for source in pinnedSources {
+            guard let pinned = sorted.first(where: { $0.source == source }) else { continue }
+            if selected.contains(where: { $0.source == source }) { continue }
+
+            if let replaceIndex = selected.lastIndex(where: { !pinnedSources.contains($0.source) }) {
+                selected[replaceIndex] = pinned
+            } else if selected.count < 10 {
+                selected.append(pinned)
+            } else if !selected.isEmpty {
+                selected[selected.count - 1] = pinned
+            }
+        }
+
+        return selected.sorted { lhs, rhs in
+            if lhs.priority == rhs.priority {
+                return lhs.title < rhs.title
+            }
+            return lhs.priority < rhs.priority
+        }
     }
 
     private func localFeedFromExecutionPlan() -> [FeedItem] {
@@ -962,6 +1428,7 @@ final class SessionStore: ObservableObject {
             jobTrack: highPayingTrack,
             runwayMonths: runwayMonths
         )
+        let industryProfile = wealthIndustryProfile(for: industryFocus)
         let needsMobilityOps = vanRentalNeeded
             || containsAny(combinedIntent, ["travel", "route", "van", "mobility", "camp", "fleet", "caravan"])
             || (Int(annualDistanceKM) ?? 0) >= 50_000
@@ -1108,6 +1575,34 @@ final class SessionStore: ObservableObject {
                 callToAction: "Open industry map"
             )
         )
+
+        offers.append(
+            TailoredOffer(
+                id: "offer-income-ladder-\(industryProfile.id)",
+                category: .wealthOperations,
+                type: .feature,
+                title: "\(industryProfile.title) Income Ladder Blueprint",
+                summary: "Explicit earnings ladder with stage-by-stage leverage moves so the next jump is operational, not vague.",
+                rationale: "Industry corpus loaded for \(industryProfile.title): \(incomeLadderSummary(profile: industryProfile)).",
+                priority: 1,
+                callToAction: "Open income ladder blueprint"
+            )
+        )
+
+        if careerDecision.mode == .business || careerDecision.mode == .hybrid {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-business-playbook-\(industryProfile.id)",
+                    category: .wealthOperations,
+                    type: .service,
+                    title: "\(industryProfile.title) Business Playbook",
+                    summary: "Stage-based customer growth playbook mapped to acquisition, conversion, retention, and expansion.",
+                    rationale: "Business corpus channels: \(industryProfile.customerChannels.prefix(3).joined(separator: ", ")).",
+                    priority: 1,
+                    callToAction: "Open business playbook"
+                )
+            )
+        }
 
         if needsMobilityOps {
             offers.append(
@@ -1911,16 +2406,23 @@ final class SessionStore: ObservableObject {
         let trackLabel = wealthLabel(for: jobTrack)
         let modelLabel = wealthLabel(for: businessModel)
         let skillLabel = wealthLabel(for: skillStack)
+        let profile = wealthIndustryProfile(for: industry)
+        let ladder = incomeLadderSummary(profile: profile)
+        let playbook = businessPlaybookSummary(
+            profile: profile,
+            businessModel: businessModel,
+            customerGrowthFocus: surveyAnswers["customer_growth_focus"] ?? "not_applicable"
+        )
 
         switch vehicle {
         case "job_ladder":
-            return "Route: \(vehicleLabel). Industry: \(industryLabel). Track: \(trackLabel). Build one portfolio proof-of-work, run 5 targeted applications/outreach touches, and schedule one compensation negotiation prep block."
+            return "Route: \(vehicleLabel). Industry: \(industryLabel). Track: \(trackLabel). Build one portfolio proof-of-work, run 5 targeted applications/outreach touches, and schedule one compensation negotiation prep block. Income ladder: \(ladder). Promotion playbook: \(profile.promotionPlaybook.prefix(2).joined(separator: " -> "))."
         case "business_builder":
-            return "Route: \(vehicleLabel). Model: \(modelLabel). Industry: \(industryLabel). Define one offer, run one paid acquisition/organic experiment, and measure weekly cash conversion."
+            return "Route: \(vehicleLabel). Model: \(modelLabel). Industry: \(industryLabel). Define one offer, run one paid acquisition/organic experiment, and measure weekly cash conversion. Income ladder: \(ladder). Business playbook: \(playbook)."
         case "enterprise_operator":
-            return "Route: \(vehicleLabel). Engine: \(engineLabel). Industry: \(industryLabel). Execute one operations upgrade tied to margin, cycle time, or service quality this week."
+            return "Route: \(vehicleLabel). Engine: \(engineLabel). Industry: \(industryLabel). Execute one operations upgrade tied to margin, cycle time, or service quality this week. Income ladder: \(ladder)."
         default:
-            return "Route: \(vehicleLabel). Engine: \(engineLabel). Skill stack: \(skillLabel). Run one job-ladder move + one business move so income compounds through multiple channels."
+            return "Route: \(vehicleLabel). Engine: \(engineLabel). Skill stack: \(skillLabel). Run one job-ladder move + one business move so income compounds through multiple channels. Industry ladder: \(ladder). Business playbook: \(playbook)."
         }
     }
 
@@ -2034,6 +2536,73 @@ final class SessionStore: ObservableObject {
         return "Business stage: \(stageLabel). Focus: \(focusLabel). Model: \(modelLabel). Customer growth protocol: tighten ICP + offer, run two channels at measurable CAC, improve conversion scripts, and deploy retention/expansion loops to raise LTV."
     }
 
+    private func wealthIndustryProfile(for industryFocus: String) -> WealthIndustryCorpusProfile {
+        let normalized = industryFocus.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let resolvedID = Self.wealthIndustryAliases[normalized] ?? normalized
+        return Self.wealthIndustryCorpus[resolvedID]
+            ?? Self.wealthIndustryCorpus["ai_software"]!
+    }
+
+    private func incomeLadderSummary(profile: WealthIndustryCorpusProfile) -> String {
+        profile.incomeLadder
+            .prefix(3)
+            .map { "\($0.stage) \($0.annualIncomeBandUSD)" }
+            .joined(separator: " -> ")
+    }
+
+    private func incomeLadderExecutionDetails(
+        profile: WealthIndustryCorpusProfile,
+        wealthVehicle: String,
+        jobTrack: String
+    ) -> String {
+        let routeLabel = wealthLabel(for: wealthVehicle)
+        let trackLabel = wealthLabel(for: jobTrack)
+        let ladder = profile.incomeLadder
+            .map { "\($0.stage): \($0.annualIncomeBandUSD) (\($0.leverageMove))" }
+            .joined(separator: " | ")
+        return "Route: \(routeLabel). Track: \(trackLabel). \(profile.title) income ladder: \(ladder)"
+    }
+
+    private func promotionPlaybookExecutionDetails(
+        profile: WealthIndustryCorpusProfile,
+        promotionHorizon: String
+    ) -> String {
+        let horizonLabel = wealthLabel(for: promotionHorizon)
+        let steps = profile.promotionPlaybook.prefix(4).joined(separator: " | ")
+        return "Promotion horizon: \(horizonLabel). \(profile.title) promotion playbook: \(steps)"
+    }
+
+    private func businessPlaybookSummary(
+        profile: WealthIndustryCorpusProfile,
+        businessModel: String,
+        customerGrowthFocus: String
+    ) -> String {
+        let modelLabel = wealthLabel(for: businessModel)
+        let focusLabel = wealthLabel(for: customerGrowthFocus)
+        let phases = profile.businessPlaybook
+            .prefix(3)
+            .map { "\($0.phase): \($0.objective)" }
+            .joined(separator: " -> ")
+        return "Model: \(modelLabel). Focus: \(focusLabel). \(phases)"
+    }
+
+    private func businessPlaybookExecutionDetails(
+        profile: WealthIndustryCorpusProfile,
+        businessModel: String,
+        customerGrowthFocus: String
+    ) -> String {
+        let modelLabel = wealthLabel(for: businessModel)
+        let focusLabel = wealthLabel(for: customerGrowthFocus)
+        let steps = profile.businessPlaybook
+            .map { step in
+                let actions = step.keyActions.joined(separator: ", ")
+                return "\(step.phase) -> \(step.objective) | actions: \(actions) | metric: \(step.metricTarget)"
+            }
+            .joined(separator: " || ")
+        let channels = profile.customerChannels.joined(separator: ", ")
+        return "Model: \(modelLabel). Focus: \(focusLabel). \(profile.title) business playbook: \(steps). Priority channels: \(channels)."
+    }
+
     private func compoundingProtocolDetails(plan: String) -> String {
         switch plan {
         case "auto_index":
@@ -2088,6 +2657,8 @@ final class SessionStore: ObservableObject {
             return "Finance and investing"
         case "operations_logistics":
             return "Operations and logistics"
+        case "real_estate":
+            return "Real estate"
         case "skilled_trades":
             return "Skilled trades"
         case "media_creator":
@@ -2110,6 +2681,10 @@ final class SessionStore: ObservableObject {
             return "Operations leadership"
         case "finance_track":
             return "Finance track"
+        case "real_estate_track":
+            return "Real estate track"
+        case "media_revenue":
+            return "Media revenue track"
         case "clinical":
             return "Clinical specialization"
         case "trade_mastery":
@@ -2569,6 +3144,7 @@ final class SessionStore: ObservableObject {
                     SurveyChoice(value: "healthcare", label: "Healthcare"),
                     SurveyChoice(value: "finance", label: "Finance"),
                     SurveyChoice(value: "operations_logistics", label: "Operations/logistics"),
+                    SurveyChoice(value: "real_estate", label: "Real estate"),
                     SurveyChoice(value: "skilled_trades", label: "Skilled trades"),
                     SurveyChoice(value: "media_creator", label: "Media/creator economy")
                 ]
@@ -2594,7 +3170,9 @@ final class SessionStore: ObservableObject {
                     SurveyChoice(value: "sales", label: "Sales"),
                     SurveyChoice(value: "operations", label: "Operations"),
                     SurveyChoice(value: "finance_track", label: "Finance"),
+                    SurveyChoice(value: "real_estate_track", label: "Real estate"),
                     SurveyChoice(value: "clinical", label: "Clinical/health"),
+                    SurveyChoice(value: "media_revenue", label: "Media revenue"),
                     SurveyChoice(value: "trade_mastery", label: "Skilled trade mastery"),
                     SurveyChoice(value: "none", label: "Not focused on jobs now")
                 ]

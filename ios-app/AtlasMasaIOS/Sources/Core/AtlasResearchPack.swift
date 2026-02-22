@@ -861,6 +861,262 @@ private let atlasResearchPackJSON = #"""
       "runway",
       "growth"
     ]
+  },
+  {
+    "id": "software-developer-outlook-2024",
+    "title": "Occupational Outlook Handbook: Software Developers",
+    "year": 2024,
+    "domain": "labor-market",
+    "actionable_insight": "Software and AI-adjacent roles show strong long-term demand and wide compensation dispersion by scope and specialization.",
+    "action_hint": "Target roles where you can compound technical depth with business impact ownership.",
+    "source_url": "https://www.bls.gov/ooh/computer-and-information-technology/software-developers.htm",
+    "keywords": [
+      "software",
+      "ai",
+      "salary",
+      "job ladder",
+      "career growth"
+    ]
+  },
+  {
+    "id": "sales-compensation-benchmarks-2024",
+    "title": "Sales Compensation and Quota Performance Benchmarks",
+    "year": 2024,
+    "domain": "career-capital",
+    "actionable_insight": "Sales compensation scales disproportionately with quota attainment consistency, deal size, and account expansion quality.",
+    "action_hint": "Track quota coverage, win rate, and expansion revenue weekly to climb compensation bands faster.",
+    "source_url": "https://www.sbi.team/blog/sales-compensation-trends",
+    "keywords": [
+      "sales",
+      "quota",
+      "compensation",
+      "enterprise",
+      "promotion"
+    ]
+  },
+  {
+    "id": "finance-analyst-outlook-2024",
+    "title": "Occupational Outlook Handbook: Financial Analysts",
+    "year": 2024,
+    "domain": "labor-market",
+    "actionable_insight": "Finance roles reward analytical rigor, domain specialization, and responsibility for capital decisions.",
+    "action_hint": "Build a portfolio of investment/operating memos tied to measurable outcomes.",
+    "source_url": "https://www.bls.gov/ooh/business-and-financial/financial-analysts.htm",
+    "keywords": [
+      "finance",
+      "analyst",
+      "capital allocation",
+      "salary",
+      "career ladder"
+    ]
+  },
+  {
+    "id": "trades-electricians-outlook-2024",
+    "title": "Occupational Outlook Handbook: Electricians",
+    "year": 2024,
+    "domain": "labor-market",
+    "actionable_insight": "Licensed skilled trades provide strong cashflow pathways and clear progression into high-margin contracting businesses.",
+    "action_hint": "Stack licensing, specialize in premium scopes, and transition from labor-only income to contract ownership.",
+    "source_url": "https://www.bls.gov/ooh/construction-and-extraction/electricians.htm",
+    "keywords": [
+      "trades",
+      "electrician",
+      "licensing",
+      "contractor",
+      "income ladder"
+    ]
+  },
+  {
+    "id": "healthcare-physician-outlook-2024",
+    "title": "Occupational Outlook Handbook: Physicians and Surgeons",
+    "year": 2024,
+    "domain": "labor-market",
+    "actionable_insight": "Healthcare specialist tracks combine high training burden with strong long-term earning potential and practice-ownership options.",
+    "action_hint": "Prioritize specialty strategy, throughput discipline, and quality metrics as career compounding levers.",
+    "source_url": "https://www.bls.gov/ooh/healthcare/physicians-and-surgeons.htm",
+    "keywords": [
+      "healthcare",
+      "clinical",
+      "specialization",
+      "income",
+      "practice"
+    ]
+  },
+  {
+    "id": "logistics-supply-chain-resilience-2023",
+    "title": "Supply chain resilience and operating performance",
+    "year": 2023,
+    "domain": "wealth-systems",
+    "actionable_insight": "Resilient logistics systems improve both service reliability and margin protection under volatility.",
+    "action_hint": "Design operating cadence around on-time performance, exception handling, and contribution-margin tracking.",
+    "source_url": "https://www.mckinsey.com/capabilities/operations/our-insights/supply-chain-resilience-is-a-priority",
+    "keywords": [
+      "logistics",
+      "supply chain",
+      "operations",
+      "margin",
+      "service quality"
+    ]
+  },
+  {
+    "id": "real-estate-broker-outlook-2024",
+    "title": "Occupational Outlook Handbook: Real Estate Brokers and Sales Agents",
+    "year": 2024,
+    "domain": "labor-market",
+    "actionable_insight": "Real estate income is highly execution-dependent, with outsized upside for operators with strong lead systems and conversion discipline.",
+    "action_hint": "Build a repeatable pipeline system before increasing transaction volume targets.",
+    "source_url": "https://www.bls.gov/ooh/sales/real-estate-brokers-and-sales-agents.htm",
+    "keywords": [
+      "real estate",
+      "broker",
+      "sales",
+      "pipeline",
+      "income"
+    ]
+  },
+  {
+    "id": "media-and-communication-outlook-2024",
+    "title": "Occupational Outlook Handbook: Media and Communication Occupations",
+    "year": 2024,
+    "domain": "labor-market",
+    "actionable_insight": "Media careers increasingly reward operators who combine audience growth with monetization systems.",
+    "action_hint": "Track retention + monetization together, not vanity reach alone.",
+    "source_url": "https://www.bls.gov/ooh/media-and-communication/home.htm",
+    "keywords": [
+      "media",
+      "creator economy",
+      "audience growth",
+      "monetization",
+      "business model"
+    ]
+  },
+  {
+    "id": "productivity-by-industry-2024",
+    "title": "Labor productivity and unit labor costs by industry",
+    "year": 2024,
+    "domain": "wealth-systems",
+    "actionable_insight": "Industry productivity differences shape wage growth potential and margin headroom.",
+    "action_hint": "Choose a route where your skills can attach to high-productivity segments and measurable output.",
+    "source_url": "https://www.bls.gov/productivity/",
+    "keywords": [
+      "productivity",
+      "industry",
+      "wage growth",
+      "margin",
+      "compounding"
+    ]
+  },
+  {
+    "id": "small-business-acquisition-channels-2024",
+    "title": "Lead generation channel effectiveness for small businesses",
+    "year": 2024,
+    "domain": "entrepreneurship",
+    "actionable_insight": "Small business growth is constrained less by ideas and more by channel reliability and conversion systems.",
+    "action_hint": "Run two acquisition channels with weekly CAC and close-rate tracking before scaling spend.",
+    "source_url": "https://www.score.org/",
+    "keywords": [
+      "small business",
+      "lead generation",
+      "conversion",
+      "channels",
+      "customer growth"
+    ]
+  },
+  {
+    "id": "executive-presence-promotion-2022",
+    "title": "Promotion outcomes and executive communication patterns",
+    "year": 2022,
+    "domain": "career-capital",
+    "actionable_insight": "Promotion velocity rises when contributors make impact legible through concise, regular, evidence-backed communication.",
+    "action_hint": "Send weekly impact updates with quantified outcomes and explicit next-step requests.",
+    "source_url": "https://hbr.org/",
+    "keywords": [
+      "promotion",
+      "communication",
+      "leadership",
+      "career growth",
+      "executive presence"
+    ]
+  },
+  {
+    "id": "pricing-power-and-growth-2023",
+    "title": "Pricing power and profitable growth under inflation",
+    "year": 2023,
+    "domain": "business-model",
+    "actionable_insight": "Operators that increase pricing clarity and value communication protect margins and improve growth quality.",
+    "action_hint": "Redesign offers with explicit value metric, tiered packaging, and disciplined price testing.",
+    "source_url": "https://www.mckinsey.com/capabilities/growth-marketing-and-sales/our-insights/the-state-of-pricing",
+    "keywords": [
+      "pricing",
+      "margin",
+      "growth",
+      "offer design",
+      "business playbook"
+    ]
+  },
+  {
+    "id": "networking-and-job-mobility-2023",
+    "title": "Social capital and job mobility outcomes",
+    "year": 2023,
+    "domain": "career-capital",
+    "actionable_insight": "Referral-rich networks materially increase interview velocity and quality job transitions.",
+    "action_hint": "Run a weekly referral system with warm intros, value-first outreach, and follow-up cadence.",
+    "source_url": "https://www.nber.org/",
+    "keywords": [
+      "networking",
+      "job mobility",
+      "referrals",
+      "career ladder",
+      "salary growth"
+    ]
+  },
+  {
+    "id": "recurring-revenue-models-2022",
+    "title": "Recurring revenue models and valuation resilience",
+    "year": 2022,
+    "domain": "business-model",
+    "actionable_insight": "Recurring revenue and retention discipline improve business resilience and strategic optionality.",
+    "action_hint": "Prioritize retention and expansion playbooks before scaling acquisition spend.",
+    "source_url": "https://www.bain.com/insights/",
+    "keywords": [
+      "recurring revenue",
+      "retention",
+      "expansion",
+      "customer success",
+      "business growth"
+    ]
+  },
+  {
+    "id": "operations-excellence-compounding-2021",
+    "title": "Operational excellence as a compounding advantage",
+    "year": 2021,
+    "domain": "wealth-systems",
+    "actionable_insight": "Organizations with strong process discipline compound gains through fewer errors, faster cycles, and better customer retention.",
+    "action_hint": "Instrument one bottleneck weekly and ship a measurable cycle-time improvement.",
+    "source_url": "https://www.mckinsey.com/capabilities/operations/our-insights",
+    "keywords": [
+      "operations",
+      "cycle time",
+      "quality",
+      "retention",
+      "compounding"
+    ]
+  },
+  {
+    "id": "creator-monetization-models-2024",
+    "title": "Creator monetization models beyond ad revenue",
+    "year": 2024,
+    "domain": "entrepreneurship",
+    "actionable_insight": "Creator businesses de-risk by diversifying income across sponsorship, products, subscriptions, and services.",
+    "action_hint": "Build one primary and one secondary monetization stream with clear weekly KPIs.",
+    "source_url": "https://influencermarketinghub.com/creator-economy/",
+    "keywords": [
+      "creator economy",
+      "media",
+      "monetization",
+      "subscriptions",
+      "business model"
+    ]
   }
 ]
 """#
