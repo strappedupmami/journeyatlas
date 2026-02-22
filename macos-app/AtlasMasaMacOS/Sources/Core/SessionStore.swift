@@ -50,6 +50,7 @@ final class SessionStore: ObservableObject {
     @Published var travelRegion = "Israel"
     @Published var annualDistanceKM = "70000"
     @Published var workspaceMode = "Business mobility"
+    @Published var jobMarketOpportunities: [JobOpportunity] = []
 
     let api: APIClient
     private let localReasoning = LocalReasoningEngine()
@@ -268,13 +269,18 @@ final class SessionStore: ObservableObject {
             survey = try await api.surveyNext()
         } catch {
             appendOutput("Survey loaded from local fallback.")
+            let localOpportunities = buildJobMarketOpportunities()
+            var hints = ["Local survey mode active", "Gym/income cadence enabled"]
+            if !localOpportunities.isEmpty {
+                hints.append("Global job radar active (\(localOpportunities.count) opportunities)")
+            }
             let answered = surveyAnswers.count
             let total = localSurveyTotal()
             let percent = Int((Double(answered) / Double(max(1, total))) * 100.0)
             survey = SurveyNextResponse(
                 question: localSurveyQuestion(),
                 progress: SurveyProgress(answered: answered, total: total, percent: percent),
-                profileHints: ["Local survey mode active", "Gym/income cadence enabled"]
+                profileHints: hints
             )
         }
     }
@@ -635,8 +641,10 @@ final class SessionStore: ObservableObject {
         }
         memoryInsights = insights
 
-        executionActions = buildExecutionActions()
-        tailoredOffers = buildTailoredOffers()
+        let jobOpportunities = buildJobMarketOpportunities()
+        jobMarketOpportunities = jobOpportunities
+        executionActions = buildExecutionActions(jobOpportunities: jobOpportunities)
+        tailoredOffers = buildTailoredOffers(jobOpportunities: jobOpportunities)
         researchStreams = buildResearchExecutionStreams()
         syncWorkspaceMemoryRecords()
         refreshWorkspaceSessionSnapshots()
@@ -645,7 +653,7 @@ final class SessionStore: ObservableObject {
         feedItems = localFeedFromExecutionPlan()
     }
 
-    private func buildExecutionActions() -> [ExecutionAction] {
+    private func buildExecutionActions(jobOpportunities: [JobOpportunity]) -> [ExecutionAction] {
         var actions: [ExecutionAction] = []
 
         let daily = dailyPriority.isEmpty ? "Set one non-negotiable action for today." : dailyPriority
@@ -770,6 +778,44 @@ final class SessionStore: ObservableObject {
             )
         )
 
+        if let topOpportunity = jobOpportunities.first {
+            let spotlight = jobOpportunities.prefix(3).map { opportunity in
+                let links = JobMarketRadar.platformSummary(for: opportunity)
+                return "\(opportunity.title) · \(opportunity.location) · \(opportunity.salaryBandUSD) · \(links)"
+            }.joined(separator: " | ")
+
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Career",
+                    title: "Global high-pay opportunity radar",
+                    details: "Top route now: \(topOpportunity.title) in \(topOpportunity.location). \(spotlight)",
+                    priority: 1,
+                    source: "job-radar",
+                    completed: false
+                )
+            )
+        }
+
+        let jobInterest = surveyAnswers["job_radar_interest"] ?? "maybe"
+        if jobInterest != "yes",
+           let blocker = surveyAnswers["job_radar_blocker"],
+           !blocker.isEmpty
+        {
+            let supportMode = surveyAnswers["job_radar_support_mode"]
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Career",
+                    title: "Remove job adoption blocker",
+                    details: JobMarketRadar.blockerResolution(blocker: blocker, supportMode: supportMode),
+                    priority: 1,
+                    source: "job-blocker",
+                    completed: false
+                )
+            )
+        }
+
         let topSessionSignals = workspaceSessions
             .sorted { $0.updatedAtUTC > $1.updatedAtUTC }
             .prefix(3)
@@ -818,7 +864,7 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    private func buildTailoredOffers() -> [TailoredOffer] {
+    private func buildTailoredOffers(jobOpportunities: [JobOpportunity]) -> [TailoredOffer] {
         var offers: [TailoredOffer] = []
         let combinedIntent = combinedIntentText()
         let needsRecovery = checkInEnergy <= 2 || containsAny(checkInMood, ["stress", "burnout", "anxious", "exhaust"])
@@ -874,6 +920,29 @@ final class SessionStore: ObservableObject {
                     rationale: "Your profile indicates a job-ladder path in \(wealthLabel(for: industryFocus)).",
                     priority: 1,
                     callToAction: "Build job ladder sprint"
+                )
+            )
+        }
+
+        if let topOpportunity = jobOpportunities.first {
+            let links = JobMarketRadar.platformSummary(for: topOpportunity)
+            let blocker = surveyAnswers["job_radar_blocker"]
+            let blockerSuffix: String
+            if let blocker, !blocker.isEmpty {
+                blockerSuffix = " Current blocker: \(JobMarketRadar.blockerLabel(for: blocker))."
+            } else {
+                blockerSuffix = ""
+            }
+            offers.append(
+                TailoredOffer(
+                    id: "offer-global-job-market-radar",
+                    category: .wealthOperations,
+                    type: .feature,
+                    title: "Indeed + Glassdoor Global Job Radar",
+                    summary: "Track highest-paying global roles and open direct platform searches by track, region, and compensation band.",
+                    rationale: "Top match now: \(topOpportunity.title) (\(topOpportunity.salaryBandUSD)) via \(links).\(blockerSuffix)",
+                    priority: 1,
+                    callToAction: "Open global opportunities"
                 )
             )
         }
@@ -1736,6 +1805,23 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    private func buildJobMarketOpportunities() -> [JobOpportunity] {
+        let track = surveyAnswers["high_paying_job_track"] ?? "none"
+        let industry = surveyAnswers["industry_focus"] ?? "software_ai"
+        let wealthVehicle = surveyAnswers["wealth_vehicle"] ?? "hybrid"
+
+        if track == "none", wealthVehicle != "job_ladder", wealthVehicle != "hybrid" {
+            return []
+        }
+
+        return JobMarketRadar.topOpportunities(
+            highPayingTrack: track,
+            industryFocus: industry,
+            regionHint: travelRegion,
+            limit: 5
+        )
+    }
+
     private func wealthLabel(for value: String) -> String {
         switch value {
         case "job_ladder":
@@ -1980,6 +2066,62 @@ final class SessionStore: ObservableObject {
                     SurveyChoice(value: "daily_brief", label: "Daily brief"),
                     SurveyChoice(value: "risk_alerts", label: "Risk alerts"),
                     SurveyChoice(value: "execution", label: "Execution nudges")
+                ]
+            )
+        }
+
+        if let highPayingTrack = surveyAnswers["high_paying_job_track"],
+           highPayingTrack != "none",
+           surveyAnswers["job_radar_interest"] == nil
+        {
+            return localQuestion(
+                id: "job_radar_interest",
+                title: "Atlas found global high-paying roles for you. Do you want to pursue them?",
+                description: "Atlas maps opportunities through Indeed + Glassdoor and adapts your execution stream based on your answer.",
+                choices: [
+                    SurveyChoice(value: "yes", label: "Yes, actively pursue"),
+                    SurveyChoice(value: "maybe", label: "Maybe, with support"),
+                    SurveyChoice(value: "no", label: "Not right now")
+                ]
+            )
+        }
+
+        if let jobInterest = surveyAnswers["job_radar_interest"],
+           jobInterest != "yes",
+           surveyAnswers["job_radar_blocker"] == nil
+        {
+            return localQuestion(
+                id: "job_radar_blocker",
+                title: "What is the main blocker stopping you from taking a high-paying role now?",
+                description: "Atlas uses this to tailor recommendations and solve the gap.",
+                choices: [
+                    SurveyChoice(value: "skills_gap", label: "Skills gap"),
+                    SurveyChoice(value: "credential_gap", label: "Credential/experience gap"),
+                    SurveyChoice(value: "language_gap", label: "Language confidence"),
+                    SurveyChoice(value: "network_gap", label: "No network/referrals"),
+                    SurveyChoice(value: "relocation", label: "Relocation constraints"),
+                    SurveyChoice(value: "visa_legal", label: "Visa/legal eligibility"),
+                    SurveyChoice(value: "schedule_family", label: "Schedule/family load"),
+                    SurveyChoice(value: "confidence", label: "Confidence/interview fear")
+                ]
+            )
+        }
+
+        if surveyAnswers["job_radar_blocker"] != nil,
+           surveyAnswers["job_radar_support_mode"] == nil
+        {
+            return localQuestion(
+                id: "job_radar_support_mode",
+                title: "How should Atlas help you close this blocker?",
+                description: "This routes practical job-readiness actions directly into your daily plan.",
+                choices: [
+                    SurveyChoice(value: "portfolio_plan", label: "Portfolio + proof-of-work plan"),
+                    SurveyChoice(value: "interview_prep", label: "Interview + negotiation prep"),
+                    SurveyChoice(value: "networking_system", label: "Referral/networking system"),
+                    SurveyChoice(value: "credential_bridge", label: "Credential bridging roadmap"),
+                    SurveyChoice(value: "language_plan", label: "Language + communication drills"),
+                    SurveyChoice(value: "relocation_plan", label: "Relocation-compatible route"),
+                    SurveyChoice(value: "legal_eligibility_plan", label: "Visa/legal readiness plan")
                 ]
             )
         }

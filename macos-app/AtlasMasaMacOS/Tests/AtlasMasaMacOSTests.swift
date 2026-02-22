@@ -164,4 +164,44 @@ final class AtlasMasaMacOSTests: XCTestCase {
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-route" }))
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-compounding" }))
     }
+
+    @MainActor
+    func testJobRadarBuildsOpportunitiesAndBlockerPlan() async {
+        let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
+
+        for _ in 0 ..< 120 {
+            await store.loadSurvey()
+            guard let question = store.survey?.question else { break }
+
+            let choice: SurveyChoice
+            switch question.id {
+            case "primary_goal":
+                choice = question.choices.first(where: { $0.value == "wealth" }) ?? question.choices.first!
+            case "wealth_vehicle":
+                choice = question.choices.first(where: { $0.value == "job_ladder" }) ?? question.choices.first!
+            case "industry_focus":
+                choice = question.choices.first(where: { $0.value == "software_ai" }) ?? question.choices.first!
+            case "high_paying_job_track":
+                choice = question.choices.first(where: { $0.value == "engineering" }) ?? question.choices.first!
+            case "job_radar_interest":
+                choice = question.choices.first(where: { $0.value == "no" }) ?? question.choices.first!
+            case "job_radar_blocker":
+                choice = question.choices.first(where: { $0.value == "skills_gap" }) ?? question.choices.first!
+            case "job_radar_support_mode":
+                choice = question.choices.first(where: { $0.value == "portfolio_plan" }) ?? question.choices.first!
+            default:
+                choice = question.choices.first!
+            }
+
+            await store.answerSurvey(choice)
+        }
+
+        store.applyDailyCheckIn()
+
+        XCTAssertFalse(store.jobMarketOpportunities.isEmpty)
+        XCTAssertTrue(store.executionActions.contains(where: { $0.source == "job-radar" }))
+        XCTAssertTrue(store.executionActions.contains(where: { $0.source == "job-blocker" }))
+        XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-global-job-market-radar" }))
+    }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProactiveFeedCard: View {
     @EnvironmentObject private var session: SessionStore
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         AtlasScreen(
@@ -70,6 +71,44 @@ struct ProactiveFeedCard: View {
                             Text("Priority: \(item.priority)")
                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                                 .foregroundStyle(AtlasTheme.textSecondary)
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.black.opacity(0.2))
+                        )
+                    }
+                }
+            }
+
+            AtlasPanel(heading: "Global job market radar", caption: "Highest-paying opportunities with direct Indeed + Glassdoor routes") {
+                if session.jobMarketOpportunities.isEmpty {
+                    Text("Complete wealth/job survey signals to unlock live global opportunity routing.")
+                        .foregroundStyle(AtlasTheme.textSecondary)
+                } else {
+                    ForEach(session.jobMarketOpportunities.prefix(4)) { opportunity in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(opportunity.title)
+                                .font(.system(size: 17, weight: .semibold, design: .serif))
+                                .foregroundStyle(AtlasTheme.textPrimary)
+                            Text("\(opportunity.location) · \(opportunity.salaryBandUSD)")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AtlasTheme.accentWarm)
+                            Text("Track: \(humanizedOpportunityField(opportunity.track)) · Industry: \(humanizedOpportunityField(opportunity.industryFocus))")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(AtlasTheme.textSecondary)
+                            Text(opportunity.remoteFriendly ? "Remote-compatible" : "On-site/hybrid expected")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(AtlasTheme.textSecondary)
+                            HStack {
+                                ForEach(opportunity.links) { link in
+                                    Button(link.platform.label) {
+                                        guard let url = URL(string: link.url) else { return }
+                                        openURL(url)
+                                    }
+                                    .buttonStyle(AtlasSecondaryButtonStyle())
+                                }
+                            }
                         }
                         .padding(12)
                         .background(
@@ -221,5 +260,12 @@ struct ProactiveFeedCard: View {
                 .buttonStyle(AtlasSecondaryButtonStyle())
             }
         }
+    }
+
+    private func humanizedOpportunityField(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "_", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .capitalized
     }
 }

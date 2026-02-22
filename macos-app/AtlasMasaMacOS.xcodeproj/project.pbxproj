@@ -25,6 +25,7 @@
 		A5F3805AD134EB9422571662 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8631F1FF407506DC227EDA6C /* SessionStore.swift */; };
 		D1A738641AB896B8672BD6F5 /* SubscriptionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC34004A8E67F5BCAC9DE5D /* SubscriptionCard.swift */; };
 		D6F1B592D61E9572BD59F9D9 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66AE552C360A6F968678AF5F /* AppEnvironment.swift */; };
+		EE30675B53D82B07E851A14D /* JobMarketRadar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D5FA2B3895F9BA19A3F6034 /* JobMarketRadar.swift */; };
 		F9FA19C612C06175DF6172FD /* LocalReasoningEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9A1D2906182B7701821C8D /* LocalReasoningEngine.swift */; };
 		FD1F2CC4129730D32F8E3B9A /* NotesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2065AF6AAACC3B43D3C60ABF /* NotesCard.swift */; };
 		FD7DB5912AD9509E437FC657 /* AtlasMasaMacOSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053D516A3D63A379FAB18E16 /* AtlasMasaMacOSTests.swift */; };
@@ -46,6 +47,7 @@
 		0FC34004A8E67F5BCAC9DE5D /* SubscriptionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCard.swift; sourceTree = "<group>"; };
 		1AEDA4DBA73A4A08C4AE4749 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		2065AF6AAACC3B43D3C60ABF /* NotesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesCard.swift; sourceTree = "<group>"; };
+		2D5FA2B3895F9BA19A3F6034 /* JobMarketRadar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobMarketRadar.swift; sourceTree = "<group>"; };
 		465052A26DDD04F7EDBFECDE /* ProactiveFeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveFeedCard.swift; sourceTree = "<group>"; };
 		4B12A51870BD19ABD4449574 /* AtlasResearchPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasResearchPack.swift; sourceTree = "<group>"; };
 		53C22511E6096A3D8FED9BDD /* AtlasTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasTheme.swift; sourceTree = "<group>"; };
@@ -219,6 +221,7 @@
 				D34CF08BA1DF4E4687C867B6 /* AtlasResearchEngine.swift */,
 				4B12A51870BD19ABD4449574 /* AtlasResearchPack.swift */,
 				53C22511E6096A3D8FED9BDD /* AtlasTheme.swift */,
+				2D5FA2B3895F9BA19A3F6034 /* JobMarketRadar.swift */,
 				8E9A1D2906182B7701821C8D /* LocalReasoningEngine.swift */,
 				FBEA857915038352C5FB3F77 /* Models.swift */,
 				8631F1FF407506DC227EDA6C /* SessionStore.swift */,
@@ -320,6 +323,7 @@
 				63DBB8353BD8A75859881BED /* AtlasResearchPack.swift in Sources */,
 				547292A5F92D34A20A7367B6 /* AtlasTheme.swift in Sources */,
 				32F358D0A804D6B6729B9633 /* CommandCenterCard.swift in Sources */,
+				EE30675B53D82B07E851A14D /* JobMarketRadar.swift in Sources */,
 				F9FA19C612C06175DF6172FD /* LocalReasoningEngine.swift in Sources */,
 				0AB73635DD6EC74C5856AB01 /* MobilityOpsCard.swift in Sources */,
 				67FC01DCAE5F9A7B74C23D2E /* Models.swift in Sources */,
@@ -427,16 +431,16 @@
 			};
 			name = Debug;
 		};
-			71923FB66EA1DECB64A5D48F /* Debug */ = {
-				isa = XCBuildConfiguration;
-				buildSettings = {
-					BUNDLE_LOADER = "$(TEST_HOST)";
-					COMBINE_HIDPI_IMAGES = YES;
-					GENERATE_INFOPLIST_FILE = YES;
-					LD_RUNPATH_SEARCH_PATHS = (
-						"$(inherited)",
-						"@executable_path/../Frameworks",
-						"@loader_path/../Frameworks",
+		71923FB66EA1DECB64A5D48F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.atlasmasa.macos.tests;
 				SDKROOT = macosx;
@@ -462,16 +466,16 @@
 			};
 			name = Release;
 		};
-			D50D5DD494916AAC429CB1F8 /* Release */ = {
-				isa = XCBuildConfiguration;
-				buildSettings = {
-					BUNDLE_LOADER = "$(TEST_HOST)";
-					COMBINE_HIDPI_IMAGES = YES;
-					GENERATE_INFOPLIST_FILE = YES;
-					LD_RUNPATH_SEARCH_PATHS = (
-						"$(inherited)",
-						"@executable_path/../Frameworks",
-						"@loader_path/../Frameworks",
+		D50D5DD494916AAC429CB1F8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.atlasmasa.macos.tests;
 				SDKROOT = macosx;
