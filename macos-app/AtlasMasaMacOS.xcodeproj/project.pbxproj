@@ -427,15 +427,16 @@
 			};
 			name = Debug;
 		};
-		71923FB66EA1DECB64A5D48F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
+			71923FB66EA1DECB64A5D48F /* Debug */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					BUNDLE_LOADER = "$(TEST_HOST)";
+					COMBINE_HIDPI_IMAGES = YES;
+					GENERATE_INFOPLIST_FILE = YES;
+					LD_RUNPATH_SEARCH_PATHS = (
+						"$(inherited)",
+						"@executable_path/../Frameworks",
+						"@loader_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.atlasmasa.macos.tests;
 				SDKROOT = macosx;
@@ -461,15 +462,16 @@
 			};
 			name = Release;
 		};
-		D50D5DD494916AAC429CB1F8 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
+			D50D5DD494916AAC429CB1F8 /* Release */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					BUNDLE_LOADER = "$(TEST_HOST)";
+					COMBINE_HIDPI_IMAGES = YES;
+					GENERATE_INFOPLIST_FILE = YES;
+					LD_RUNPATH_SEARCH_PATHS = (
+						"$(inherited)",
+						"@executable_path/../Frameworks",
+						"@loader_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.atlasmasa.macos.tests;
 				SDKROOT = macosx;

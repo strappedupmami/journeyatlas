@@ -653,6 +653,13 @@ final class SessionStore: ObservableObject {
         let long = longTermVision.isEmpty ? "Define one 90-day wealth/mission objective." : longTermVision
         let gymBaseline = surveyAnswers["gym_frequency"] ?? "sometimes"
         let incomeBaseline = surveyAnswers["income_cadence"] ?? "sometimes"
+        let wealthVehicle = surveyAnswers["wealth_vehicle"] ?? "hybrid"
+        let industryFocus = surveyAnswers["industry_focus"] ?? "software_ai"
+        let incomeEngine = surveyAnswers["income_engine"] ?? "salary_plus_projects"
+        let jobTrack = surveyAnswers["high_paying_job_track"] ?? "none"
+        let businessModel = surveyAnswers["business_model_focus"] ?? "not_now"
+        let skillStack = surveyAnswers["monetizable_skill_stack"] ?? "problem_solving"
+        let compoundingPlan = surveyAnswers["compounding_plan"] ?? "auto_index"
 
         actions.append(
             ExecutionAction(
@@ -732,6 +739,37 @@ final class SessionStore: ObservableObject {
             )
         }
 
+        actions.append(
+            ExecutionAction(
+                id: UUID().uuidString,
+                horizon: "Wealth",
+                title: "Define this week’s wealth route sprint",
+                details: wealthRouteSprintDetails(
+                    vehicle: wealthVehicle,
+                    industry: industryFocus,
+                    incomeEngine: incomeEngine,
+                    jobTrack: jobTrack,
+                    businessModel: businessModel,
+                    skillStack: skillStack
+                ),
+                priority: 1,
+                source: "wealth-route",
+                completed: false
+            )
+        )
+
+        actions.append(
+            ExecutionAction(
+                id: UUID().uuidString,
+                horizon: "Wealth",
+                title: "Protect compounding autopilot",
+                details: compoundingProtocolDetails(plan: compoundingPlan),
+                priority: 2,
+                source: "wealth-compounding",
+                completed: false
+            )
+        )
+
         let topSessionSignals = workspaceSessions
             .sorted { $0.updatedAtUTC > $1.updatedAtUTC }
             .prefix(3)
@@ -751,7 +789,15 @@ final class SessionStore: ObservableObject {
             )
         }
 
-        return actions.sorted { $0.priority < $1.priority }
+        return actions
+            .sorted { lhs, rhs in
+                if lhs.priority == rhs.priority {
+                    return lhs.title < rhs.title
+                }
+                return lhs.priority < rhs.priority
+            }
+            .prefix(10)
+            .map { $0 }
     }
 
     private func localFeedFromExecutionPlan() -> [FeedItem] {
@@ -777,13 +823,17 @@ final class SessionStore: ObservableObject {
         let combinedIntent = combinedIntentText()
         let needsRecovery = checkInEnergy <= 2 || containsAny(checkInMood, ["stress", "burnout", "anxious", "exhaust"])
         let needsRevenuePush = containsAny(combinedIntent, ["revenue", "cash", "client", "sales", "income", "money", "profit"])
+        let wealthVehicle = surveyAnswers["wealth_vehicle"] ?? "hybrid"
+        let industryFocus = surveyAnswers["industry_focus"] ?? "software_ai"
+        let businessModel = surveyAnswers["business_model_focus"] ?? "not_now"
+        let highPayingTrack = surveyAnswers["high_paying_job_track"] ?? "none"
         let needsMobilityOps = vanRentalNeeded
             || containsAny(combinedIntent, ["travel", "route", "van", "mobility", "camp", "fleet", "caravan"])
             || (Int(annualDistanceKM) ?? 0) >= 50_000
         let needsResilience = containsAny(combinedIntent, ["risk", "emergency", "safety", "fallback", "continuity", "breakdown"])
         let surveyDepth = survey?.progress.answered ?? 0
 
-        if surveyDepth < 24 {
+        if surveyDepth < 34 {
             offers.append(
                 TailoredOffer(
                     id: "offer-survey-depth",
@@ -791,7 +841,7 @@ final class SessionStore: ObservableObject {
                     type: .feature,
                     title: "Deep Profile Calibration",
                     summary: "Complete the adaptive survey so Atlas can lock your true operating profile.",
-                    rationale: "You are still in onboarding depth mode (\(surveyDepth)/24).",
+                    rationale: "You are still in onboarding depth mode (\(surveyDepth)/34).",
                     priority: 1,
                     callToAction: "Finish the deep survey"
                 )
@@ -812,6 +862,49 @@ final class SessionStore: ObservableObject {
                 )
             )
         }
+
+        if highPayingTrack != "none" || wealthVehicle == "job_ladder" || wealthVehicle == "hybrid" {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-high-paying-job-route",
+                    category: .wealthOperations,
+                    type: .feature,
+                    title: "High-Paying Job Ladder",
+                    summary: "Weekly plan for skill capital, portfolio assets, interview velocity, and compensation negotiation.",
+                    rationale: "Your profile indicates a job-ladder path in \(wealthLabel(for: industryFocus)).",
+                    priority: 1,
+                    callToAction: "Build job ladder sprint"
+                )
+            )
+        }
+
+        if businessModel != "not_now" || wealthVehicle == "business_builder" || wealthVehicle == "hybrid" {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-business-ops-lane",
+                    category: .wealthOperations,
+                    type: .service,
+                    title: "Business Model Launch Sequencer",
+                    summary: "Offer definition, demand validation, pricing tests, and weekly cash-flow dashboard setup.",
+                    rationale: "Business-building signals detected for \(wealthLabel(for: businessModel)).",
+                    priority: 1,
+                    callToAction: "Launch business route"
+                )
+            )
+        }
+
+        offers.append(
+            TailoredOffer(
+                id: "offer-industry-intelligence-map",
+                category: .wealthOperations,
+                type: .feature,
+                title: "Industry Intelligence Map",
+                summary: "Route map for earnings paths, adjacent opportunities, and skills transfer across industries.",
+                rationale: "Selected industry focus: \(wealthLabel(for: industryFocus)).",
+                priority: 2,
+                callToAction: "Open industry map"
+            )
+        )
 
         if needsMobilityOps {
             offers.append(
@@ -888,14 +981,15 @@ final class SessionStore: ObservableObject {
             )
         }
 
-        return offers
+        let uniqueOffers = Dictionary(uniqueKeysWithValues: offers.map { ($0.id, $0) }).values
+        return uniqueOffers
             .sorted { lhs, rhs in
                 if lhs.priority == rhs.priority {
                     return lhs.title < rhs.title
                 }
                 return lhs.priority < rhs.priority
             }
-            .prefix(4)
+            .prefix(6)
             .map { $0 }
     }
 
@@ -1295,7 +1389,32 @@ final class SessionStore: ObservableObject {
         if containsAny(lower, ["emergency", "crisis", "incident", "triage", "evacuation", "command", "חירום", "משבר"]) {
             return .emergencyCommand
         }
-        if containsAny(lower, ["cash", "revenue", "income", "sales", "pricing", "wealth", "money", "הכנסה", "כסף"]) {
+        if containsAny(lower, [
+            "cash",
+            "revenue",
+            "income",
+            "sales",
+            "pricing",
+            "wealth",
+            "money",
+            "salary",
+            "job",
+            "industry",
+            "business",
+            "offer",
+            "profit",
+            "margin",
+            "compounding",
+            "portfolio",
+            "negotiation",
+            "הכנסה",
+            "כסף",
+            "משכורת",
+            "עבודה",
+            "עסק",
+            "תמחור",
+            "מכירות",
+        ]) {
             return .wealthOperations
         }
         if containsAny(lower, ["mobility", "travel", "route", "trip", "fleet", "van", "drive", "נסיעה", "מסלול"]) {
@@ -1575,6 +1694,131 @@ final class SessionStore: ObservableObject {
         .lowercased()
     }
 
+    private func wealthRouteSprintDetails(
+        vehicle: String,
+        industry: String,
+        incomeEngine: String,
+        jobTrack: String,
+        businessModel: String,
+        skillStack: String
+    ) -> String {
+        let vehicleLabel = wealthLabel(for: vehicle)
+        let industryLabel = wealthLabel(for: industry)
+        let engineLabel = wealthLabel(for: incomeEngine)
+        let trackLabel = wealthLabel(for: jobTrack)
+        let modelLabel = wealthLabel(for: businessModel)
+        let skillLabel = wealthLabel(for: skillStack)
+
+        switch vehicle {
+        case "job_ladder":
+            return "Route: \(vehicleLabel). Industry: \(industryLabel). Track: \(trackLabel). Build one portfolio proof-of-work, run 5 targeted applications/outreach touches, and schedule one compensation negotiation prep block."
+        case "business_builder":
+            return "Route: \(vehicleLabel). Model: \(modelLabel). Industry: \(industryLabel). Define one offer, run one paid acquisition/organic experiment, and measure weekly cash conversion."
+        case "enterprise_operator":
+            return "Route: \(vehicleLabel). Engine: \(engineLabel). Industry: \(industryLabel). Execute one operations upgrade tied to margin, cycle time, or service quality this week."
+        default:
+            return "Route: \(vehicleLabel). Engine: \(engineLabel). Skill stack: \(skillLabel). Run one job-ladder move + one business move so income compounds through multiple channels."
+        }
+    }
+
+    private func compoundingProtocolDetails(plan: String) -> String {
+        switch plan {
+        case "auto_index":
+            return "Automate contributions first. Keep fixed weekly/monthly transfers to diversified low-cost index exposure before discretionary spending."
+        case "cash_buffer_then_invest":
+            return "Build and protect emergency buffer first, then auto-route surplus to long-term compounding buckets."
+        case "business_reinvestment":
+            return "Set explicit reinvestment ratio for growth assets (distribution, product, systems) while preserving tax + safety reserves."
+        case "debt_reduction_then_growth":
+            return "Execute high-interest debt reduction sequence, then convert the freed cash flow into automated long-term investing."
+        default:
+            return "Define a simple default compounding protocol and automate it so progress does not depend on daily motivation."
+        }
+    }
+
+    private func wealthLabel(for value: String) -> String {
+        switch value {
+        case "job_ladder":
+            return "High-paying job ladder"
+        case "business_builder":
+            return "Business ownership"
+        case "enterprise_operator":
+            return "Enterprise operator path"
+        case "hybrid":
+            return "Hybrid salary + business"
+        case "software_ai":
+            return "Software and AI"
+        case "cybersecurity":
+            return "Cybersecurity"
+        case "enterprise_sales":
+            return "Enterprise sales"
+        case "healthcare":
+            return "Healthcare"
+        case "finance":
+            return "Finance and investing"
+        case "operations_logistics":
+            return "Operations and logistics"
+        case "skilled_trades":
+            return "Skilled trades"
+        case "media_creator":
+            return "Media and creator economy"
+        case "salary_only":
+            return "Salary growth"
+        case "salary_plus_projects":
+            return "Salary plus side projects"
+        case "projects_plus_business":
+            return "Projects plus business"
+        case "portfolio_income":
+            return "Portfolio income"
+        case "engineering":
+            return "Engineering"
+        case "product":
+            return "Product management"
+        case "sales":
+            return "Sales leadership"
+        case "operations":
+            return "Operations leadership"
+        case "finance_track":
+            return "Finance track"
+        case "clinical":
+            return "Clinical specialization"
+        case "trade_mastery":
+            return "Trade mastery"
+        case "agency":
+            return "Agency"
+        case "saas":
+            return "B2B SaaS"
+        case "ecommerce":
+            return "E-commerce"
+        case "local_service":
+            return "Local service operations"
+        case "education_products":
+            return "Education products"
+        case "marketplace":
+            return "Marketplace"
+        case "ai_automation":
+            return "AI automation"
+        case "problem_solving":
+            return "Problem-solving systems"
+        case "copywriting":
+            return "Copywriting and positioning"
+        case "operations_systems":
+            return "Operations systems design"
+        case "analytics":
+            return "Analytics and measurement"
+        case "auto_index":
+            return "Auto-index investing"
+        case "cash_buffer_then_invest":
+            return "Cash buffer then invest"
+        case "business_reinvestment":
+            return "Business reinvestment"
+        case "debt_reduction_then_growth":
+            return "Debt reduction then growth"
+        default:
+            return value.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
     private func containsAny(_ value: String, _ needles: [String]) -> Bool {
         let lower = value.lowercased()
         return needles.contains { lower.contains($0) }
@@ -1633,7 +1877,7 @@ final class SessionStore: ObservableObject {
     }
 
     private func localSurveyTotal() -> Int {
-        let baseTotal = 24
+        let baseTotal = 34
         guard surveyExpansionActive else {
             return max(baseTotal, surveyAnswers.count)
         }
@@ -1804,6 +2048,117 @@ final class SessionStore: ObservableObject {
                 ]
             ),
             localQuestion(
+                id: "wealth_vehicle",
+                title: "Which primary wealth route fits you now?",
+                description: "Atlas uses this to generate route-specific execution streams.",
+                choices: [
+                    SurveyChoice(value: "job_ladder", label: "High-paying job ladder"),
+                    SurveyChoice(value: "business_builder", label: "Build a business"),
+                    SurveyChoice(value: "enterprise_operator", label: "Enterprise/operator career"),
+                    SurveyChoice(value: "hybrid", label: "Hybrid: job + business")
+                ]
+            ),
+            localQuestion(
+                id: "industry_focus",
+                title: "Which industry focus should Atlas prioritize?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "software_ai", label: "Software + AI"),
+                    SurveyChoice(value: "cybersecurity", label: "Cybersecurity"),
+                    SurveyChoice(value: "enterprise_sales", label: "Enterprise sales"),
+                    SurveyChoice(value: "healthcare", label: "Healthcare"),
+                    SurveyChoice(value: "finance", label: "Finance"),
+                    SurveyChoice(value: "operations_logistics", label: "Operations/logistics"),
+                    SurveyChoice(value: "skilled_trades", label: "Skilled trades"),
+                    SurveyChoice(value: "media_creator", label: "Media/creator economy")
+                ]
+            ),
+            localQuestion(
+                id: "income_engine",
+                title: "What income engine do you want to build?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "salary_only", label: "Salary growth"),
+                    SurveyChoice(value: "salary_plus_projects", label: "Salary + projects"),
+                    SurveyChoice(value: "projects_plus_business", label: "Projects + business"),
+                    SurveyChoice(value: "portfolio_income", label: "Portfolio income track")
+                ]
+            ),
+            localQuestion(
+                id: "high_paying_job_track",
+                title: "If job ladder is in play, choose your high-paying track",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "engineering", label: "Engineering"),
+                    SurveyChoice(value: "product", label: "Product"),
+                    SurveyChoice(value: "sales", label: "Sales"),
+                    SurveyChoice(value: "operations", label: "Operations"),
+                    SurveyChoice(value: "finance_track", label: "Finance"),
+                    SurveyChoice(value: "clinical", label: "Clinical/health"),
+                    SurveyChoice(value: "trade_mastery", label: "Skilled trade mastery"),
+                    SurveyChoice(value: "none", label: "Not focused on jobs now")
+                ]
+            ),
+            localQuestion(
+                id: "business_model_focus",
+                title: "If building a business, which model should Atlas optimize?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "agency", label: "Agency"),
+                    SurveyChoice(value: "saas", label: "B2B SaaS"),
+                    SurveyChoice(value: "ecommerce", label: "E-commerce"),
+                    SurveyChoice(value: "local_service", label: "Local service business"),
+                    SurveyChoice(value: "education_products", label: "Education products"),
+                    SurveyChoice(value: "marketplace", label: "Marketplace"),
+                    SurveyChoice(value: "not_now", label: "Not now")
+                ]
+            ),
+            localQuestion(
+                id: "monetizable_skill_stack",
+                title: "Which monetizable skill stack should Atlas train most aggressively?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "ai_automation", label: "AI automation"),
+                    SurveyChoice(value: "problem_solving", label: "Problem-solving systems"),
+                    SurveyChoice(value: "copywriting", label: "Copywriting/positioning"),
+                    SurveyChoice(value: "operations_systems", label: "Operations systems"),
+                    SurveyChoice(value: "analytics", label: "Analytics")
+                ]
+            ),
+            localQuestion(
+                id: "earnings_target_yearly",
+                title: "Target annual income band (3-year horizon)?",
+                description: "Used for pacing, opportunity filtering, and execution pressure tuning.",
+                choices: [
+                    SurveyChoice(value: "under_150k", label: "Under $150k"),
+                    SurveyChoice(value: "150k_300k", label: "$150k-$300k"),
+                    SurveyChoice(value: "300k_750k", label: "$300k-$750k"),
+                    SurveyChoice(value: "750k_plus", label: "$750k+")
+                ]
+            ),
+            localQuestion(
+                id: "runway_months",
+                title: "Cash runway available right now?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "under_3", label: "Under 3 months"),
+                    SurveyChoice(value: "3_6", label: "3-6 months"),
+                    SurveyChoice(value: "6_12", label: "6-12 months"),
+                    SurveyChoice(value: "12_plus", label: "12+ months")
+                ]
+            ),
+            localQuestion(
+                id: "compounding_plan",
+                title: "Which compounding plan should Atlas enforce by default?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "auto_index", label: "Auto-index investing"),
+                    SurveyChoice(value: "cash_buffer_then_invest", label: "Cash buffer then invest"),
+                    SurveyChoice(value: "business_reinvestment", label: "Business reinvestment"),
+                    SurveyChoice(value: "debt_reduction_then_growth", label: "Debt reduction then growth")
+                ]
+            ),
+            localQuestion(
                 id: "charity_commitment",
                 title: "How do you want to include charity in planning?",
                 description: nil,
@@ -1849,7 +2204,7 @@ final class SessionStore: ObservableObject {
         }
 
         let answered = surveyAnswers.count
-        if answered >= max(24, localSurveyTotal()) {
+        if answered >= max(34, localSurveyTotal()) {
             return nil
         }
         let index = answered + 1
@@ -1959,8 +2314,13 @@ final class SessionStore: ObservableObject {
         let incomeCadence = surveyAnswers["income_cadence"] ?? "sometimes"
         let pressure = surveyAnswers["daily_pressure"] ?? "medium"
         let priority = surveyAnswers["primary_goal"] ?? "mixed"
+        let wealthVehicle = surveyAnswers["wealth_vehicle"] ?? "hybrid"
+        let industryFocus = surveyAnswers["industry_focus"] ?? "software_ai"
+        let businessModel = surveyAnswers["business_model_focus"] ?? "not_now"
+        let skillStack = surveyAnswers["monetizable_skill_stack"] ?? "problem_solving"
+        let compoundingPlan = surveyAnswers["compounding_plan"] ?? "auto_index"
 
-        let rationale = "Version \(version) generated from new memory signals (survey: \(surveyAnswers.count), notes: \(notes.count), pressure: \(pressure), goal: \(priority))."
+        let rationale = "Version \(version) generated from new memory signals (survey: \(surveyAnswers.count), notes: \(notes.count), pressure: \(pressure), goal: \(priority), wealth route: \(wealthLabel(for: wealthVehicle)))."
         let quiz = [
             AdaptiveQuizQuestion(
                 id: "q\(version)-1",
@@ -2005,11 +2365,33 @@ final class SessionStore: ObservableObject {
                 ],
                 preferredAnswerIndex: 1,
                 explanation: "Skill growth compounds through deliberate practice and reflective adaptation."
+            ),
+            AdaptiveQuizQuestion(
+                id: "q\(version)-5",
+                prompt: "Your wealth route is \(wealthLabel(for: wealthVehicle)). What should be protected weekly?",
+                options: [
+                    "Random activity and hope",
+                    "A repeatable route sprint with measurable output",
+                    "Only strategic planning, no shipping"
+                ],
+                preferredAnswerIndex: 1,
+                explanation: "Wealth routes only compound when execution is measured and repeated."
+            ),
+            AdaptiveQuizQuestion(
+                id: "q\(version)-6",
+                prompt: "Which compounding protocol should stay automatic by default?",
+                options: [
+                    "No default, decide emotionally each week",
+                    wealthLabel(for: compoundingPlan),
+                    "Delay all compounding until perfect conditions"
+                ],
+                preferredAnswerIndex: 1,
+                explanation: "Automatic defaults beat intention-only behavior in long-horizon wealth systems."
             )
         ]
 
-        let podcastTitle = "Atlas Learning Brief v\(version): Execution, Resilience, and Wealth Flow"
-        let podcastSummary = "A profile-tuned briefing on daily execution discipline, crisis resilience, and income momentum loops."
+        let podcastTitle = "Atlas Learning Brief v\(version): Wealth Route + Execution Command"
+        let podcastSummary = "A profile-tuned briefing on income route design, compounding systems, resilience discipline, and daily execution."
         let segments = [
             AdaptivePodcastSegment(
                 id: "s\(version)-1",
@@ -2017,7 +2399,8 @@ final class SessionStore: ObservableObject {
                 talkingPoints: [
                     "Current pressure: \(pressure)",
                     "Primary operating objective: \(priority)",
-                    "Immediate constraints from your latest memory signals"
+                    "Immediate constraints from your latest memory signals",
+                    "Active wealth route: \(wealthLabel(for: wealthVehicle)) in \(wealthLabel(for: industryFocus))"
                 ]
             ),
             AdaptivePodcastSegment(
@@ -2031,11 +2414,27 @@ final class SessionStore: ObservableObject {
             ),
             AdaptivePodcastSegment(
                 id: "s\(version)-3",
-                title: "Resilience and innovation loop",
+                title: "Wealth route sprint",
                 talkingPoints: [
-                    "Stabilize energy and attention before high-stakes decisions",
-                    "Run one deliberate problem-solving drill",
-                    "Document one learning signal for tomorrow’s upgraded plan"
+                    wealthRouteSprintDetails(
+                        vehicle: wealthVehicle,
+                        industry: industryFocus,
+                        incomeEngine: surveyAnswers["income_engine"] ?? "salary_plus_projects",
+                        jobTrack: surveyAnswers["high_paying_job_track"] ?? "none",
+                        businessModel: businessModel,
+                        skillStack: skillStack
+                    ),
+                    "Protect one leverage activity linked to \(wealthLabel(for: skillStack))",
+                    "If business path is active, run one offer/distribution experiment this week"
+                ]
+            ),
+            AdaptivePodcastSegment(
+                id: "s\(version)-4",
+                title: "Compounding and risk control",
+                talkingPoints: [
+                    compoundingProtocolDetails(plan: compoundingPlan),
+                    "Keep an explicit runway policy and avoid operating blind under volatility",
+                    "Document one corrective signal and one reinforcement signal each day"
                 ]
             )
         ]

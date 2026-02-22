@@ -64,8 +64,41 @@ struct AtlasResearchEngineModel {
     private func domainBoostForContext(context: String, domain: String) -> Double {
         let lower = context.lowercased()
         switch domain {
-        case "wealth":
-            return containsAny(lower, ["cash", "revenue", "sales", "money", "profit", "pricing", "margin", "הכנסה", "רווח", "תמחור", "מכירות"]) ? 0.35 : 0
+        case "wealth", "career-capital", "labor-market", "entrepreneurship", "business-model", "negotiation", "wealth-systems":
+            return containsAny(lower, [
+                "cash",
+                "revenue",
+                "sales",
+                "money",
+                "profit",
+                "pricing",
+                "margin",
+                "salary",
+                "job",
+                "career",
+                "industry",
+                "business",
+                "offer",
+                "pipeline",
+                "negotiation",
+                "compounding",
+                "portfolio",
+                "entrepreneur",
+                "side business",
+                "agency",
+                "saas",
+                "ecommerce",
+                "הכנסה",
+                "רווח",
+                "תמחור",
+                "מכירות",
+                "משכורת",
+                "קריירה",
+                "תעשייה",
+                "עסק",
+                "משא ומתן",
+                "השקעה",
+            ]) ? 0.42 : 0
         case "travel", "safety", "resilience":
             return containsAny(lower, [
                 "travel",
@@ -176,7 +209,7 @@ struct AtlasResearchEngineModel {
     private func travelDesignLane(for domain: String, prefersHebrew: Bool) -> String {
         if prefersHebrew {
             switch domain {
-            case "wealth":
+            case "wealth", "career-capital", "labor-market", "entrepreneurship", "business-model", "negotiation", "wealth-systems":
                 return "עיצוב הכנסה וצמיחה"
             case "travel", "operations", "mobility":
                 return "עיצוב תפעול מסע"
@@ -199,7 +232,7 @@ struct AtlasResearchEngineModel {
             }
         }
         switch domain {
-        case "wealth":
+        case "wealth", "career-capital", "labor-market", "entrepreneurship", "business-model", "negotiation", "wealth-systems":
             return "Revenue Design"
         case "travel", "operations", "mobility":
             return "Journey Operations Design"

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -53,7 +53,7 @@
 		845A4AD25BE117ED58D88E98 /* LocalReasoningEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalReasoningEngine.swift; sourceTree = "<group>"; };
 		8F8D7ECAE9A1E1601E3FD789 /* MobilityOpsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobilityOpsCard.swift; sourceTree = "<group>"; };
 		945AECBE05617887CA9FC4D3 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
-		990F1103D3C9D1EF82D2685B /* AtlasMasaIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AtlasMasaIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		990F1103D3C9D1EF82D2685B /* AtlasMasaIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AtlasMasaIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A661F6AA1AF7A9C6948D757F /* AdaptiveSurveyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSurveyCard.swift; sourceTree = "<group>"; };
 		AB3C0B31DC9E97E4AEF04C94 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		B0788DC188770B93B6ECEFD7 /* WorkspacesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacesCard.swift; sourceTree = "<group>"; };
@@ -288,7 +288,6 @@
 			);
 			mainGroup = 6030CB3326E8AB2268265ED9;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -353,6 +352,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = BW93SGS88H;
 				INFOPLIST_FILE = AtlasMasaIOS/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -372,6 +372,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = BW93SGS88H;
 				INFOPLIST_FILE = AtlasMasaIOS/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -383,14 +384,15 @@
 			};
 			name = Debug;
 		};
-		9D52F32A8AB8F08475C2C33A /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
+			9D52F32A8AB8F08475C2C33A /* Debug */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					BUNDLE_LOADER = "$(TEST_HOST)";
+					GENERATE_INFOPLIST_FILE = YES;
+					LD_RUNPATH_SEARCH_PATHS = (
+						"$(inherited)",
+						"@executable_path/Frameworks",
+						"@loader_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.atlasmasa.ios.tests;
 				SDKROOT = iphoneos;
@@ -399,14 +401,15 @@
 			};
 			name = Debug;
 		};
-		C2C0EB8E303635060ACFF5DB /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
+			C2C0EB8E303635060ACFF5DB /* Release */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					BUNDLE_LOADER = "$(TEST_HOST)";
+					GENERATE_INFOPLIST_FILE = YES;
+					LD_RUNPATH_SEARCH_PATHS = (
+						"$(inherited)",
+						"@executable_path/Frameworks",
+						"@loader_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.atlasmasa.ios.tests;
 				SDKROOT = iphoneos;

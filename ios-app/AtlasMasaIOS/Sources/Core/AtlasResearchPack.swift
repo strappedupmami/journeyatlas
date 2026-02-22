@@ -700,6 +700,167 @@ private let atlasResearchPackJSON = #"""
       "risk",
       "execution"
     ]
+  },
+  {
+    "id": "future-of-jobs-2025",
+    "title": "Future of Jobs Report 2025",
+    "year": 2025,
+    "domain": "labor-market",
+    "actionable_insight": "Role demand shifts toward analytical, AI, cybersecurity, and systems capabilities while routine tasks continue to automate.",
+    "action_hint": "Prioritize skills with demand growth and direct income pathways in your chosen industry.",
+    "source_url": "https://www.weforum.org/reports/the-future-of-jobs-report-2025/",
+    "keywords": [
+      "labor market",
+      "jobs",
+      "skills",
+      "ai",
+      "cybersecurity",
+      "salary"
+    ]
+  },
+  {
+    "id": "oecd-skills-outlook-2023",
+    "title": "OECD Skills Outlook 2023",
+    "year": 2023,
+    "domain": "career-capital",
+    "actionable_insight": "Compounding career returns come from portable skill capital and continuous upskilling in high-demand capabilities.",
+    "action_hint": "Run a weekly upskilling sprint with explicit portfolio output tied to your target role.",
+    "source_url": "https://www.oecd.org/skills/oecd-skills-outlook/",
+    "keywords": [
+      "career",
+      "skill capital",
+      "upskilling",
+      "high paying jobs",
+      "labor demand"
+    ]
+  },
+  {
+    "id": "bls-occupational-outlook-2026",
+    "title": "Occupational Outlook Handbook",
+    "year": 2026,
+    "domain": "labor-market",
+    "actionable_insight": "Earnings and growth vary drastically by occupation; route selection materially changes long-term wealth outcomes.",
+    "action_hint": "Choose a target occupation with strong pay + growth and align weekly execution to entry requirements.",
+    "source_url": "https://www.bls.gov/ooh/",
+    "keywords": [
+      "occupation",
+      "salary",
+      "growth",
+      "career path",
+      "high paying"
+    ]
+  },
+  {
+    "id": "genai-economic-potential-2023",
+    "title": "The Economic Potential of Generative AI",
+    "year": 2023,
+    "domain": "career-capital",
+    "actionable_insight": "AI-enabled workflows can increase productivity and create large value in knowledge-heavy functions.",
+    "action_hint": "Build one repeatable AI-assisted workflow in your income route and measure output-per-hour gains.",
+    "source_url": "https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/the-economic-potential-of-generative-ai-the-next-productivity-frontier",
+    "keywords": [
+      "ai automation",
+      "productivity",
+      "workflow",
+      "value creation",
+      "income"
+    ]
+  },
+  {
+    "id": "deming-social-skills-2017",
+    "title": "The Growing Importance of Social Skills in the Labor Market",
+    "year": 2017,
+    "domain": "career-capital",
+    "actionable_insight": "Social and coordination skills increasingly complement technical skills and drive labor-market returns.",
+    "action_hint": "Pair hard-skill work with deliberate communication, negotiation, and client-facing drills.",
+    "source_url": "https://www.nber.org/papers/w21473",
+    "keywords": [
+      "social skills",
+      "labor market",
+      "career returns",
+      "client communication",
+      "negotiation"
+    ]
+  },
+  {
+    "id": "financial-education-meta-2014",
+    "title": "Financial Literacy, Financial Education, and Downstream Financial Behaviors",
+    "year": 2014,
+    "domain": "wealth-systems",
+    "actionable_insight": "Behavior change improves when financial habits are operationalized with concrete defaults and repeated reinforcement.",
+    "action_hint": "Convert financial education into one automated behavior change per week.",
+    "source_url": "https://doi.org/10.1287/mnsc.2013.1849",
+    "keywords": [
+      "financial education",
+      "wealth systems",
+      "defaults",
+      "behavior change",
+      "saving"
+    ]
+  },
+  {
+    "id": "effectuation-entrepreneurship-2001",
+    "title": "Causation and Effectuation: Toward a Theoretical Shift from Economic Inevitability to Entrepreneurial Contingency",
+    "year": 2001,
+    "domain": "entrepreneurship",
+    "actionable_insight": "Entrepreneurial progress accelerates when operators build from available means, fast experiments, and affordable loss limits.",
+    "action_hint": "Set an affordable-loss cap and run one demand validation experiment each week.",
+    "source_url": "https://journals.aom.org/doi/10.5465/amr.2001.4378020",
+    "keywords": [
+      "entrepreneurship",
+      "experimentation",
+      "affordable loss",
+      "business ideas",
+      "validation"
+    ]
+  },
+  {
+    "id": "platform-power-law-2016",
+    "title": "Platform Revolution: Network effects and scalable business models",
+    "year": 2016,
+    "domain": "business-model",
+    "actionable_insight": "Scalable models often emerge from strong distribution loops and network effects, not only product quality.",
+    "action_hint": "Design one acquisition + retention loop before adding product complexity.",
+    "source_url": "https://wwnorton.com/books/9780393249132",
+    "keywords": [
+      "business model",
+      "marketplace",
+      "distribution",
+      "retention",
+      "network effects"
+    ]
+  },
+  {
+    "id": "salary-negotiation-2012",
+    "title": "Ask and You Shall Receive? The Dynamics of Employer-Employee Negotiation",
+    "year": 2012,
+    "domain": "negotiation",
+    "actionable_insight": "Structured preparation and evidence-backed framing improve compensation and role negotiation outcomes.",
+    "action_hint": "Prepare market benchmarks, quantified value delivered, and a specific compensation ask before every negotiation.",
+    "source_url": "https://www.pon.harvard.edu/daily/business-negotiations/salary-negotiation/",
+    "keywords": [
+      "negotiation",
+      "salary",
+      "compensation",
+      "career growth",
+      "high paying jobs"
+    ]
+  },
+  {
+    "id": "small-business-survival-2023",
+    "title": "Small Business Credit Survey: performance and financing constraints",
+    "year": 2023,
+    "domain": "entrepreneurship",
+    "actionable_insight": "Cash-flow discipline and financing access are primary constraints for small business survival and growth.",
+    "action_hint": "Track weekly cash conversion cycle and maintain minimum runway thresholds.",
+    "source_url": "https://www.fedsmallbusiness.org/survey",
+    "keywords": [
+      "small business",
+      "cash flow",
+      "financing",
+      "runway",
+      "growth"
+    ]
   }
 ]
 """#

@@ -89,6 +89,16 @@ actor LocalReasoningEngine {
             )
         }
 
+        if let wealth = wealthRouteOverride(for: combined, prefersHebrew: prefersHebrew) {
+            return LocalReasoningOutput(
+                model: model.modelName,
+                summary: wealth.summary,
+                nextAction: wealth.nextAction,
+                confidence: 0.91,
+                generatedAt: Date()
+            )
+        }
+
         let tokens = Self.tokenize(combined)
         let (labelIndex, confidence) = classify(tokens: tokens)
         let labelKey = model.labels.indices.contains(labelIndex) ? model.labels[labelIndex] : "travel_design_strategy"
@@ -298,6 +308,56 @@ actor LocalReasoningEngine {
         return (
             "Emergency command mode engaged: prioritize life safety, rapid stabilization, and communication continuity.",
             "Execute now: 1) secure scene safety, 2) triage and stabilize, 3) call emergency services/satellite SOS, 4) share exact location, 5) log time and symptoms."
+        )
+    }
+
+    private func wealthRouteOverride(for text: String, prefersHebrew: Bool) -> (summary: String, nextAction: String)? {
+        let lower = text.lowercased()
+        let wealthSignals = [
+            "wealth",
+            "income",
+            "salary",
+            "job",
+            "career",
+            "industry",
+            "business",
+            "offer",
+            "sales",
+            "pricing",
+            "cash flow",
+            "profit",
+            "startup",
+            "saas",
+            "agency",
+            "ecommerce",
+            "compounding",
+            "portfolio",
+            "negotiation",
+            "financial stability",
+            "הכנסה",
+            "משכורת",
+            "קריירה",
+            "תעשייה",
+            "עסק",
+            "מכירות",
+            "תמחור",
+            "רווח",
+            "השקעה",
+        ]
+        guard wealthSignals.contains(where: { lower.contains($0) }) else {
+            return nil
+        }
+
+        if prefersHebrew {
+            return (
+                "מצב עיצוב עושר פעיל: המערכת מתעדפת מסלולי הכנסה, בניית מיומנות רווחית, ופרוטוקול צמיחה מדיד.",
+                "בצעו עכשיו: 1) בחרו מסלול (משרת שכר גבוהה / מסלול עסקי / היברידי), 2) מהלך הכנסה ישיר אחד להיום, 3) בלוק בניית מיומנות אחת לשבוע, 4) כלל קומפאונד אוטומטי."
+            )
+        }
+
+        return (
+            "Wealth route mode active: prioritizing high-yield income paths, monetizable skill compounding, and measurable growth systems.",
+            "Execute now: 1) choose one route (high-paying job, business, or hybrid), 2) run one direct money action today, 3) schedule one weekly skill-capital block, 4) enforce one automatic compounding rule."
         )
     }
 

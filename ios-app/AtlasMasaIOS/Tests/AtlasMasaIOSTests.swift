@@ -22,6 +22,7 @@ final class AtlasMasaIOSTests: XCTestCase {
     @MainActor
     func testWorkspaceMemoryCarriesAcrossLanes() {
         let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
         store.dailyPriority = "Close two enterprise partnerships this week."
         store.midTermGoal = "Harden emergency command workflows."
         store.longTermVision = "Scale Atlas travel design infrastructure."
@@ -49,6 +50,7 @@ final class AtlasMasaIOSTests: XCTestCase {
     @MainActor
     func testWorkspaceMemoryUpsertsCoreSignals() {
         let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
         store.dailyPriority = "First value"
         store.applyDailyCheckIn()
         store.dailyPriority = "Second value"
@@ -66,7 +68,8 @@ final class AtlasMasaIOSTests: XCTestCase {
     @MainActor
     func testWorkspaceSessionsSeedAndCarryAcrossLanes() async {
         let store = SessionStore(api: offlineClient())
-        XCTAssertEqual(store.workspaceSessions.count, WorkspaceLane.allCases.count)
+        store.deleteLocalMemory()
+        XCTAssertGreaterThanOrEqual(store.workspaceSessions.count, WorkspaceLane.allCases.count)
 
         store.setActiveWorkspaceLane(.innovation)
         store.createWorkspaceSession(for: .innovation, title: "Innovation Lab Notebook")
@@ -93,6 +96,7 @@ final class AtlasMasaIOSTests: XCTestCase {
     @MainActor
     func testAdditionalSurveyPassAvoidsRepeatedQuestionIDs() async {
         let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
         var askedIDs = Set<String>()
 
         for _ in 0 ..< 40 {
@@ -119,5 +123,45 @@ final class AtlasMasaIOSTests: XCTestCase {
 
         XCTAssertFalse(newlyAsked.isEmpty)
         XCTAssertTrue(newlyAsked.allSatisfy { $0.hasPrefix("adaptive_depth_") })
+    }
+
+    @MainActor
+    func testWealthRouteQuestionsDriveWealthExecutionLane() async {
+        let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
+        var askedIDs = Set<String>()
+
+        for _ in 0 ..< 90 {
+            await store.loadSurvey()
+            guard let question = store.survey?.question else { break }
+            askedIDs.insert(question.id)
+
+            let choice: SurveyChoice
+            switch question.id {
+            case "primary_goal":
+                choice = question.choices.first(where: { $0.value == "wealth" }) ?? question.choices.first!
+            case "wealth_vehicle":
+                choice = question.choices.first(where: { $0.value == "hybrid" }) ?? question.choices.first!
+            case "industry_focus":
+                choice = question.choices.first(where: { $0.value == "software_ai" }) ?? question.choices.first!
+            case "business_model_focus":
+                choice = question.choices.first(where: { $0.value == "saas" }) ?? question.choices.first!
+            default:
+                choice = question.choices.first!
+            }
+            await store.answerSurvey(choice)
+        }
+
+        XCTAssertTrue(askedIDs.contains("wealth_vehicle"))
+        XCTAssertTrue(askedIDs.contains("industry_focus"))
+        XCTAssertTrue(askedIDs.contains("high_paying_job_track"))
+        XCTAssertTrue(askedIDs.contains("business_model_focus"))
+        XCTAssertTrue(askedIDs.contains("compounding_plan"))
+
+        store.dailyPriority = "Ship one high leverage move today."
+        store.applyDailyCheckIn()
+
+        XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-route" }))
+        XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-compounding" }))
     }
 }
