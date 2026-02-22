@@ -157,6 +157,11 @@ final class AtlasMasaIOSTests: XCTestCase {
         XCTAssertTrue(askedIDs.contains("high_paying_job_track"))
         XCTAssertTrue(askedIDs.contains("business_model_focus"))
         XCTAssertTrue(askedIDs.contains("compounding_plan"))
+        XCTAssertTrue(askedIDs.contains("employment_state"))
+        XCTAssertTrue(askedIDs.contains("business_state"))
+        XCTAssertTrue(askedIDs.contains("growth_priority"))
+        XCTAssertTrue(askedIDs.contains("promotion_horizon"))
+        XCTAssertTrue(askedIDs.contains("customer_growth_focus"))
 
         store.dailyPriority = "Ship one high leverage move today."
         store.applyDailyCheckIn()
@@ -203,5 +208,70 @@ final class AtlasMasaIOSTests: XCTestCase {
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "job-radar" }))
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "job-blocker" }))
         XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-global-job-market-radar" }))
+    }
+
+    @MainActor
+    func testCareerRouteChoosesPromotionOrCustomerGrowth() async {
+        let employeeStore = SessionStore(api: offlineClient())
+        employeeStore.deleteLocalMemory()
+
+        for _ in 0 ..< 130 {
+            await employeeStore.loadSurvey()
+            guard let question = employeeStore.survey?.question else { break }
+            let choice: SurveyChoice
+            switch question.id {
+            case "primary_goal":
+                choice = question.choices.first(where: { $0.value == "wealth" }) ?? question.choices.first!
+            case "employment_state":
+                choice = question.choices.first(where: { $0.value == "employed_full_time" }) ?? question.choices.first!
+            case "business_state":
+                choice = question.choices.first(where: { $0.value == "no_business" }) ?? question.choices.first!
+            case "growth_priority":
+                choice = question.choices.first(where: { $0.value == "climb_job_ladder" }) ?? question.choices.first!
+            case "promotion_horizon":
+                choice = question.choices.first(where: { $0.value == "senior_to_staff" }) ?? question.choices.first!
+            case "customer_growth_focus":
+                choice = question.choices.first(where: { $0.value == "not_applicable" }) ?? question.choices.first!
+            default:
+                choice = question.choices.first!
+            }
+            await employeeStore.answerSurvey(choice)
+        }
+
+        employeeStore.applyDailyCheckIn()
+        XCTAssertTrue(employeeStore.executionActions.contains(where: { $0.source == "career-fit" }))
+        XCTAssertTrue(employeeStore.executionActions.contains(where: { $0.source == "promotion-sprint" }))
+        XCTAssertTrue(employeeStore.tailoredOffers.contains(where: { $0.id == "offer-promotion-accelerator" }))
+
+        let businessStore = SessionStore(api: offlineClient())
+        businessStore.deleteLocalMemory()
+
+        for _ in 0 ..< 130 {
+            await businessStore.loadSurvey()
+            guard let question = businessStore.survey?.question else { break }
+            let choice: SurveyChoice
+            switch question.id {
+            case "primary_goal":
+                choice = question.choices.first(where: { $0.value == "wealth" }) ?? question.choices.first!
+            case "employment_state":
+                choice = question.choices.first(where: { $0.value == "between_roles" }) ?? question.choices.first!
+            case "business_state":
+                choice = question.choices.first(where: { $0.value == "recurring_revenue" }) ?? question.choices.first!
+            case "growth_priority":
+                choice = question.choices.first(where: { $0.value == "grow_business_customer_base" }) ?? question.choices.first!
+            case "promotion_horizon":
+                choice = question.choices.first(where: { $0.value == "not_applicable" }) ?? question.choices.first!
+            case "customer_growth_focus":
+                choice = question.choices.first(where: { $0.value == "lead_generation" }) ?? question.choices.first!
+            default:
+                choice = question.choices.first!
+            }
+            await businessStore.answerSurvey(choice)
+        }
+
+        businessStore.applyDailyCheckIn()
+        XCTAssertTrue(businessStore.executionActions.contains(where: { $0.source == "career-fit" }))
+        XCTAssertTrue(businessStore.executionActions.contains(where: { $0.source == "customer-growth-sprint" }))
+        XCTAssertTrue(businessStore.tailoredOffers.contains(where: { $0.id == "offer-customer-growth-engine" }))
     }
 }

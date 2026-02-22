@@ -75,6 +75,19 @@ final class SessionStore: ObservableObject {
     private var learningVersion = 0
     private var learningFingerprint = ""
 
+    private enum CareerRouteMode {
+        case employee
+        case business
+        case hybrid
+        case stability
+    }
+
+    private struct CareerRouteDecision {
+        let mode: CareerRouteMode
+        let title: String
+        let details: String
+    }
+
     init(api: APIClient = APIClient()) {
         self.api = api
         restoreStateFromDisk()
@@ -270,7 +283,7 @@ final class SessionStore: ObservableObject {
         } catch {
             appendOutput("Survey loaded from local fallback.")
             let localOpportunities = buildJobMarketOpportunities()
-            var hints = ["Local survey mode active", "Gym/income cadence enabled"]
+            var hints = ["Local survey mode active", "Gym/income cadence enabled", "Career/business fit routing enabled"]
             if !localOpportunities.isEmpty {
                 hints.append("Global job radar active (\(localOpportunities.count) opportunities)")
             }
@@ -668,6 +681,20 @@ final class SessionStore: ObservableObject {
         let businessModel = surveyAnswers["business_model_focus"] ?? "not_now"
         let skillStack = surveyAnswers["monetizable_skill_stack"] ?? "problem_solving"
         let compoundingPlan = surveyAnswers["compounding_plan"] ?? "auto_index"
+        let employmentState = surveyAnswers["employment_state"] ?? "between_roles"
+        let businessState = surveyAnswers["business_state"] ?? "no_business"
+        let growthPriority = surveyAnswers["growth_priority"] ?? "hybrid_growth"
+        let promotionHorizon = surveyAnswers["promotion_horizon"] ?? "not_applicable"
+        let customerGrowthFocus = surveyAnswers["customer_growth_focus"] ?? "not_applicable"
+        let runwayMonths = surveyAnswers["runway_months"] ?? "3_6"
+        let careerDecision = buildCareerRouteDecision(
+            employmentState: employmentState,
+            businessState: businessState,
+            growthPriority: growthPriority,
+            wealthVehicle: wealthVehicle,
+            jobTrack: jobTrack,
+            runwayMonths: runwayMonths
+        )
 
         actions.append(
             ExecutionAction(
@@ -704,6 +731,54 @@ final class SessionStore: ObservableObject {
                 completed: false
             )
         )
+
+        actions.append(
+            ExecutionAction(
+                id: UUID().uuidString,
+                horizon: "Career",
+                title: careerDecision.title,
+                details: careerDecision.details,
+                priority: 1,
+                source: "career-fit",
+                completed: false
+            )
+        )
+
+        if careerDecision.mode == .employee || careerDecision.mode == .hybrid {
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Career",
+                    title: "Promotion velocity sprint",
+                    details: promotionExecutionDetails(
+                        employmentState: employmentState,
+                        promotionHorizon: promotionHorizon,
+                        jobTrack: jobTrack
+                    ),
+                    priority: 1,
+                    source: "promotion-sprint",
+                    completed: false
+                )
+            )
+        }
+
+        if careerDecision.mode == .business || careerDecision.mode == .hybrid {
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Business",
+                    title: "Customer growth sprint",
+                    details: customerGrowthExecutionDetails(
+                        businessState: businessState,
+                        customerGrowthFocus: customerGrowthFocus,
+                        businessModel: businessModel
+                    ),
+                    priority: 1,
+                    source: "customer-growth-sprint",
+                    completed: false
+                )
+            )
+        }
 
         if vanRentalNeeded {
             actions.append(
@@ -873,6 +948,20 @@ final class SessionStore: ObservableObject {
         let industryFocus = surveyAnswers["industry_focus"] ?? "software_ai"
         let businessModel = surveyAnswers["business_model_focus"] ?? "not_now"
         let highPayingTrack = surveyAnswers["high_paying_job_track"] ?? "none"
+        let employmentState = surveyAnswers["employment_state"] ?? "between_roles"
+        let businessState = surveyAnswers["business_state"] ?? "no_business"
+        let growthPriority = surveyAnswers["growth_priority"] ?? "hybrid_growth"
+        let promotionHorizon = surveyAnswers["promotion_horizon"] ?? "not_applicable"
+        let customerGrowthFocus = surveyAnswers["customer_growth_focus"] ?? "not_applicable"
+        let runwayMonths = surveyAnswers["runway_months"] ?? "3_6"
+        let careerDecision = buildCareerRouteDecision(
+            employmentState: employmentState,
+            businessState: businessState,
+            growthPriority: growthPriority,
+            wealthVehicle: wealthVehicle,
+            jobTrack: highPayingTrack,
+            runwayMonths: runwayMonths
+        )
         let needsMobilityOps = vanRentalNeeded
             || containsAny(combinedIntent, ["travel", "route", "van", "mobility", "camp", "fleet", "caravan"])
             || (Int(annualDistanceKM) ?? 0) >= 50_000
@@ -905,6 +994,51 @@ final class SessionStore: ObservableObject {
                     rationale: "Detected revenue-focused intent in your profile and recent context.",
                     priority: 1,
                     callToAction: "Run revenue sprint"
+                )
+            )
+        }
+
+        if careerDecision.mode == .employee || careerDecision.mode == .hybrid {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-promotion-accelerator",
+                    category: .wealthOperations,
+                    type: .feature,
+                    title: "Promotion Accelerator System",
+                    summary: "A structured route for higher role scope, promotion readiness, and compensation growth.",
+                    rationale: "Career route set to employee growth. Current status: \(wealthLabel(for: employmentState)), target: \(wealthLabel(for: promotionHorizon)).",
+                    priority: 1,
+                    callToAction: "Open promotion accelerator"
+                )
+            )
+        }
+
+        if careerDecision.mode == .business || careerDecision.mode == .hybrid {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-customer-growth-engine",
+                    category: .wealthOperations,
+                    type: .service,
+                    title: "Customer Growth Engine",
+                    summary: "Acquisition + conversion + retention system tuned to your business stage and model.",
+                    rationale: "Business route active: \(wealthLabel(for: businessState)). Current growth focus: \(wealthLabel(for: customerGrowthFocus)).",
+                    priority: 1,
+                    callToAction: "Open customer growth engine"
+                )
+            )
+        }
+
+        if careerDecision.mode == .stability {
+            offers.append(
+                TailoredOffer(
+                    id: "offer-income-stability-bridge",
+                    category: .wealthOperations,
+                    type: .feature,
+                    title: "Income Stability Bridge",
+                    summary: "Build dependable income first, then scale into promotion/business expansion from a safer base.",
+                    rationale: "Route decision is stability-first due to runway and profile signals.",
+                    priority: 1,
+                    callToAction: "Build stability bridge"
                 )
             )
         }
@@ -1790,6 +1924,116 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    private func buildCareerRouteDecision(
+        employmentState: String,
+        businessState: String,
+        growthPriority: String,
+        wealthVehicle: String,
+        jobTrack: String,
+        runwayMonths: String
+    ) -> CareerRouteDecision {
+        let employedStates = Set(["employed_full_time", "employed_part_time", "freelance_consultant", "both_employee_and_business"])
+        let businessActiveStates = Set(["idea_stage", "pre_revenue", "early_revenue", "recurring_revenue", "scaling_team"])
+        let businessMomentumStates = Set(["early_revenue", "recurring_revenue", "scaling_team"])
+
+        let isEmployed = employedStates.contains(employmentState)
+        let hasBusiness = businessActiveStates.contains(businessState)
+        let hasBusinessMomentum = businessMomentumStates.contains(businessState)
+        let lowRunway = runwayMonths == "under_3"
+
+        if growthPriority == "climb_job_ladder" {
+            return CareerRouteDecision(
+                mode: .employee,
+                title: "Primary route: promotion and compensation growth",
+                details: "You selected job-ladder growth. Build promotion evidence weekly, raise visibility with sponsors, and negotiate compensation based on measurable business impact."
+            )
+        }
+
+        if growthPriority == "grow_business_customer_base" {
+            return CareerRouteDecision(
+                mode: .business,
+                title: "Primary route: customer and revenue growth",
+                details: "You selected business growth. Focus on offer-market fit, lead flow, conversion quality, retention, and recurring revenue expansion."
+            )
+        }
+
+        if growthPriority == "stabilize_income" {
+            if isEmployed || jobTrack != "none" {
+                return CareerRouteDecision(
+                    mode: .employee,
+                    title: "Primary route: income stabilization through role growth",
+                    details: "Stability-first profile detected. Prioritize secure role performance, promotion readiness, and compensation progression before higher-risk expansion."
+                )
+            }
+
+            if hasBusinessMomentum && !lowRunway {
+                return CareerRouteDecision(
+                    mode: .business,
+                    title: "Primary route: stabilize through business cashflow",
+                    details: "Business momentum is present with enough runway. Standardize acquisition and retention to convert revenue into predictable monthly cashflow."
+                )
+            }
+
+            return CareerRouteDecision(
+                mode: .stability,
+                title: "Primary route: stabilize income before aggressive scaling",
+                details: "Runway and signal profile suggest a stability bridge. Secure baseline income, then layer growth bets with controlled risk."
+            )
+        }
+
+        if wealthVehicle == "hybrid" || growthPriority == "hybrid_growth" || (isEmployed && hasBusiness) {
+            return CareerRouteDecision(
+                mode: .hybrid,
+                title: "Primary route: hybrid promotion + business growth",
+                details: "Hybrid profile detected. Protect career progression while compounding business distribution and customer acquisition in parallel."
+            )
+        }
+
+        if wealthVehicle == "business_builder" || (hasBusiness && hasBusinessMomentum && !lowRunway) {
+            return CareerRouteDecision(
+                mode: .business,
+                title: "Primary route: business-led growth",
+                details: "Business-first signals dominate. Improve customer acquisition economics, retention loops, and expansion pathways before adding complexity."
+            )
+        }
+
+        if wealthVehicle == "job_ladder" || isEmployed || jobTrack != "none" {
+            return CareerRouteDecision(
+                mode: .employee,
+                title: "Primary route: employee growth ladder",
+                details: "Employee-growth signals dominate. Optimize promotion leverage, internal sponsorship, and compensation strategy."
+            )
+        }
+
+        return CareerRouteDecision(
+            mode: .stability,
+            title: "Primary route: secure base and de-risk decisions",
+            details: "Atlas recommends a baseline-income phase first, then selective growth bets based on validated traction."
+        )
+    }
+
+    private func promotionExecutionDetails(
+        employmentState: String,
+        promotionHorizon: String,
+        jobTrack: String
+    ) -> String {
+        let stateLabel = wealthLabel(for: employmentState)
+        let horizonLabel = wealthLabel(for: promotionHorizon)
+        let trackLabel = wealthLabel(for: jobTrack)
+        return "Status: \(stateLabel). Target: \(horizonLabel). Track: \(trackLabel). Promotion protocol: align rubric with manager, publish weekly impact memo, build sponsor map, capture quantified outcomes, and package a promotion case with compensation band evidence."
+    }
+
+    private func customerGrowthExecutionDetails(
+        businessState: String,
+        customerGrowthFocus: String,
+        businessModel: String
+    ) -> String {
+        let stageLabel = wealthLabel(for: businessState)
+        let focusLabel = wealthLabel(for: customerGrowthFocus)
+        let modelLabel = wealthLabel(for: businessModel)
+        return "Business stage: \(stageLabel). Focus: \(focusLabel). Model: \(modelLabel). Customer growth protocol: tighten ICP + offer, run two channels at measurable CAC, improve conversion scripts, and deploy retention/expansion loops to raise LTV."
+    }
+
     private func compoundingProtocolDetails(plan: String) -> String {
         switch plan {
         case "auto_index":
@@ -1900,6 +2144,58 @@ final class SessionStore: ObservableObject {
             return "Business reinvestment"
         case "debt_reduction_then_growth":
             return "Debt reduction then growth"
+        case "employed_full_time":
+            return "Employed full-time"
+        case "employed_part_time":
+            return "Employed part-time"
+        case "freelance_consultant":
+            return "Freelance/consulting"
+        case "between_roles":
+            return "Between roles"
+        case "student_transition":
+            return "Student/transition phase"
+        case "both_employee_and_business":
+            return "Employee + business owner"
+        case "no_business":
+            return "No business yet"
+        case "idea_stage":
+            return "Business idea stage"
+        case "pre_revenue":
+            return "Pre-revenue"
+        case "early_revenue":
+            return "Early revenue"
+        case "recurring_revenue":
+            return "Recurring revenue"
+        case "scaling_team":
+            return "Scaling team/company"
+        case "climb_job_ladder":
+            return "Climb the job ladder"
+        case "grow_business_customer_base":
+            return "Grow business customer base"
+        case "hybrid_growth":
+            return "Hybrid growth"
+        case "stabilize_income":
+            return "Stabilize income first"
+        case "not_applicable":
+            return "Not applicable"
+        case "individual_contributor_to_senior":
+            return "IC to senior progression"
+        case "senior_to_staff":
+            return "Senior to staff/principal"
+        case "manager_to_director":
+            return "Manager to director"
+        case "executive_track":
+            return "Executive track"
+        case "offer_clarity":
+            return "Offer clarity"
+        case "lead_generation":
+            return "Lead generation"
+        case "conversion_rate":
+            return "Conversion rate optimization"
+        case "retention_expansion":
+            return "Retention and expansion"
+        case "referrals_partnerships":
+            return "Referrals and partnerships"
         default:
             return value.replacingOccurrences(of: "_", with: " ").capitalized
         }
@@ -1963,7 +2259,7 @@ final class SessionStore: ObservableObject {
     }
 
     private func localSurveyTotal() -> Int {
-        let baseTotal = 34
+        let baseTotal = 39
         guard surveyExpansionActive else {
             return max(baseTotal, surveyAnswers.count)
         }
@@ -2177,6 +2473,68 @@ final class SessionStore: ObservableObject {
                     SurveyChoice(value: "none", label: "No regular income"),
                     SurveyChoice(value: "sometimes", label: "Sometimes"),
                     SurveyChoice(value: "regularly", label: "Regularly")
+                ]
+            ),
+            localQuestion(
+                id: "employment_state",
+                title: "Which option best describes your current employment status?",
+                description: "Atlas uses this to choose promotion vs transition strategy.",
+                choices: [
+                    SurveyChoice(value: "employed_full_time", label: "Employed full-time"),
+                    SurveyChoice(value: "employed_part_time", label: "Employed part-time"),
+                    SurveyChoice(value: "freelance_consultant", label: "Freelance/consulting"),
+                    SurveyChoice(value: "between_roles", label: "Between roles"),
+                    SurveyChoice(value: "student_transition", label: "Student/transition"),
+                    SurveyChoice(value: "both_employee_and_business", label: "Employee + business owner")
+                ]
+            ),
+            localQuestion(
+                id: "business_state",
+                title: "Which option best describes your current business status?",
+                description: "This helps Atlas decide whether to prioritize promotions or customer growth.",
+                choices: [
+                    SurveyChoice(value: "no_business", label: "No business now"),
+                    SurveyChoice(value: "idea_stage", label: "Idea stage"),
+                    SurveyChoice(value: "pre_revenue", label: "Built but pre-revenue"),
+                    SurveyChoice(value: "early_revenue", label: "Early revenue"),
+                    SurveyChoice(value: "recurring_revenue", label: "Recurring revenue"),
+                    SurveyChoice(value: "scaling_team", label: "Scaling team")
+                ]
+            ),
+            localQuestion(
+                id: "growth_priority",
+                title: "What should Atlas prioritize first for your wealth growth?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "climb_job_ladder", label: "Promotion and salary growth"),
+                    SurveyChoice(value: "grow_business_customer_base", label: "Customer growth in business"),
+                    SurveyChoice(value: "hybrid_growth", label: "Both in parallel"),
+                    SurveyChoice(value: "stabilize_income", label: "Stabilize income first")
+                ]
+            ),
+            localQuestion(
+                id: "promotion_horizon",
+                title: "If career growth matters, what promotion target fits now?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "not_applicable", label: "Not applicable"),
+                    SurveyChoice(value: "individual_contributor_to_senior", label: "IC to senior"),
+                    SurveyChoice(value: "senior_to_staff", label: "Senior to staff/principal"),
+                    SurveyChoice(value: "manager_to_director", label: "Manager to director"),
+                    SurveyChoice(value: "executive_track", label: "Executive track")
+                ]
+            ),
+            localQuestion(
+                id: "customer_growth_focus",
+                title: "If business growth matters, which customer-growth lever is the bottleneck?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "not_applicable", label: "Not applicable"),
+                    SurveyChoice(value: "offer_clarity", label: "Offer clarity"),
+                    SurveyChoice(value: "lead_generation", label: "Lead generation"),
+                    SurveyChoice(value: "conversion_rate", label: "Conversion rate"),
+                    SurveyChoice(value: "retention_expansion", label: "Retention/expansion"),
+                    SurveyChoice(value: "referrals_partnerships", label: "Referrals/partnerships")
                 ]
             ),
             localQuestion(
