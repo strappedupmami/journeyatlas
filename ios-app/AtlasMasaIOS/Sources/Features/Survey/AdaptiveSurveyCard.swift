@@ -15,6 +15,9 @@ struct AdaptiveSurveyCard: View {
                     Text("\(survey.progress.answered)/\(survey.progress.total) answered · \(survey.progress.percent)%")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(AtlasTheme.textSecondary)
+                    Text("Additional passes completed: \(session.surveyAdditionalPassesCompleted)")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AtlasTheme.accentWarm)
                 } else {
                     Text("Loading survey...")
                         .foregroundStyle(AtlasTheme.textSecondary)
@@ -24,6 +27,12 @@ struct AdaptiveSurveyCard: View {
                     Task { await session.loadSurvey() }
                 }
                 .buttonStyle(AtlasSecondaryButtonStyle())
+
+                Button(session.isAdditionalSurveyPassActive ? "Additional pass in progress" : "Start additional pass (new questions only)") {
+                    Task { await session.startAdditionalSurveyPass() }
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+                .disabled(session.isAdditionalSurveyPassActive)
             }
 
             AtlasPanel(heading: "Current branch", caption: "Every answer changes what comes next") {
@@ -46,7 +55,7 @@ struct AdaptiveSurveyCard: View {
                             .buttonStyle(AtlasSecondaryButtonStyle())
                         }
                     } else {
-                        Text("Survey complete. Proactive engine now uses full profile depth.")
+                        Text("Survey complete. Proactive engine now uses full profile depth. Start another pass any time to add new data without repeating previous questions.")
                             .foregroundStyle(AtlasTheme.accentWarm)
                     }
                 } else {

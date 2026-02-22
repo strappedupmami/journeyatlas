@@ -2,13 +2,26 @@ import XCTest
 @testable import AtlasMasaMacOS
 
 final class AtlasMasaMacOSTests: XCTestCase {
+    private func offlineClient() -> APIClient {
+        let config = URLSessionConfiguration.ephemeral
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
+        config.timeoutIntervalForRequest = 0.01
+        config.timeoutIntervalForResource = 0.01
+        config.waitsForConnectivity = false
+        return APIClient(
+            baseURL: URL(string: "https://example.invalid")!,
+            session: URLSession(configuration: config)
+        )
+    }
+
     func testScaffoldBootstraps() {
         XCTAssertTrue(true)
     }
 
     @MainActor
     func testWorkspaceMemoryCarriesAcrossLanes() {
-        let store = SessionStore(api: APIClient(baseURL: URL(string: "https://example.invalid")!))
+        let store = SessionStore(api: offlineClient())
         store.dailyPriority = "Close two enterprise partnerships this week."
         store.midTermGoal = "Harden emergency command workflows."
         store.longTermVision = "Scale Atlas travel design infrastructure."
@@ -35,7 +48,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testWorkspaceMemoryUpsertsCoreSignals() {
-        let store = SessionStore(api: APIClient(baseURL: URL(string: "https://example.invalid")!))
+        let store = SessionStore(api: offlineClient())
         store.dailyPriority = "First value"
         store.applyDailyCheckIn()
         store.dailyPriority = "Second value"
@@ -48,5 +61,63 @@ final class AtlasMasaMacOSTests: XCTestCase {
         }
         XCTAssertEqual(dailyPriorityRecords.count, 1)
         XCTAssertEqual(dailyPriorityRecords.first?.value, "Second value")
+    }
+
+    @MainActor
+    func testWorkspaceSessionsSeedAndCarryAcrossLanes() async {
+        let store = SessionStore(api: offlineClient())
+        XCTAssertEqual(store.workspaceSessions.count, WorkspaceLane.allCases.count)
+
+        store.setActiveWorkspaceLane(.innovation)
+        store.createWorkspaceSession(for: .innovation, title: "Innovation Lab Notebook")
+
+        let activeInnovation = store.activeSessionID(for: .innovation)
+        XCTAssertNotNil(activeInnovation)
+
+        store.pendingNoteTitle = "Prototype sprint"
+        store.pendingNoteContent = "Ship hypothesis to validation loop."
+        await store.saveNote()
+        store.applyDailyCheckIn()
+
+        let innovationRecords = store.workspaceMemoryRecords.filter { record in
+            record.lane == .innovation
+        }
+        XCTAssertTrue(innovationRecords.contains(where: { $0.sessionID == activeInnovation }))
+
+        let crossLaneRecords = store.workspaceMemoryRecords.filter { record in
+            record.lane == .mobilityOps || record.lane == .wealthOperations || record.lane == .deepWork
+        }
+        XCTAssertFalse(crossLaneRecords.isEmpty)
+    }
+
+    @MainActor
+    func testAdditionalSurveyPassAvoidsRepeatedQuestionIDs() async {
+        let store = SessionStore(api: offlineClient())
+        var askedIDs = Set<String>()
+
+        for _ in 0 ..< 40 {
+            await store.loadSurvey()
+            guard let question = store.survey?.question else { break }
+            askedIDs.insert(question.id)
+            if let firstChoice = question.choices.first {
+                await store.answerSurvey(firstChoice)
+            }
+        }
+
+        await store.startAdditionalSurveyPass()
+
+        var newlyAsked: [String] = []
+        for _ in 0 ..< 3 {
+            guard let question = store.survey?.question else { break }
+            XCTAssertFalse(askedIDs.contains(question.id))
+            newlyAsked.append(question.id)
+            askedIDs.insert(question.id)
+            if let firstChoice = question.choices.first {
+                await store.answerSurvey(firstChoice)
+            }
+        }
+
+        XCTAssertFalse(newlyAsked.isEmpty)
+        XCTAssertTrue(newlyAsked.allSatisfy { $0.hasPrefix("adaptive_depth_") })
     }
 }

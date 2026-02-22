@@ -425,9 +425,20 @@ enum WorkspaceMemorySource: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct WorkspaceNotebookSession: Codable, Identifiable, Hashable {
+    let id: String
+    let lane: WorkspaceLane
+    var title: String
+    let createdAtUTC: Date
+    let updatedAtUTC: Date
+    var summary: String
+    var isPinned: Bool
+}
+
 struct WorkspaceMemoryRecord: Codable, Identifiable, Hashable {
     let id: String
     let lane: WorkspaceLane?
+    let sessionID: String?
     let source: WorkspaceMemorySource
     let key: String
     let value: String

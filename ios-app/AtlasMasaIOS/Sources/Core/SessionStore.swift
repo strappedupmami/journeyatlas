@@ -36,8 +36,12 @@ final class SessionStore: ObservableObject {
     @Published var researchStreams: [ResearchExecutionStream] = []
     @Published var workspaceMemoryRecords: [WorkspaceMemoryRecord] = []
     @Published var workspacePlans: [WorkspacePlan] = []
+    @Published var workspaceSessions: [WorkspaceNotebookSession] = []
+    @Published var activeWorkspaceLane: WorkspaceLane = .mobilityOps
+    @Published var activeWorkspaceSessionByLane: [WorkspaceLane: String] = [:]
     @Published var learningPackage: AdaptiveLearningPackage?
     @Published var memoryCollectionEnabled = true
+    @Published var surveyAdditionalPassesCompleted = 0
 
     @Published var pendingFeedback = ""
     @Published var feedbackOfferEnabled = true
@@ -59,12 +63,21 @@ final class SessionStore: ObservableObject {
     private let stateBackupFileName = "session-state-v3.bak.json"
     private static let checkpointFormatter = ISO8601DateFormatter()
     private var surveyAnswers: [String: String] = [:]
+    private var surveyQuestionSessionIndex: [String: String] = [:]
+    private var surveyQuestionLaneIndex: [String: String] = [:]
+    private var noteSessionIndex: [String: String] = [:]
+    private var noteLaneIndex: [String: String] = [:]
+    private var surveyExpansionActive = false
+    private var surveyExpansionQuestionTarget = 0
+    private var surveyExpansionQuestionCounter = 0
+    private var surveyExpansionAnsweredInCurrentPass = 0
     private var learningVersion = 0
     private var learningFingerprint = ""
 
     init(api: APIClient = APIClient()) {
         self.api = api
         restoreStateFromDisk()
+        ensureWorkspaceSessionsSeeded()
         loadPromptQueueFromDisk()
         recoverInterruptedQueueItemsAfterRestart()
         startPromptQueueWorker()
@@ -166,6 +179,66 @@ final class SessionStore: ObservableObject {
         appendOutput("Active plan: \(tier.title)")
     }
 
+    func sessions(for lane: WorkspaceLane) -> [WorkspaceNotebookSession] {
+        workspaceSessions
+            .filter { $0.lane == lane }
+            .sorted { lhs, rhs in
+                if lhs.updatedAtUTC == rhs.updatedAtUTC {
+                    return lhs.createdAtUTC > rhs.createdAtUTC
+                }
+                return lhs.updatedAtUTC > rhs.updatedAtUTC
+            }
+    }
+
+    func setActiveWorkspaceLane(_ lane: WorkspaceLane) {
+        activeWorkspaceLane = lane
+        ensureWorkspaceSessionsSeeded()
+        persistStateToDisk()
+    }
+
+    func activeSessionID(for lane: WorkspaceLane) -> String? {
+        activeWorkspaceSessionByLane[lane]
+    }
+
+    func createWorkspaceSession(for lane: WorkspaceLane, title: String? = nil) {
+        let now = Date()
+        let defaultName = "\(lane.title) · Session \(sessions(for: lane).count + 1)"
+        let newSession = WorkspaceNotebookSession(
+            id: UUID().uuidString,
+            lane: lane,
+            title: sanitizeWorkspaceMemoryValue(title ?? defaultName, maxLength: 90),
+            createdAtUTC: now,
+            updatedAtUTC: now,
+            summary: "Fresh session notebook.",
+            isPinned: false
+        )
+        workspaceSessions.append(newSession)
+        activeWorkspaceSessionByLane[lane] = newSession.id
+        activeWorkspaceLane = lane
+        persistStateToDisk()
+        appendOutput("Created session notebook in \(lane.title).")
+    }
+
+    func activateWorkspaceSession(_ sessionID: String) {
+        guard let target = workspaceSessions.first(where: { $0.id == sessionID }) else { return }
+        activeWorkspaceSessionByLane[target.lane] = target.id
+        activeWorkspaceLane = target.lane
+        persistStateToDisk()
+        appendOutput("Active notebook switched to \(target.title).")
+    }
+
+    func startAdditionalSurveyPass() async {
+        if surveyExpansionActive {
+            appendOutput("Additional survey pass already in progress.")
+            return
+        }
+        surveyExpansionActive = true
+        surveyExpansionQuestionTarget = 8
+        surveyExpansionAnsweredInCurrentPass = 0
+        appendOutput("Additional adaptive survey pass started. New questions only.")
+        await loadSurvey()
+    }
+
     func applyDailyCheckIn() {
         rebuildInsightsAndExecutionPlan()
         if feedbackOfferEnabled && (checkInMood.lowercased().contains("stressed") || checkInEnergy <= 2 || checkInBlockers.count > 20) {
@@ -209,6 +282,23 @@ final class SessionStore: ObservableObject {
     func answerSurvey(_ choice: SurveyChoice) async {
         guard let questionID = survey?.question?.id else { return }
         surveyAnswers[questionID] = choice.value
+        if let activeSessionID = activeSessionID(for: activeWorkspaceLane) {
+            surveyQuestionSessionIndex[questionID] = activeSessionID
+            surveyQuestionLaneIndex[questionID] = activeWorkspaceLane.rawValue
+            touchWorkspaceSession(
+                id: activeSessionID,
+                summary: "Captured survey signal: \(workspaceSignalLabel(for: questionID))."
+            )
+        }
+        if questionID.hasPrefix("adaptive_depth_"), surveyExpansionActive {
+            surveyExpansionQuestionCounter += 1
+            surveyExpansionAnsweredInCurrentPass += 1
+            if surveyExpansionAnsweredInCurrentPass >= surveyExpansionQuestionTarget {
+                surveyExpansionActive = false
+                surveyAdditionalPassesCompleted += 1
+                appendOutput("Additional survey pass complete. Memory graph upgraded.")
+            }
+        }
         do {
             survey = try await api.submitSurveyAnswer(questionID: questionID, answer: choice.value)
             appendOutput("Survey answer synced.")
@@ -254,6 +344,15 @@ final class SessionStore: ObservableObject {
 
         let local = UserNote(noteID: UUID().uuidString, title: title, content: content)
         notes.insert(local, at: 0)
+        let laneForNote = activeWorkspaceLane
+        if let sessionID = activeSessionID(for: laneForNote) {
+            noteSessionIndex[local.noteID] = sessionID
+            noteLaneIndex[local.noteID] = laneForNote.rawValue
+            touchWorkspaceSession(
+                id: sessionID,
+                summary: "Captured note: \(sanitizeWorkspaceMemoryValue(title, maxLength: 70))."
+            )
+        }
         pendingNoteTitle = ""
         pendingNoteContent = ""
 
@@ -279,9 +378,24 @@ final class SessionStore: ObservableObject {
         workspacePlans = []
         feedItems = []
         surveyAnswers = [:]
+        surveyQuestionSessionIndex = [:]
+        surveyQuestionLaneIndex = [:]
+        noteSessionIndex = [:]
+        noteLaneIndex = [:]
+        surveyExpansionActive = false
+        surveyExpansionQuestionTarget = 0
+        surveyExpansionAnsweredInCurrentPass = 0
+        surveyAdditionalPassesCompleted = 0
+        surveyExpansionQuestionCounter = 0
         learningPackage = nil
         learningVersion = 0
         learningFingerprint = ""
+        workspaceSessions = workspaceSessions.map { session in
+            var updated = session
+            updated.summary = "Session cleared."
+            updated.isPinned = false
+            return updated
+        }
         persistPromptQueueToDisk()
         persistStateToDisk()
         appendOutput("Local personalization memory cleared by user request.")
@@ -355,6 +469,14 @@ final class SessionStore: ObservableObject {
         let queueBytes = promptQueue.reduce(0) { $0 + $1.prompt.count + ($1.output?.summary.count ?? 0) }
         let totalKB = max(1, (notesBytes + queueBytes) / 1024)
         return "~\(totalKB) KB local memory profile"
+    }
+
+    var surveyAnswerCount: Int {
+        surveyAnswers.count
+    }
+
+    var isAdditionalSurveyPassActive: Bool {
+        surveyExpansionActive
     }
 
     func appendOutput(_ line: String) {
@@ -463,6 +585,7 @@ final class SessionStore: ObservableObject {
     }
 
     private func rebuildInsightsAndExecutionPlan() {
+        ensureWorkspaceSessionsSeeded()
         let keyNotes = notes.prefix(3)
         var insights: [MemoryInsight] = []
 
@@ -516,6 +639,7 @@ final class SessionStore: ObservableObject {
         tailoredOffers = buildTailoredOffers()
         researchStreams = buildResearchExecutionStreams()
         syncWorkspaceMemoryRecords()
+        refreshWorkspaceSessionSnapshots()
         workspacePlans = buildWorkspacePlans(from: researchStreams, memoryRecords: workspaceMemoryRecords)
         refreshAdaptiveLearningPackageIfNeeded()
         feedItems = localFeedFromExecutionPlan()
@@ -608,6 +732,25 @@ final class SessionStore: ObservableObject {
             )
         }
 
+        let topSessionSignals = workspaceSessions
+            .sorted { $0.updatedAtUTC > $1.updatedAtUTC }
+            .prefix(3)
+        for sessionSignal in topSessionSignals {
+            let detail = sanitizeWorkspaceMemoryValue(sessionSignal.summary, maxLength: 170)
+            guard !detail.isEmpty else { continue }
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Cross-workspace",
+                    title: "Leverage notebook signal from \(sessionSignal.title)",
+                    details: detail,
+                    priority: 2,
+                    source: "workspace-session",
+                    completed: false
+                )
+            )
+        }
+
         return actions.sorted { $0.priority < $1.priority }
     }
 
@@ -616,12 +759,14 @@ final class SessionStore: ObservableObject {
             return []
         }
 
+        let intelligenceContext = "data graph: \(workspaceSessions.count) notebooks · \(workspaceMemoryRecords.count) memory records · \(surveyAnswers.count) survey answers"
+
         return executionActions.prefix(4).map { action in
             FeedItem(
                 id: action.id,
                 title: action.title,
                 summary: action.details,
-                whyNow: "\(action.horizon) travel design alignment · \(selectedTier.title)",
+                whyNow: "\(action.horizon) travel design alignment · \(selectedTier.title) · \(intelligenceContext)",
                 priority: action.priority == 1 ? "critical" : (action.priority == 2 ? "high" : "normal")
             )
         }
@@ -791,10 +936,16 @@ final class SessionStore: ObservableObject {
 
         var merged = workspaceMemoryRecords
         let now = Date()
+        let deepWorkSession = activeSessionID(for: .deepWork)
+        let wealthSession = activeSessionID(for: .wealthOperations)
+        let mobilitySession = activeSessionID(for: .mobilityOps)
+        let emergencySession = activeSessionID(for: .emergencyCommand)
+        let innovationSession = activeSessionID(for: .innovation)
 
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: nil,
+            sessionID: nil,
             source: .checkin,
             key: "daily_priority",
             value: dailyPriority,
@@ -805,6 +956,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: nil,
+            sessionID: nil,
             source: .checkin,
             key: "mid_term_goal",
             value: midTermGoal,
@@ -815,6 +967,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: nil,
+            sessionID: nil,
             source: .checkin,
             key: "long_term_vision",
             value: longTermVision,
@@ -825,6 +978,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .deepWork,
+            sessionID: deepWorkSession,
             source: .checkin,
             key: "mood",
             value: checkInMood,
@@ -835,6 +989,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .deepWork,
+            sessionID: deepWorkSession,
             source: .checkin,
             key: "energy_level",
             value: "\(checkInEnergy)",
@@ -845,6 +1000,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .deepWork,
+            sessionID: deepWorkSession,
             source: .checkin,
             key: "blockers",
             value: checkInBlockers,
@@ -855,6 +1011,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .deepWork,
+            sessionID: deepWorkSession,
             source: .checkin,
             key: "gym_today",
             value: checkInWentToGymToday ? "yes" : "no",
@@ -865,6 +1022,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .wealthOperations,
+            sessionID: wealthSession,
             source: .checkin,
             key: "money_today",
             value: checkInMadeMoneyToday ? "yes" : "no",
@@ -875,6 +1033,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .wealthOperations,
+            sessionID: wealthSession,
             source: .checkin,
             key: "money_signal_note",
             value: checkInMoneySignalNote,
@@ -885,6 +1044,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .mobilityOps,
+            sessionID: mobilitySession,
             source: .system,
             key: "workspace_mode",
             value: workspaceMode,
@@ -895,6 +1055,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .mobilityOps,
+            sessionID: mobilitySession,
             source: .system,
             key: "travel_region",
             value: travelRegion,
@@ -905,6 +1066,7 @@ final class SessionStore: ObservableObject {
         upsertWorkspaceMemoryRecord(
             in: &merged,
             lane: .mobilityOps,
+            sessionID: mobilitySession,
             source: .system,
             key: "annual_distance_km",
             value: annualDistanceKM,
@@ -914,10 +1076,13 @@ final class SessionStore: ObservableObject {
         )
 
         for (questionID, answer) in surveyAnswers {
-            let lane = inferWorkspaceLane(from: "\(questionID) \(answer)")
+            let indexedLane = surveyQuestionLaneIndex[questionID].flatMap(WorkspaceLane.init(rawValue:))
+            let lane = indexedLane ?? inferWorkspaceLane(from: "\(questionID) \(answer)")
+            let sessionID = surveyQuestionSessionIndex[questionID] ?? activeSessionID(for: lane ?? activeWorkspaceLane)
             upsertWorkspaceMemoryRecord(
                 in: &merged,
                 lane: lane,
+                sessionID: sessionID,
                 source: .survey,
                 key: "survey:\(questionID)",
                 value: answer,
@@ -929,10 +1094,13 @@ final class SessionStore: ObservableObject {
 
         for note in notes.prefix(24) {
             let body = "\(note.title) \(note.content)"
-            let lane = inferWorkspaceLane(from: body)
+            let indexedLane = noteLaneIndex[note.noteID].flatMap(WorkspaceLane.init(rawValue:))
+            let lane = indexedLane ?? inferWorkspaceLane(from: body)
+            let sessionID = noteSessionIndex[note.noteID] ?? activeSessionID(for: lane ?? activeWorkspaceLane)
             upsertWorkspaceMemoryRecord(
                 in: &merged,
                 lane: lane,
+                sessionID: sessionID,
                 source: .note,
                 key: "note:\(note.noteID)",
                 value: sanitizeWorkspaceMemoryValue(body, maxLength: 180),
@@ -944,14 +1112,44 @@ final class SessionStore: ObservableObject {
 
         for action in executionActions.prefix(10) {
             let lane = inferWorkspaceLane(from: "\(action.title) \(action.details)")
+            let laneSession = activeSessionID(for: lane ?? activeWorkspaceLane)
             upsertWorkspaceMemoryRecord(
                 in: &merged,
                 lane: lane,
+                sessionID: laneSession,
                 source: .execution,
                 key: "execution:\(action.id)",
                 value: sanitizeWorkspaceMemoryValue(action.details, maxLength: 150),
                 weight: 0.75,
                 tags: ["execution", action.horizon.lowercased()],
+                now: now
+            )
+        }
+
+        if let emergencySession {
+            upsertWorkspaceMemoryRecord(
+                in: &merged,
+                lane: .emergencyCommand,
+                sessionID: emergencySession,
+                source: .system,
+                key: "continuity_readiness",
+                value: "Maintain fallback plans for power, comms, routing, and crisis response.",
+                weight: 0.66,
+                tags: ["resilience", "continuity"],
+                now: now
+            )
+        }
+
+        if let innovationSession {
+            upsertWorkspaceMemoryRecord(
+                in: &merged,
+                lane: .innovation,
+                sessionID: innovationSession,
+                source: .system,
+                key: "innovation_cycle",
+                value: "Run hypothesis → prototype → validation loop with safety boundaries.",
+                weight: 0.63,
+                tags: ["innovation", "systems"],
                 now: now
             )
         }
@@ -962,6 +1160,7 @@ final class SessionStore: ObservableObject {
     private func upsertWorkspaceMemoryRecord(
         in records: inout [WorkspaceMemoryRecord],
         lane: WorkspaceLane?,
+        sessionID: String?,
         source: WorkspaceMemorySource,
         key: String,
         value rawValue: String,
@@ -975,11 +1174,12 @@ final class SessionStore: ObservableObject {
         guard !cleanedKey.isEmpty else { return }
         let normalizedWeight = min(1.0, max(0.05, weight))
         let normalizedTags = Array(Set(tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }.filter { !$0.isEmpty })).sorted()
-        if let idx = records.firstIndex(where: { $0.lane == lane && $0.source == source && $0.key == cleanedKey }) {
+        if let idx = records.firstIndex(where: { $0.lane == lane && $0.sessionID == sessionID && $0.source == source && $0.key == cleanedKey }) {
             let previous = records[idx]
             records[idx] = WorkspaceMemoryRecord(
                 id: previous.id,
                 lane: lane,
+                sessionID: sessionID,
                 source: source,
                 key: cleanedKey,
                 value: cleanedValue,
@@ -995,6 +1195,7 @@ final class SessionStore: ObservableObject {
             WorkspaceMemoryRecord(
                 id: UUID().uuidString,
                 lane: lane,
+                sessionID: sessionID,
                 source: source,
                 key: cleanedKey,
                 value: cleanedValue,
@@ -1018,7 +1219,7 @@ final class SessionStore: ObservableObject {
             let age = max(0, now.timeIntervalSince(record.updatedAtUTC))
             guard age <= maxAge else { continue }
 
-            let dedupeKey = "\(record.lane?.rawValue ?? "shared")::\(record.source.rawValue)::\(record.key)"
+            let dedupeKey = "\(record.lane?.rawValue ?? "shared")::\(record.sessionID ?? "nosession")::\(record.source.rawValue)::\(record.key)"
             if let existing = deduped[dedupeKey] {
                 if record.updatedAtUTC > existing.updatedAtUTC || (record.updatedAtUTC == existing.updatedAtUTC && record.weight > existing.weight) {
                     deduped[dedupeKey] = record
@@ -1045,7 +1246,16 @@ final class SessionStore: ObservableObject {
         let ageSeconds = max(0, now.timeIntervalSince(record.updatedAtUTC))
         let recencyHalfLife: TimeInterval = 60 * 60 * 24 * 14
         let recency = exp(-ageSeconds / recencyHalfLife)
-        return (record.weight * 0.72) + (recency * 0.28)
+        let laneBoost = (record.lane == activeWorkspaceLane) ? 0.05 : 0.0
+        let sessionBoost: Double = {
+            guard let lane = record.lane,
+                  let sessionID = record.sessionID,
+                  let activeID = activeWorkspaceSessionByLane[lane]
+            else { return 0.0 }
+            return activeID == sessionID ? 0.08 : 0.0
+        }()
+        let score = (record.weight * 0.63) + (recency * 0.24) + laneBoost + sessionBoost
+        return min(1.0, max(0.0, score))
     }
 
     private func workspaceMemoryHighlights(
@@ -1120,17 +1330,24 @@ final class SessionStore: ObservableObject {
         let sharedRecords = memoryRecords.filter { $0.lane == nil }
         let plans = byLane.map { lane, laneStreams -> WorkspacePlan in
             let primary = laneStreams.max { $0.confidence < $1.confidence }
+            let laneActiveSessionID = activeSessionID(for: lane)
             let laneSpecificRecords = memoryRecords.filter { $0.lane == lane }
+            let laneSessionRecords = memoryRecords.filter { $0.lane == lane && $0.sessionID == laneActiveSessionID }
             let crossWorkspaceRecords = memoryRecords.filter { $0.lane != nil && $0.lane != lane }
             let citations = Array(laneStreams.flatMap(\.citations).prefix(3))
             var evidenceParts = laneStreams.prefix(2).map(\.whyItWorks)
-            let sharedHighlights = workspaceMemoryHighlights(from: sharedRecords + laneSpecificRecords, limit: 3)
+            let sharedHighlights = workspaceMemoryHighlights(from: sharedRecords + laneSessionRecords, limit: 3)
             let crossHighlights = workspaceMemoryHighlights(from: crossWorkspaceRecords, limit: 2)
             if !sharedHighlights.isEmpty {
                 evidenceParts.append("Shared signals: \(sharedHighlights.joined(separator: " | "))")
             }
             if !crossHighlights.isEmpty {
                 evidenceParts.append("Cross-workspace carryover: \(crossHighlights.joined(separator: " | "))")
+            }
+            if let laneActiveSessionID,
+               let activeSession = workspaceSessions.first(where: { $0.id == laneActiveSessionID })
+            {
+                evidenceParts.append("Active notebook: \(activeSession.title).")
             }
             let mergedEvidence = evidenceParts.joined(separator: " ")
             let primaryAction = primary?.executionRecommendation.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1230,12 +1447,113 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    private func ensureWorkspaceSessionsSeeded() {
+        let now = Date()
+        for lane in WorkspaceLane.allCases {
+            if workspaceSessions.contains(where: { $0.lane == lane }) == false {
+                let seeded = WorkspaceNotebookSession(
+                    id: UUID().uuidString,
+                    lane: lane,
+                    title: "\(lane.title) · Core Session",
+                    createdAtUTC: now,
+                    updatedAtUTC: now,
+                    summary: "Primary notebook for \(lane.title).",
+                    isPinned: true
+                )
+                workspaceSessions.append(seeded)
+            }
+        }
+        for lane in WorkspaceLane.allCases {
+            if activeWorkspaceSessionByLane[lane] == nil {
+                activeWorkspaceSessionByLane[lane] = sessions(for: lane).first?.id
+            }
+        }
+    }
+
+    private func touchWorkspaceSession(id: String, summary: String) {
+        guard let index = workspaceSessions.firstIndex(where: { $0.id == id }) else { return }
+        var updated = workspaceSessions[index]
+        updated.summary = sanitizeWorkspaceMemoryValue(summary, maxLength: 180)
+        updated = WorkspaceNotebookSession(
+            id: updated.id,
+            lane: updated.lane,
+            title: updated.title,
+            createdAtUTC: updated.createdAtUTC,
+            updatedAtUTC: Date(),
+            summary: updated.summary,
+            isPinned: updated.isPinned
+        )
+        workspaceSessions[index] = updated
+    }
+
+    private func refreshWorkspaceSessionSnapshots() {
+        workspaceSessions = workspaceSessions.map { session in
+            let records = workspaceMemoryRecords.filter { $0.sessionID == session.id }
+            let highlights = workspaceMemoryHighlights(from: records, limit: 2)
+            let summary: String
+            if highlights.isEmpty {
+                summary = "Session is active and waiting for new signals."
+            } else {
+                summary = highlights.joined(separator: " | ")
+            }
+            return WorkspaceNotebookSession(
+                id: session.id,
+                lane: session.lane,
+                title: session.title,
+                createdAtUTC: session.createdAtUTC,
+                updatedAtUTC: records.map(\.updatedAtUTC).max() ?? session.updatedAtUTC,
+                summary: sanitizeWorkspaceMemoryValue(summary, maxLength: 190),
+                isPinned: session.isPinned
+            )
+        }
+
+        // Keep sessions ordered by lane then recency.
+        workspaceSessions.sort { lhs, rhs in
+            if lhs.lane == rhs.lane {
+                if lhs.updatedAtUTC == rhs.updatedAtUTC {
+                    return lhs.createdAtUTC > rhs.createdAtUTC
+                }
+                return lhs.updatedAtUTC > rhs.updatedAtUTC
+            }
+            return lhs.lane.rawValue < rhs.lane.rawValue
+        }
+
+        // Ensure active mapping points at valid sessions.
+        for lane in WorkspaceLane.allCases {
+            let laneSessions = sessions(for: lane)
+            if laneSessions.isEmpty { continue }
+            if let current = activeWorkspaceSessionByLane[lane],
+               laneSessions.contains(where: { $0.id == current })
+            {
+                continue
+            }
+            activeWorkspaceSessionByLane[lane] = laneSessions.first?.id
+        }
+
+        // Keep currently selected lane valid.
+        if sessions(for: activeWorkspaceLane).isEmpty {
+            activeWorkspaceLane = WorkspaceLane.allCases.first ?? .mobilityOps
+        }
+
+        // Rebuild a concise session-line for system output sparingly.
+        if !workspaceSessions.isEmpty, workspaceMemoryRecords.count % 12 == 0 {
+            appendOutput("Workspace notebooks refreshed across lanes (\(workspaceSessions.count) active sessions).")
+        }
+    }
+
     private func combinedIntentText() -> String {
         let noteText = notes
             .prefix(6)
             .map { "\($0.title) \($0.content)" }
             .joined(separator: " ")
         let surveyText = surveyAnswers
+            .map { "\($0.key) \($0.value)" }
+            .joined(separator: " ")
+        let sessionText = workspaceSessions
+            .map { "\($0.lane.rawValue) \($0.title) \($0.summary)" }
+            .joined(separator: " ")
+        let memoryText = workspaceMemoryRecords
+            .prefix(120)
             .map { "\($0.key) \($0.value)" }
             .joined(separator: " ")
         return [
@@ -1249,7 +1567,9 @@ final class SessionStore: ObservableObject {
             checkInMadeMoneyToday ? "money_progress" : "money_pending",
             workspaceMode,
             surveyText,
-            noteText
+            noteText,
+            sessionText,
+            memoryText
         ]
         .joined(separator: " ")
         .lowercased()
@@ -1313,7 +1633,12 @@ final class SessionStore: ObservableObject {
     }
 
     private func localSurveyTotal() -> Int {
-        24
+        let baseTotal = 24
+        guard surveyExpansionActive else {
+            return max(baseTotal, surveyAnswers.count)
+        }
+        let remaining = max(1, surveyExpansionQuestionTarget - surveyExpansionAnsweredInCurrentPass)
+        return max(baseTotal, surveyAnswers.count + remaining)
     }
 
     private func localSurveyQuestion() -> SurveyQuestion? {
@@ -1514,8 +1839,17 @@ final class SessionStore: ObservableObject {
             return next
         }
 
+        if surveyExpansionActive {
+            let adaptiveQuestionID = "adaptive_depth_\(surveyExpansionQuestionCounter + 1)"
+            if surveyAnswers[adaptiveQuestionID] != nil {
+                surveyExpansionQuestionCounter += 1
+                return localSurveyQuestion()
+            }
+            return localAdaptiveSurveyQuestion(id: adaptiveQuestionID)
+        }
+
         let answered = surveyAnswers.count
-        if answered >= localSurveyTotal() {
+        if answered >= max(24, localSurveyTotal()) {
             return nil
         }
         let index = answered + 1
@@ -1528,6 +1862,50 @@ final class SessionStore: ObservableObject {
                 SurveyChoice(value: "execution", label: "I need cleaner execution flow"),
                 SurveyChoice(value: "resilience", label: "I need stronger resilience planning")
             ]
+        )
+    }
+
+    private func localAdaptiveSurveyQuestion(id: String) -> SurveyQuestion {
+        let idx = max(1, surveyExpansionQuestionCounter + 1)
+        let prompts = [
+            (
+                "Adaptive depth \(idx): Which hidden constraint most limits your execution right now?",
+                "Atlas will convert this into cross-workspace constraints and next-step logic.",
+                [
+                    SurveyChoice(value: "time_fragmentation_\(idx)", label: "Time fragmentation"),
+                    SurveyChoice(value: "financial_uncertainty_\(idx)", label: "Financial uncertainty"),
+                    SurveyChoice(value: "cognitive_overload_\(idx)", label: "Cognitive overload"),
+                    SurveyChoice(value: "operational_friction_\(idx)", label: "Operational friction")
+                ]
+            ),
+            (
+                "Adaptive depth \(idx): Which upgrade would most improve this week?",
+                "This informs proactive execution stream routing.",
+                [
+                    SurveyChoice(value: "health_system_upgrade_\(idx)", label: "Health system upgrade"),
+                    SurveyChoice(value: "revenue_system_upgrade_\(idx)", label: "Revenue system upgrade"),
+                    SurveyChoice(value: "mobility_system_upgrade_\(idx)", label: "Mobility system upgrade"),
+                    SurveyChoice(value: "focus_system_upgrade_\(idx)", label: "Focus system upgrade")
+                ]
+            ),
+            (
+                "Adaptive depth \(idx): What should Atlas proactively protect first when pressure spikes?",
+                "Used for resilience-first orchestration.",
+                [
+                    SurveyChoice(value: "cashflow_protection_\(idx)", label: "Cashflow protection"),
+                    SurveyChoice(value: "health_protection_\(idx)", label: "Health protection"),
+                    SurveyChoice(value: "continuity_protection_\(idx)", label: "Continuity protection"),
+                    SurveyChoice(value: "mission_protection_\(idx)", label: "Mission protection")
+                ]
+            )
+        ]
+
+        let selected = prompts[idx % prompts.count]
+        return localQuestion(
+            id: id,
+            title: selected.0,
+            description: selected.1,
+            choices: selected.2
         )
     }
 
@@ -1801,12 +2179,16 @@ final class SessionStore: ObservableObject {
         let persistedSurveyAnswers = memoryCollectionEnabled ? surveyAnswers : [:]
         let persistedLearningPackage = memoryCollectionEnabled ? learningPackage : nil
         let persistedWorkspaceMemoryRecords = memoryCollectionEnabled ? workspaceMemoryRecords : []
+        let persistedWorkspaceSessions = workspaceSessions
         let persistedLearningVersion = memoryCollectionEnabled
             ? learningVersion
             : 0
         let persistedLearningFingerprint = memoryCollectionEnabled
             ? learningFingerprint
             : ""
+        let persistedActiveSessionMap = activeWorkspaceSessionByLane.reduce(into: [String: String]()) { partial, next in
+            partial[next.key.rawValue] = next.value
+        }
 
         let state = PersistedState(
             isSignedIn: isSignedIn,
@@ -1830,7 +2212,19 @@ final class SessionStore: ObservableObject {
             workspaceMode: workspaceMode,
             notes: persistedNotes,
             surveyAnswers: persistedSurveyAnswers,
+            surveyQuestionSessionIndex: surveyQuestionSessionIndex,
+            surveyQuestionLaneIndex: surveyQuestionLaneIndex,
+            noteSessionIndex: noteSessionIndex,
+            noteLaneIndex: noteLaneIndex,
             workspaceMemoryRecords: persistedWorkspaceMemoryRecords,
+            workspaceSessions: persistedWorkspaceSessions,
+            activeWorkspaceLane: activeWorkspaceLane.rawValue,
+            activeWorkspaceSessionByLane: persistedActiveSessionMap,
+            surveyAdditionalPassesCompleted: surveyAdditionalPassesCompleted,
+            surveyExpansionQuestionCounter: surveyExpansionQuestionCounter,
+            surveyExpansionActive: surveyExpansionActive,
+            surveyExpansionQuestionTarget: surveyExpansionQuestionTarget,
+            surveyExpansionAnsweredInCurrentPass: surveyExpansionAnsweredInCurrentPass,
             learningPackage: persistedLearningPackage,
             learningVersion: persistedLearningVersion,
             learningFingerprint: persistedLearningFingerprint,
@@ -1933,11 +2327,33 @@ final class SessionStore: ObservableObject {
         workspaceMode = state.workspaceMode
         notes = state.notes
         surveyAnswers = state.surveyAnswers ?? [:]
+        surveyQuestionSessionIndex = state.surveyQuestionSessionIndex ?? [:]
+        surveyQuestionLaneIndex = state.surveyQuestionLaneIndex ?? [:]
+        noteSessionIndex = state.noteSessionIndex ?? [:]
+        noteLaneIndex = state.noteLaneIndex ?? [:]
         workspaceMemoryRecords = state.workspaceMemoryRecords ?? []
+        workspaceSessions = state.workspaceSessions ?? []
+        if let rawLane = state.activeWorkspaceLane,
+           let lane = WorkspaceLane(rawValue: rawLane)
+        {
+            activeWorkspaceLane = lane
+        }
+        if let activeSessionMap = state.activeWorkspaceSessionByLane {
+            activeWorkspaceSessionByLane = activeSessionMap.reduce(into: [WorkspaceLane: String]()) { partial, next in
+                guard let lane = WorkspaceLane(rawValue: next.key) else { return }
+                partial[lane] = next.value
+            }
+        }
+        surveyAdditionalPassesCompleted = state.surveyAdditionalPassesCompleted ?? 0
+        surveyExpansionQuestionCounter = state.surveyExpansionQuestionCounter ?? 0
+        surveyExpansionActive = state.surveyExpansionActive ?? false
+        surveyExpansionQuestionTarget = state.surveyExpansionQuestionTarget ?? 0
+        surveyExpansionAnsweredInCurrentPass = state.surveyExpansionAnsweredInCurrentPass ?? 0
         learningPackage = state.learningPackage
         learningVersion = state.learningVersion ?? (learningPackage?.version ?? 0)
         learningFingerprint = state.learningFingerprint ?? ""
         memoryCollectionEnabled = state.memoryCollectionEnabled ?? true
+        ensureWorkspaceSessionsSeeded()
     }
 
     private func stateFileURL(fileName: String) -> URL? {
@@ -1973,7 +2389,19 @@ private struct PersistedState: Codable {
     var workspaceMode: String
     var notes: [UserNote]
     var surveyAnswers: [String: String]?
+    var surveyQuestionSessionIndex: [String: String]?
+    var surveyQuestionLaneIndex: [String: String]?
+    var noteSessionIndex: [String: String]?
+    var noteLaneIndex: [String: String]?
     var workspaceMemoryRecords: [WorkspaceMemoryRecord]?
+    var workspaceSessions: [WorkspaceNotebookSession]?
+    var activeWorkspaceLane: String?
+    var activeWorkspaceSessionByLane: [String: String]?
+    var surveyAdditionalPassesCompleted: Int?
+    var surveyExpansionQuestionCounter: Int?
+    var surveyExpansionActive: Bool?
+    var surveyExpansionQuestionTarget: Int?
+    var surveyExpansionAnsweredInCurrentPass: Int?
     var learningPackage: AdaptiveLearningPackage?
     var learningVersion: Int?
     var learningFingerprint: String?

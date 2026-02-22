@@ -13,6 +13,9 @@ struct ProactiveFeedCard: View {
                     .foregroundStyle(AtlasTheme.textPrimary)
                 Text(session.selectedTier.subtitle)
                     .foregroundStyle(AtlasTheme.textSecondary)
+                Text("Execution stream data graph: \(session.workspaceSessions.count) notebooks · \(session.workspaceMemoryRecords.count) memory records · \(session.surveyAnswerCount) survey answers")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.accentWarm)
 
                 Button("Refresh execution feed") {
                     Task { await session.refreshFeed() }
