@@ -28,6 +28,30 @@ struct CommandCenterCard: View {
             }
 
             AtlasPanel(
+                heading: "Safety + rehabilitation guardrails",
+                caption: "Atlas actively de-escalates suspicious patterns and redirects toward safe, pro-social progress"
+            ) {
+                HStack(spacing: 10) {
+                    AtlasPill(title: session.safetyModeActive ? "Intervention active" : "Monitoring")
+                    AtlasPill(title: "Risk score: \(session.safetyRiskScore)")
+                }
+
+                Text(session.safetyInterventionSummary)
+                    .foregroundStyle(AtlasTheme.textSecondary)
+
+                if session.safetyModeActive {
+                    Text("High-risk content is blocked from operational queueing. You can continue with de-escalation and constructive planning.")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AtlasTheme.accentWarm)
+
+                    Button("Acknowledge guidance") {
+                        session.acknowledgeSafetyGuidance()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+
+            AtlasPanel(
                 heading: "AI transparency (quick)",
                 caption: "Why Atlas exists and how this plan is generated"
             ) {

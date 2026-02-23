@@ -28,6 +28,41 @@ struct CommandCenterCard: View {
             }
 
             AtlasPanel(
+                heading: "Safety + rehabilitation guardrails",
+                caption: "Atlas actively de-escalates suspicious patterns and redirects toward safe, pro-social progress"
+            ) {
+                HStack(spacing: 10) {
+                    AtlasPill(title: session.safetyModeActive ? "Intervention active" : "Monitoring")
+                    AtlasPill(title: "Risk score: \(session.safetyRiskScore)")
+                }
+
+                Text(session.safetyInterventionSummary)
+                    .foregroundStyle(AtlasTheme.textSecondary)
+
+                if session.safetyModeActive {
+                    Text("High-risk content is blocked from operational queueing. You can continue with de-escalation and constructive planning.")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AtlasTheme.accentWarm)
+
+                    Button("Acknowledge guidance") {
+                        session.acknowledgeSafetyGuidance()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+
+            AtlasPanel(
+                heading: "AI transparency (quick)",
+                caption: "Why Atlas exists and how this plan is generated"
+            ) {
+                Text("Atlas is built for financial mobility, healthier cognitive execution, and resilient travel/work operations. This command plan is generated from your check-in + survey + notes + workspace memory, then prioritized into immediate, mid-term, and long-horizon actions.")
+                    .foregroundStyle(AtlasTheme.textSecondary)
+                Text("Open the AI Guide tab for full training, workflow, and privacy details.")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.accentWarm)
+            }
+
+            AtlasPanel(
                 heading: "Daily execution check-in",
                 caption: "Set your core horizon signals so the orchestration loop can prioritize correctly"
             ) {

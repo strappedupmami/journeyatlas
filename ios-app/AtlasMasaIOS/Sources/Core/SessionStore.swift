@@ -29,6 +29,9 @@ final class SessionStore: ObservableObject {
     @Published var accountStatusMessage = "Use provider auth or passwordless to activate your account."
     @Published var selectedTier: AccountTier = .localTrial
     @Published var trialDaysRemaining = SessionStore.localTrialDurationDays
+    @Published var safetyModeActive = false
+    @Published var safetyRiskScore = 0
+    @Published var safetyInterventionSummary = "No active safety concern signals."
 
     @Published var dailyPriority = ""
     @Published var midTermGoal = ""
@@ -88,6 +91,7 @@ final class SessionStore: ObservableObject {
     private var surveyExpansionAnsweredInCurrentPass = 0
     private var learningVersion = 0
     private var learningFingerprint = ""
+    private var consecutiveSafeInputs = 0
 
     private enum CareerRouteMode {
         case employee
@@ -908,13 +912,14 @@ final class SessionStore: ObservableObject {
         _ credential: ASAuthorizationPlatformPublicKeyCredentialRegistration
     ) -> PasskeyRegistrationCredentialPayload {
         let id = encodeBase64URL(credential.credentialID)
+        let attestationObject = credential.rawAttestationObject ?? Data()
         return PasskeyRegistrationCredentialPayload(
             id: id,
             rawId: id,
             type: "public-key",
             response: PasskeyRegistrationCredentialResponsePayload(
                 clientDataJSON: encodeBase64URL(credential.rawClientDataJSON),
-                attestationObject: encodeBase64URL(credential.rawAttestationObject),
+                attestationObject: encodeBase64URL(attestationObject),
                 transports: []
             ),
             clientExtensionResults: [:]
@@ -1274,6 +1279,7 @@ final class SessionStore: ObservableObject {
 
         let local = UserNote(noteID: UUID().uuidString, title: title, content: content)
         notes.insert(local, at: 0)
+        evaluateSuspiciousPattern(input: "\(title)\n\(content)", source: "note")
         let laneForNote = activeWorkspaceLane
         if let sessionID = activeSessionID(for: laneForNote) {
             noteSessionIndex[local.noteID] = sessionID
@@ -1360,6 +1366,12 @@ final class SessionStore: ObservableObject {
             return
         }
 
+        let safetySignal = evaluateSuspiciousPattern(input: cleaned, source: "prompt")
+        if safetySignal.holdQueue {
+            appendOutput("Queue is temporarily paused due to high-risk language. Atlas can only support de-escalation, rehabilitation, and safe next steps.")
+            return
+        }
+
         promptQueue.append(
             PromptQueueItem(
                 id: UUID().uuidString,
@@ -1416,6 +1428,122 @@ final class SessionStore: ObservableObject {
             systemOutput = Array(systemOutput.prefix(40))
         }
         forwardRuntimeTelemetryIfNeeded(String(sanitized.prefix(280)))
+    }
+
+    func acknowledgeSafetyGuidance() {
+        if safetyModeActive {
+            safetyModeActive = false
+        }
+        appendOutput("Safety guidance acknowledged. Atlas remains in preventive monitoring mode.")
+    }
+
+    private struct SafetySignal {
+        let score: Int
+        let categories: [String]
+        let holdQueue: Bool
+    }
+
+    @discardableResult
+    private func evaluateSuspiciousPattern(input: String, source: String) -> SafetySignal {
+        let normalized = input.lowercased()
+        var score = 0
+        var categories: [String] = []
+
+        let violenceTerms = [
+            "kill", "shoot", "stab", "bomb", "attack", "assassinate", "slaughter",
+            "להרוג", "לירות", "לדקור", "לפוצץ", "פיגוע", "לתקוף"
+        ]
+        let extremistTerms = [
+            "isis", "daesh", "al-qaeda", "neo-nazi", "race war", "martyrdom", "terror",
+            "דאעש", "אל קאעידה", "נאצי", "טרור", "ג'יהאד"
+        ]
+        let dehumanizationTerms = [
+            "subhuman", "vermin", "exterminate", "cleanse them", "parasites",
+            "תת-אדם", "להשמיד", "לטהר", "שרצים"
+        ]
+        let operationalHarmTerms = [
+            "how to make bomb", "build a bomb", "attack plan", "manifesto", "evade police", "illegal gun",
+            "איך להכין פצצה", "להכין פצצה", "תכנית פיגוע", "להתחמק מהמשטרה", "נשק לא חוקי"
+        ]
+
+        if containsAny(normalized, violenceTerms) {
+            score += 3
+            categories.append("violence")
+        }
+        if containsAny(normalized, extremistTerms) {
+            score += 3
+            categories.append("extremism")
+        }
+        if containsAny(normalized, dehumanizationTerms) {
+            score += 2
+            categories.append("dehumanization")
+        }
+        if containsAny(normalized, operationalHarmTerms) {
+            score += 4
+            categories.append("operational_harm")
+        }
+
+        let signal = SafetySignal(
+            score: score,
+            categories: categories,
+            holdQueue: score >= 6
+        )
+
+        if score == 0 {
+            consecutiveSafeInputs += 1
+            if consecutiveSafeInputs >= 3 {
+                safetyRiskScore = 0
+                safetyInterventionSummary = "No active safety concern signals."
+                safetyModeActive = false
+            }
+            return signal
+        }
+
+        consecutiveSafeInputs = 0
+        safetyRiskScore = max(safetyRiskScore, score)
+        safetyModeActive = score >= 6
+
+        let categoryText = categories.joined(separator: ", ")
+        safetyInterventionSummary = "Preventive support active (\(source)): \(categoryText). Atlas is restricted to de-escalation and safe guidance."
+
+        appendOutput("Safety intervention triggered (\(source)). Atlas cannot assist with violence, extremism, or harmful operational planning.")
+        appendOutput("De-escalation protocol: pause for 2 minutes, slow breathing, and contact a trusted person before taking action.")
+        appendOutput("Rehabilitation protocol: redirect energy into constructive mission steps, community service, and long-horizon wealth-building actions.")
+        appendOutput("If there is immediate danger to you or others, call local emergency services now.")
+
+        let safetyActions: [ExecutionAction] = [
+            ExecutionAction(
+                id: UUID().uuidString,
+                horizon: "Immediate",
+                title: "Regulate and De-escalate",
+                details: "Do a 2-minute breathing reset and physical pause before any further input.",
+                priority: 0,
+                source: "safety_guard",
+                completed: false
+            ),
+            ExecutionAction(
+                id: UUID().uuidString,
+                horizon: "Today",
+                title: "Reconnect with a Trusted Human",
+                details: "Message or call one trusted person and state one constructive goal for today.",
+                priority: 0,
+                source: "safety_guard",
+                completed: false
+            ),
+            ExecutionAction(
+                id: UUID().uuidString,
+                horizon: "Week",
+                title: "Constructive Mission Redirect",
+                details: "Convert current intensity into a lawful, pro-social project that improves your life or community.",
+                priority: 1,
+                source: "safety_guard",
+                completed: false
+            ),
+        ]
+
+        executionActions = safetyActions + Array(executionActions.prefix(4))
+        persistStateToDisk()
+        return signal
     }
 
     private func forwardRuntimeTelemetryIfNeeded(_ line: String) {
