@@ -38,6 +38,11 @@ struct APIClient {
         return try await get(path: "/v1/auth/apple/start?return_to=\(escaped)")
     }
 
+    func startGoogleOAuth(returnTo: String) async throws -> OAuthStartResponse {
+        let escaped = returnTo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "/"
+        return try await get(path: "/v1/auth/google/start?return_to=\(escaped)")
+    }
+
     func authMe() async throws -> AuthMeResponse {
         try await get(path: "/v1/auth/me")
     }

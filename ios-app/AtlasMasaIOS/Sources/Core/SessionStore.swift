@@ -20,6 +20,7 @@ final class SessionStore: ObservableObject {
 
     @Published var isSignedIn = false
     @Published var isAppleSignInInProgress = false
+    @Published var isGoogleSignInInProgress = false
     @Published var isPasskeyInProgress = false
     @Published var accountProvider: AuthProvider?
     @Published var accountLabel = "Guest Operator"
@@ -508,6 +509,10 @@ final class SessionStore: ObservableObject {
         startPromptQueueWorker()
     }
 
+    func handleAppBecameActive() async {
+        await syncSessionFromServerIfAvailable()
+    }
+
     func refreshHealth() async {
         do {
             health = try await api.health()
@@ -585,10 +590,41 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    func signInWithGooglePlaceholder() {
-        markSignedIn(provider: .google, accountName: "Google account")
-        appendOutput("Google sign-in session created locally. Connect API OAuth secrets to finalize remote sync.")
-        accountStatusMessage = "Google account activated (local mode)."
+    func startGoogleSignIn() {
+        guard !isGoogleSignInInProgress else { return }
+        isGoogleSignInInProgress = true
+        accountStatusMessage = "Launching Google sign-in…"
+
+        Task { @MainActor in
+            defer { isGoogleSignInInProgress = false }
+            do {
+                let start = try await api.startGoogleOAuth(returnTo: "/signin.html?native_app=ios&provider=google")
+                guard let url = URL(string: start.authorizeURL) else {
+                    throw NSError(domain: "AtlasGoogleAuth", code: 3001, userInfo: [
+                        NSLocalizedDescriptionKey: "Google OAuth URL is invalid."
+                    ])
+                }
+                guard isAllowedOAuthLaunchURL(url) else {
+                    throw NSError(domain: "AtlasGoogleAuth", code: 3002, userInfo: [
+                        NSLocalizedDescriptionKey: "Blocked non-trusted OAuth launch URL."
+                    ])
+                }
+#if canImport(UIKit)
+                let opened = await openExternalURL(url)
+                if !opened {
+                    throw NSError(domain: "AtlasGoogleAuth", code: 3003, userInfo: [
+                        NSLocalizedDescriptionKey: "Could not open Google sign-in page."
+                    ])
+                }
+#endif
+                appendOutput("Google sign-in opened in secure browser flow.")
+                accountStatusMessage = "Complete Google sign-in in browser, then return to app."
+            } catch {
+                let message = googleSignInFailureMessage(error: error)
+                appendOutput("Google sign-in launch failed: \(message)")
+                accountStatusMessage = message
+            }
+        }
     }
 
     private func requestAppleAuthorization() async throws -> ASAuthorization {
@@ -978,6 +1014,39 @@ final class SessionStore: ObservableObject {
         }
         return error.localizedDescription
     }
+
+    private func googleSignInFailureMessage(error: Error) -> String {
+        if let apiError = error as? APIError {
+            return apiError.localizedDescription
+        }
+        let nsError = error as NSError
+        if nsError.domain == "AtlasGoogleAuth" {
+            return nsError.localizedDescription
+        }
+        return "Google sign-in could not start. Verify provider setup and try again."
+    }
+
+    private func isAllowedOAuthLaunchURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "https" else { return false }
+        guard let host = url.host?.lowercased() else { return false }
+        if host == "accounts.google.com" || host == "appleid.apple.com" {
+            return true
+        }
+        if host == "api.atlasmasa.com" || host == "journeyatlas-production.up.railway.app" {
+            return true
+        }
+        return false
+    }
+
+#if canImport(UIKit)
+    private func openExternalURL(_ url: URL) async -> Bool {
+        await withCheckedContinuation { continuation in
+            UIApplication.shared.open(url, options: [:]) { success in
+                continuation.resume(returning: success)
+            }
+        }
+    }
+#endif
 
     func signInWithPasswordless() {
         guard !isPasskeyInProgress else { return }

@@ -17,6 +17,11 @@ struct AtlasMasaIOSApp: App {
                     if phase == .active || phase == .background {
                         session.startPromptQueueWorker()
                     }
+                    if phase == .active {
+                        Task {
+                            await session.handleAppBecameActive()
+                        }
+                    }
                 }
         }
     }

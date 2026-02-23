@@ -57,24 +57,37 @@ struct AppleSignInCard: View {
                 .disabled(session.isAppleSignInInProgress)
 
                 HStack(spacing: 10) {
-                    Button("Continue with Google") {
-                        session.signInWithGooglePlaceholder()
+                    GoogleSignInButton(
+                        title: session.isGoogleSignInInProgress ? "Connecting to Google…" : "Sign in with Google"
+                    ) {
+                        session.startGoogleSignIn()
                     }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-                    .disabled(session.isPasskeyInProgress || session.isAppleSignInInProgress)
+                    .disabled(
+                        session.isPasskeyInProgress
+                            || session.isAppleSignInInProgress
+                            || session.isGoogleSignInInProgress
+                    )
 
                     Button(session.isPasskeyInProgress ? "Passwordless: Working…" : "Passwordless (more secure) Sign in") {
                         session.signInWithPasswordless()
                     }
                     .buttonStyle(AtlasPrimaryButtonStyle())
-                    .disabled(session.isPasskeyInProgress || session.isAppleSignInInProgress)
+                    .disabled(
+                        session.isPasskeyInProgress
+                            || session.isAppleSignInInProgress
+                            || session.isGoogleSignInInProgress
+                    )
                 }
 
                 Button(session.isPasskeyInProgress ? "Creating account…" : "Passwordless (more secure) Sign up") {
                     session.signUpWithPasswordless()
                 }
                 .buttonStyle(AtlasSecondaryButtonStyle())
-                .disabled(session.isPasskeyInProgress || session.isAppleSignInInProgress)
+                .disabled(
+                    session.isPasskeyInProgress
+                        || session.isAppleSignInInProgress
+                        || session.isGoogleSignInInProgress
+                )
 
                 Text(session.accountStatusMessage)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -103,5 +116,41 @@ struct AppleSignInCard: View {
                 .foregroundStyle(AtlasTheme.textPrimary)
             Spacer()
         }
+    }
+}
+
+private struct GoogleSignInButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.white)
+                        .frame(width: 22, height: 22)
+                    Text("G")
+                        .font(.system(size: 14, weight: .bold, design: .default))
+                        .foregroundStyle(Color.black)
+                }
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.black)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Sign in with Google")
     }
 }
