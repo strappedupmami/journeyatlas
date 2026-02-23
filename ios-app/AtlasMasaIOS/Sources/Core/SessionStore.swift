@@ -1038,6 +1038,42 @@ final class SessionStore: ObservableObject {
                 )
             )
         }
+        if let incomeGap = surveyAnswers["income_gap_primary"] {
+            insights.append(
+                MemoryInsight(
+                    id: UUID().uuidString,
+                    label: "Primary income blocker",
+                    value: wealthLabel(for: incomeGap)
+                )
+            )
+        }
+        if let sleepQuality = surveyAnswers["brain_sleep_quality"] {
+            insights.append(
+                MemoryInsight(
+                    id: UUID().uuidString,
+                    label: "Sleep quality baseline",
+                    value: wealthLabel(for: sleepQuality)
+                )
+            )
+        }
+        if let focusStability = surveyAnswers["brain_focus_stability"] {
+            insights.append(
+                MemoryInsight(
+                    id: UUID().uuidString,
+                    label: "Focus stability baseline",
+                    value: wealthLabel(for: focusStability)
+                )
+            )
+        }
+        if let stressRegulation = surveyAnswers["brain_stress_regulation"] {
+            insights.append(
+                MemoryInsight(
+                    id: UUID().uuidString,
+                    label: "Stress regulation baseline",
+                    value: wealthLabel(for: stressRegulation)
+                )
+            )
+        }
         for note in keyNotes {
             insights.append(MemoryInsight(id: UUID().uuidString, label: note.title, value: String(note.content.prefix(90))))
         }
@@ -1076,6 +1112,12 @@ final class SessionStore: ObservableObject {
         let promotionHorizon = surveyAnswers["promotion_horizon"] ?? "not_applicable"
         let customerGrowthFocus = surveyAnswers["customer_growth_focus"] ?? "not_applicable"
         let runwayMonths = surveyAnswers["runway_months"] ?? "3_6"
+        let incomeGapPrimary = surveyAnswers["income_gap_primary"] ?? "execution_consistency"
+        let sleepQuality = surveyAnswers["brain_sleep_quality"] ?? "inconsistent"
+        let focusStability = surveyAnswers["brain_focus_stability"] ?? "variable"
+        let stressRegulation = surveyAnswers["brain_stress_regulation"] ?? "slow_recovery"
+        let weeklyRevenueReps = surveyAnswers["weekly_revenue_reps"] ?? "1_2"
+        let wealthDiagnostic = buildWealthBrainDiagnostic()
         let careerDecision = buildCareerRouteDecision(
             employmentState: employmentState,
             businessState: businessState,
@@ -1133,6 +1175,32 @@ final class SessionStore: ObservableObject {
                 completed: false
             )
         )
+
+        actions.append(
+            ExecutionAction(
+                id: UUID().uuidString,
+                horizon: "Wealth",
+                title: "Resolve primary income blocker: \(wealthDiagnostic.primaryBlockerTitle)",
+                details: "Signals: blocker=\(wealthLabel(for: incomeGapPrimary)), sleep=\(wealthLabel(for: sleepQuality)), focus=\(wealthLabel(for: focusStability)), stress=\(wealthLabel(for: stressRegulation)), reps=\(wealthLabel(for: weeklyRevenueReps)). Immediate protocol: \(wealthDiagnostic.immediateProtocol) 7-day protocol: \(wealthDiagnostic.sevenDayProtocol)",
+                priority: 1,
+                source: "wealth-brain-diagnostic",
+                completed: false
+            )
+        )
+
+        if wealthDiagnostic.requiresCognitiveProtection {
+            actions.append(
+                ExecutionAction(
+                    id: UUID().uuidString,
+                    horizon: "Daily",
+                    title: "Stabilize cognitive conditions for wealth execution",
+                    details: wealthDiagnostic.cognitiveProtectionProtocol,
+                    priority: 1,
+                    source: "wealth-brain-conditions",
+                    completed: false
+                )
+            )
+        }
 
         if careerDecision.mode == .employee || careerDecision.mode == .hybrid {
             actions.append(
@@ -1434,8 +1502,9 @@ final class SessionStore: ObservableObject {
             || (Int(annualDistanceKM) ?? 0) >= 50_000
         let needsResilience = containsAny(combinedIntent, ["risk", "emergency", "safety", "fallback", "continuity", "breakdown"])
         let surveyDepth = survey?.progress.answered ?? 0
+        let surveyDepthTarget = max(34, localSurveyTotal() - 4)
 
-        if surveyDepth < 34 {
+        if surveyDepth < surveyDepthTarget {
             offers.append(
                 TailoredOffer(
                     id: "offer-survey-depth",
@@ -1443,7 +1512,7 @@ final class SessionStore: ObservableObject {
                     type: .feature,
                     title: "Deep Profile Calibration",
                     summary: "Complete the adaptive survey so Atlas can lock your true operating profile.",
-                    rationale: "You are still in onboarding depth mode (\(surveyDepth)/34).",
+                    rationale: "You are still in onboarding depth mode (\(surveyDepth)/\(surveyDepthTarget)).",
                     priority: 1,
                     callToAction: "Finish the deep survey"
                 )
@@ -1461,6 +1530,22 @@ final class SessionStore: ObservableObject {
                     rationale: "Detected revenue-focused intent in your profile and recent context.",
                     priority: 1,
                     callToAction: "Run revenue sprint"
+                )
+            )
+        }
+
+        if surveyAnswers["income_gap_primary"] != nil {
+            let diagnostic = buildWealthBrainDiagnostic()
+            offers.append(
+                TailoredOffer(
+                    id: "offer-wealth-neuro-diagnostic",
+                    category: .wealthOperations,
+                    type: .feature,
+                    title: "Income Blocker Diagnostic",
+                    summary: "Translate cognitive, behavioral, and financial signals into one clear income bottleneck and a corrective execution protocol.",
+                    rationale: "Primary blocker detected: \(diagnostic.primaryBlockerTitle). \(diagnostic.summary)",
+                    priority: 1,
+                    callToAction: "Open diagnostic protocol"
                 )
             )
         }
@@ -1680,15 +1765,30 @@ final class SessionStore: ObservableObject {
         }
 
         let uniqueOffers = Dictionary(uniqueKeysWithValues: offers.map { ($0.id, $0) }).values
-        return uniqueOffers
+        let sortedOffers = uniqueOffers
             .sorted { lhs, rhs in
                 if lhs.priority == rhs.priority {
                     return lhs.title < rhs.title
                 }
                 return lhs.priority < rhs.priority
             }
-            .prefix(6)
-            .map { $0 }
+
+        var finalOffers: [TailoredOffer] = []
+        let pinnedPrefixes = ["offer-income-ladder-", "offer-business-playbook-"]
+
+        for offer in sortedOffers where pinnedPrefixes.contains(where: { offer.id.hasPrefix($0) }) {
+            if !finalOffers.contains(where: { $0.id == offer.id }) {
+                finalOffers.append(offer)
+            }
+        }
+
+        for offer in sortedOffers where finalOffers.count < 6 {
+            if !finalOffers.contains(where: { $0.id == offer.id }) {
+                finalOffers.append(offer)
+            }
+        }
+
+        return finalOffers
     }
 
     private func buildResearchExecutionStreams() -> [ResearchExecutionStream] {
@@ -2618,6 +2718,186 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    private struct WealthBrainDiagnostic {
+        let primaryBlockerTitle: String
+        let summary: String
+        let immediateProtocol: String
+        let sevenDayProtocol: String
+        let requiresCognitiveProtection: Bool
+        let cognitiveProtectionProtocol: String
+    }
+
+    private func buildWealthBrainDiagnostic() -> WealthBrainDiagnostic {
+        let incomeGapPrimary = surveyAnswers["income_gap_primary"] ?? "execution_consistency"
+        let sleepQuality = surveyAnswers["brain_sleep_quality"] ?? "inconsistent"
+        let focusStability = surveyAnswers["brain_focus_stability"] ?? "variable"
+        let stressRegulation = surveyAnswers["brain_stress_regulation"] ?? "slow_recovery"
+        let decisionProtocol = surveyAnswers["decision_protocol"] ?? "mixed_protocol"
+        let weeklyRevenueReps = surveyAnswers["weekly_revenue_reps"] ?? "1_2"
+        let moneyLeak = surveyAnswers["behavioral_money_leak"] ?? "no_tracking"
+        let allocationDiscipline = surveyAnswers["capital_allocation_discipline"] ?? "inconsistent_rules"
+
+        var scores: [String: Int] = [:]
+        func boost(_ key: String, _ points: Int) {
+            scores[key, default: 0] += points
+        }
+
+        switch incomeGapPrimary {
+        case "pipeline_volume":
+            boost("pipeline", 4)
+        case "conversion_close":
+            boost("conversion", 4)
+        case "pricing_positioning":
+            boost("pricing", 4)
+        case "skill_capital_gap":
+            boost("skill_capital", 4)
+        case "money_leak":
+            boost("money_leak", 4)
+        case "cognitive_drain":
+            boost("cognitive", 4)
+        case "unclear_strategy":
+            boost("strategy", 4)
+        default:
+            boost("execution", 4)
+        }
+
+        if weeklyRevenueReps == "0" {
+            boost("pipeline", 3)
+            boost("execution", 2)
+        } else if weeklyRevenueReps == "1_2" {
+            boost("pipeline", 2)
+        }
+
+        if sleepQuality == "poor" || sleepQuality == "broken" {
+            boost("cognitive", 3)
+        }
+        if focusStability == "fragile" || focusStability == "variable" {
+            boost("cognitive", 2)
+            boost("execution", 1)
+        }
+        if stressRegulation == "slow_recovery" || stressRegulation == "rollover" {
+            boost("cognitive", 2)
+            boost("decision", 1)
+        }
+        if decisionProtocol == "reactive_protocol" || decisionProtocol == "avoidant_protocol" {
+            boost("decision", 3)
+            boost("strategy", 1)
+        }
+
+        if moneyLeak == "underpricing" {
+            boost("pricing", 2)
+        } else if moneyLeak == "impulse_spending" || moneyLeak == "unclear_budget" || moneyLeak == "no_tracking" {
+            boost("money_leak", 3)
+        }
+
+        if allocationDiscipline == "ad_hoc" {
+            boost("money_leak", 2)
+            boost("strategy", 1)
+        } else if allocationDiscipline == "inconsistent_rules" {
+            boost("money_leak", 1)
+        }
+
+        let topBlocker = scores.max { lhs, rhs in
+            if lhs.value == rhs.value {
+                return lhs.key > rhs.key
+            }
+            return lhs.value < rhs.value
+        }?.key ?? "execution"
+
+        let requiresCognitiveProtection = sleepQuality == "poor"
+            || sleepQuality == "broken"
+            || focusStability == "fragile"
+            || stressRegulation == "rollover"
+
+        let cognitiveProtectionProtocol = "Run a cognitive protection protocol for 7 days: fixed sleep window, one 60-90 minute deep block before notifications, 10-minute decompression after stress spikes, and no high-stakes decisions after cognitive fatigue."
+
+        let summary = "Atlas diagnosis combines income route + brain-state + behavior signals: blocker \(wealthLabel(for: incomeGapPrimary)); sleep \(wealthLabel(for: sleepQuality)); focus \(wealthLabel(for: focusStability)); stress \(wealthLabel(for: stressRegulation)); decision mode \(wealthLabel(for: decisionProtocol))."
+
+        switch topBlocker {
+        case "pipeline":
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Qualified pipeline deficit",
+                summary: summary,
+                immediateProtocol: "Schedule and execute 5 direct outbound touches today with one clear offer and deadline.",
+                sevenDayProtocol: "Complete 25 outbound touches, publish 2 proof assets, and review response rates daily to tighten ICP + message.",
+                requiresCognitiveProtection: requiresCognitiveProtection,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        case "conversion":
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Conversion and close weakness",
+                summary: summary,
+                immediateProtocol: "Run one live closing attempt today using objection map + explicit next-step ask.",
+                sevenDayProtocol: "Review 5 calls/proposals, fix one objection script per day, and track close-rate delta by segment.",
+                requiresCognitiveProtection: requiresCognitiveProtection,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        case "pricing":
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Pricing and positioning gap",
+                summary: summary,
+                immediateProtocol: "Raise price or package value today for one offer and test on the next 3 opportunities.",
+                sevenDayProtocol: "Run a structured pricing test, rewrite positioning around outcome value, and track margin + close impact.",
+                requiresCognitiveProtection: requiresCognitiveProtection,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        case "skill_capital":
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Skill capital and proof gap",
+                summary: summary,
+                immediateProtocol: "Define one monetizable skill sprint and produce one proof-of-work artifact this week.",
+                sevenDayProtocol: "Run 5 deliberate practice blocks, ship 2 portfolio artifacts, and map each to a target opportunity.",
+                requiresCognitiveProtection: requiresCognitiveProtection,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        case "money_leak":
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Money leakage and allocation drift",
+                summary: summary,
+                immediateProtocol: "Enable 24-hour hold on non-essential spend and create one automatic transfer rule today.",
+                sevenDayProtocol: "Track all inflow/outflow for 7 days, cut one leak category, and lock a fixed allocation template.",
+                requiresCognitiveProtection: requiresCognitiveProtection,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        case "strategy":
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Unclear strategy and route fragmentation",
+                summary: summary,
+                immediateProtocol: "Choose one primary wealth route for this quarter and kill non-aligned initiatives today.",
+                sevenDayProtocol: "Translate the chosen route into one weekly scoreboard and one daily non-negotiable action block.",
+                requiresCognitiveProtection: requiresCognitiveProtection,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        case "decision":
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Decision quality under pressure",
+                summary: summary,
+                immediateProtocol: "Use a 3-criteria decision template with a hard deadline for the next high-stakes choice.",
+                sevenDayProtocol: "Run a decision log for 7 days, capture outcome quality, and remove one recurring decision failure pattern.",
+                requiresCognitiveProtection: true,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        case "cognitive":
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Cognitive throughput instability",
+                summary: summary,
+                immediateProtocol: "Protect first 90 minutes for deep, revenue-linked work before messaging and low-value tasks.",
+                sevenDayProtocol: "Stabilize sleep/focus/recovery loops for 7 days and measure output from high-value deep blocks.",
+                requiresCognitiveProtection: true,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        default:
+            return WealthBrainDiagnostic(
+                primaryBlockerTitle: "Execution consistency gap",
+                summary: summary,
+                immediateProtocol: "Define one measurable outcome and execute the first block in the next 30 minutes.",
+                sevenDayProtocol: "Repeat daily execution block for 7 days with end-of-day scoreboard and next-step precommitment.",
+                requiresCognitiveProtection: requiresCognitiveProtection,
+                cognitiveProtectionProtocol: cognitiveProtectionProtocol
+            )
+        }
+    }
+
     private func buildJobMarketOpportunities() -> [JobOpportunity] {
         let track = surveyAnswers["high_paying_job_track"] ?? "none"
         let industry = surveyAnswers["industry_focus"] ?? "software_ai"
@@ -2719,6 +2999,80 @@ final class SessionStore: ObservableObject {
             return "Business reinvestment"
         case "debt_reduction_then_growth":
             return "Debt reduction then growth"
+        case "pipeline_volume":
+            return "Pipeline volume gap"
+        case "conversion_close":
+            return "Conversion and close gap"
+        case "pricing_positioning":
+            return "Pricing and positioning gap"
+        case "skill_capital_gap":
+            return "Skill capital gap"
+        case "execution_consistency":
+            return "Execution consistency gap"
+        case "cognitive_drain":
+            return "Cognitive drain"
+        case "money_leak":
+            return "Money leakage"
+        case "unclear_strategy":
+            return "Unclear strategy"
+        case "restorative":
+            return "Restorative sleep"
+        case "inconsistent":
+            return "Inconsistent sleep"
+        case "poor":
+            return "Poor sleep quality"
+        case "broken":
+            return "Fragmented sleep"
+        case "stable_90_plus":
+            return "Stable 90+ minute focus"
+        case "stable_45_90":
+            return "Stable 45-90 minute focus"
+        case "variable":
+            return "Variable focus stability"
+        case "fragile":
+            return "Fragile focus stability"
+        case "fast_recovery":
+            return "Fast stress recovery"
+        case "moderate_recovery":
+            return "Moderate stress recovery"
+        case "slow_recovery":
+            return "Slow stress recovery"
+        case "rollover":
+            return "Stress rollover across days"
+        case "structured_protocol":
+            return "Structured decision protocol"
+        case "mixed_protocol":
+            return "Mixed decision protocol"
+        case "reactive_protocol":
+            return "Reactive decisions"
+        case "avoidant_protocol":
+            return "Decision avoidance"
+        case "0":
+            return "No weekly revenue reps"
+        case "1_2":
+            return "1-2 weekly revenue reps"
+        case "3_5":
+            return "3-5 weekly revenue reps"
+        case "6_plus":
+            return "6+ weekly revenue reps"
+        case "impulse_spending":
+            return "Impulse spending leak"
+        case "unclear_budget":
+            return "Budget clarity leak"
+        case "underpricing":
+            return "Underpricing leak"
+        case "inconsistent_saving":
+            return "Inconsistent saving"
+        case "no_tracking":
+            return "No tracking discipline"
+        case "strict_rules":
+            return "Strict allocation rules"
+        case "mostly_disciplined":
+            return "Mostly disciplined allocation"
+        case "inconsistent_rules":
+            return "Inconsistent allocation rules"
+        case "ad_hoc":
+            return "Ad-hoc allocation"
         case "employed_full_time":
             return "Employed full-time"
         case "employed_part_time":
@@ -2834,7 +3188,7 @@ final class SessionStore: ObservableObject {
     }
 
     private func localSurveyTotal() -> Int {
-        let baseTotal = 39
+        let baseTotal = 47
         guard surveyExpansionActive else {
             return max(baseTotal, surveyAnswers.count)
         }
@@ -3048,6 +3402,99 @@ final class SessionStore: ObservableObject {
                     SurveyChoice(value: "none", label: "No regular income"),
                     SurveyChoice(value: "sometimes", label: "Sometimes"),
                     SurveyChoice(value: "regularly", label: "Regularly")
+                ]
+            ),
+            localQuestion(
+                id: "income_gap_primary",
+                title: "What most explains why your income is below what you need or want?",
+                description: "Atlas uses this as your primary income blocker diagnosis.",
+                choices: [
+                    SurveyChoice(value: "pipeline_volume", label: "Not enough qualified opportunities"),
+                    SurveyChoice(value: "conversion_close", label: "Closing/conversion is weak"),
+                    SurveyChoice(value: "pricing_positioning", label: "Pricing/positioning is too low"),
+                    SurveyChoice(value: "skill_capital_gap", label: "Skills or credibility gap"),
+                    SurveyChoice(value: "execution_consistency", label: "Inconsistent execution"),
+                    SurveyChoice(value: "cognitive_drain", label: "Mental overload and low cognitive energy"),
+                    SurveyChoice(value: "money_leak", label: "Spending/leakage destroys progress"),
+                    SurveyChoice(value: "unclear_strategy", label: "No clear strategy or route")
+                ]
+            ),
+            localQuestion(
+                id: "brain_sleep_quality",
+                title: "How has your sleep quality been over the last 14 days?",
+                description: "Sleep quality strongly affects executive control, impulse discipline, and decision quality.",
+                choices: [
+                    SurveyChoice(value: "restorative", label: "Restorative most nights"),
+                    SurveyChoice(value: "inconsistent", label: "Inconsistent"),
+                    SurveyChoice(value: "poor", label: "Poor"),
+                    SurveyChoice(value: "broken", label: "Fragmented / broken")
+                ]
+            ),
+            localQuestion(
+                id: "brain_focus_stability",
+                title: "How stable is your focus during high-value work blocks?",
+                description: "Atlas uses this to shape your execution cadence and blocker protocols.",
+                choices: [
+                    SurveyChoice(value: "stable_90_plus", label: "Stable for 90+ minutes"),
+                    SurveyChoice(value: "stable_45_90", label: "Stable for 45-90 minutes"),
+                    SurveyChoice(value: "variable", label: "Variable day to day"),
+                    SurveyChoice(value: "fragile", label: "Breaks quickly")
+                ]
+            ),
+            localQuestion(
+                id: "brain_stress_regulation",
+                title: "After a stress spike, how quickly do you return to effective execution?",
+                description: "Fast recovery preserves throughput and reduces costly decision errors.",
+                choices: [
+                    SurveyChoice(value: "fast_recovery", label: "Within 10-20 minutes"),
+                    SurveyChoice(value: "moderate_recovery", label: "Within 1-2 hours"),
+                    SurveyChoice(value: "slow_recovery", label: "Most of the day"),
+                    SurveyChoice(value: "rollover", label: "Carries into the next day")
+                ]
+            ),
+            localQuestion(
+                id: "decision_protocol",
+                title: "When stakes are high, how do you usually make decisions?",
+                description: "Atlas uses this to reduce decision noise and improve expected value.",
+                choices: [
+                    SurveyChoice(value: "structured_protocol", label: "Structured criteria + clear deadlines"),
+                    SurveyChoice(value: "mixed_protocol", label: "Sometimes structured, sometimes reactive"),
+                    SurveyChoice(value: "reactive_protocol", label: "Mostly reactive"),
+                    SurveyChoice(value: "avoidant_protocol", label: "I delay difficult decisions")
+                ]
+            ),
+            localQuestion(
+                id: "weekly_revenue_reps",
+                title: "How many direct revenue actions do you run each week?",
+                description: "Examples: outreach, offers, negotiation, proposals, closing calls.",
+                choices: [
+                    SurveyChoice(value: "0", label: "0"),
+                    SurveyChoice(value: "1_2", label: "1-2"),
+                    SurveyChoice(value: "3_5", label: "3-5"),
+                    SurveyChoice(value: "6_plus", label: "6+")
+                ]
+            ),
+            localQuestion(
+                id: "behavioral_money_leak",
+                title: "What is the biggest money leak in your current system?",
+                description: nil,
+                choices: [
+                    SurveyChoice(value: "impulse_spending", label: "Impulse spending"),
+                    SurveyChoice(value: "unclear_budget", label: "No clear budget protocol"),
+                    SurveyChoice(value: "underpricing", label: "Underpricing my work"),
+                    SurveyChoice(value: "inconsistent_saving", label: "Inconsistent saving/investing"),
+                    SurveyChoice(value: "no_tracking", label: "No tracking of inflow/outflow")
+                ]
+            ),
+            localQuestion(
+                id: "capital_allocation_discipline",
+                title: "How disciplined is your capital allocation plan?",
+                description: "Capital allocation = where income goes after tax and essentials.",
+                choices: [
+                    SurveyChoice(value: "strict_rules", label: "Strict rules with automation"),
+                    SurveyChoice(value: "mostly_disciplined", label: "Mostly disciplined"),
+                    SurveyChoice(value: "inconsistent_rules", label: "Inconsistent"),
+                    SurveyChoice(value: "ad_hoc", label: "Mostly ad-hoc")
                 ]
             ),
             localQuestion(
@@ -3397,6 +3844,11 @@ final class SessionStore: ObservableObject {
         let businessModel = surveyAnswers["business_model_focus"] ?? "not_now"
         let skillStack = surveyAnswers["monetizable_skill_stack"] ?? "problem_solving"
         let compoundingPlan = surveyAnswers["compounding_plan"] ?? "auto_index"
+        let incomeGapPrimary = surveyAnswers["income_gap_primary"] ?? "execution_consistency"
+        let sleepQuality = surveyAnswers["brain_sleep_quality"] ?? "inconsistent"
+        let focusStability = surveyAnswers["brain_focus_stability"] ?? "variable"
+        let stressRegulation = surveyAnswers["brain_stress_regulation"] ?? "slow_recovery"
+        let diagnostic = buildWealthBrainDiagnostic()
 
         let rationale = "Version \(version) generated from new memory signals (survey: \(surveyAnswers.count), notes: \(notes.count), pressure: \(pressure), goal: \(priority), wealth route: \(wealthLabel(for: wealthVehicle)))."
         let quiz = [
@@ -3465,6 +3917,17 @@ final class SessionStore: ObservableObject {
                 ],
                 preferredAnswerIndex: 1,
                 explanation: "Automatic defaults beat intention-only behavior in long-horizon wealth systems."
+            ),
+            AdaptiveQuizQuestion(
+                id: "q\(version)-7",
+                prompt: "Atlas mapped your primary blocker as \(diagnostic.primaryBlockerTitle). What should happen next?",
+                options: [
+                    diagnostic.immediateProtocol,
+                    "Collect more information for weeks before acting",
+                    "Switch strategies daily to stay flexible"
+                ],
+                preferredAnswerIndex: 0,
+                explanation: "Fast correction of the primary blocker improves income velocity and reduces drift."
             )
         ]
 
@@ -3513,6 +3976,16 @@ final class SessionStore: ObservableObject {
                     compoundingProtocolDetails(plan: compoundingPlan),
                     "Keep an explicit runway policy and avoid operating blind under volatility",
                     "Document one corrective signal and one reinforcement signal each day"
+                ]
+            ),
+            AdaptivePodcastSegment(
+                id: "s\(version)-5",
+                title: "Brain conditions for wealth execution",
+                talkingPoints: [
+                    "Primary blocker: \(wealthLabel(for: incomeGapPrimary))",
+                    "Brain-state profile: sleep \(wealthLabel(for: sleepQuality)), focus \(wealthLabel(for: focusStability)), stress \(wealthLabel(for: stressRegulation)).",
+                    "Immediate protocol: \(diagnostic.immediateProtocol)",
+                    "7-day protocol: \(diagnostic.sevenDayProtocol)"
                 ]
             )
         ]

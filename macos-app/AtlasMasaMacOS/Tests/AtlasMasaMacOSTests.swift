@@ -157,6 +157,14 @@ final class AtlasMasaMacOSTests: XCTestCase {
         XCTAssertTrue(askedIDs.contains("high_paying_job_track"))
         XCTAssertTrue(askedIDs.contains("business_model_focus"))
         XCTAssertTrue(askedIDs.contains("compounding_plan"))
+        XCTAssertTrue(askedIDs.contains("income_gap_primary"))
+        XCTAssertTrue(askedIDs.contains("brain_sleep_quality"))
+        XCTAssertTrue(askedIDs.contains("brain_focus_stability"))
+        XCTAssertTrue(askedIDs.contains("brain_stress_regulation"))
+        XCTAssertTrue(askedIDs.contains("decision_protocol"))
+        XCTAssertTrue(askedIDs.contains("weekly_revenue_reps"))
+        XCTAssertTrue(askedIDs.contains("behavioral_money_leak"))
+        XCTAssertTrue(askedIDs.contains("capital_allocation_discipline"))
         XCTAssertTrue(askedIDs.contains("employment_state"))
         XCTAssertTrue(askedIDs.contains("business_state"))
         XCTAssertTrue(askedIDs.contains("growth_priority"))
@@ -167,9 +175,11 @@ final class AtlasMasaMacOSTests: XCTestCase {
         store.applyDailyCheckIn()
 
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-route" }))
+        XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-brain-diagnostic" }))
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-compounding" }))
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-corpus-ladder" }))
         XCTAssertTrue(store.executionActions.contains(where: { $0.source == "wealth-corpus-promotion" || $0.source == "wealth-corpus-business" }))
+        XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-wealth-neuro-diagnostic" }))
         XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-income-ladder-ai_software" }))
     }
 
@@ -309,7 +319,6 @@ final class AtlasMasaMacOSTests: XCTestCase {
         }
 
         store.applyDailyCheckIn()
-
         XCTAssertTrue(store.executionActions.contains(where: {
             $0.source == "wealth-corpus-ladder" && $0.title.contains("Real Estate")
         }))
