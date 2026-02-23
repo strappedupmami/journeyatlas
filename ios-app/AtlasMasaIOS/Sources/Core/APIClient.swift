@@ -91,9 +91,23 @@ struct APIClient {
         )
     }
 
-    func exchangeNativeApple(identityToken: String, authorizationCode: String?, locale: String) async throws {
-        // Scaffold endpoint for native Sign in with Apple exchange.
-        _ = try await postRaw(path: "/v1/auth/apple/native", body: NativeAppleExchangePayload(identityToken: identityToken, authorizationCode: authorizationCode, locale: locale))
+    func exchangeNativeApple(
+        identityToken: String,
+        authorizationCode: String?,
+        email: String?,
+        displayName: String?,
+        locale: String
+    ) async throws {
+        _ = try await postRaw(
+            path: "/v1/auth/apple/native",
+            body: NativeAppleExchangePayload(
+                identityToken: identityToken,
+                authorizationCode: authorizationCode,
+                email: email,
+                displayName: displayName,
+                locale: locale
+            )
+        )
     }
 
     private func get<T: Decodable>(path: String) async throws -> T {

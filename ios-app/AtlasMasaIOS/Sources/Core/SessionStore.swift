@@ -19,7 +19,6 @@ final class SessionStore: ObservableObject {
     @Published var accountProvider: AuthProvider?
     @Published var accountLabel = "Guest Operator"
     @Published var accountStatusMessage = "Use provider auth or passwordless to activate your account."
-    @Published var pendingExternalAuthURL: URL?
     @Published var selectedTier: AccountTier = .localTrial
     @Published var trialDaysRemaining = 90
 
@@ -511,23 +510,6 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    func beginAppleWebSignIn(returnTo: String = "/concierge-local.html") async {
-        do {
-            let response = try await api.startAppleOAuth(returnTo: returnTo)
-            guard let url = URL(string: response.authorizeURL) else {
-                appendOutput("Apple OAuth URL invalid.")
-                accountStatusMessage = "Apple sign-in URL is invalid. Retry in a few seconds."
-                return
-            }
-            pendingExternalAuthURL = url
-            appendOutput("Apple OAuth started via web fallback.")
-            accountStatusMessage = "Opening secure Apple sign-in in browser."
-        } catch {
-            appendOutput("Apple OAuth web start failed: \(error.localizedDescription)")
-            accountStatusMessage = "Apple browser fallback is unavailable right now. Try Passwordless or Google."
-        }
-    }
-
     func handleAppleAuthorization(result: Result<ASAuthorization, Error>) async {
         switch result {
         case let .success(auth):
@@ -543,9 +525,20 @@ final class SessionStore: ObservableObject {
                 return
             }
             let authCode = credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
+            let email = credential.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let fullNameParts = [credential.fullName?.givenName, credential.fullName?.familyName]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            let displayName = fullNameParts.isEmpty ? nil : fullNameParts.joined(separator: " ")
 
             do {
-                try await api.exchangeNativeApple(identityToken: identityToken, authorizationCode: authCode, locale: Locale.current.identifier)
+                try await api.exchangeNativeApple(
+                    identityToken: identityToken,
+                    authorizationCode: authCode,
+                    email: email,
+                    displayName: displayName,
+                    locale: Locale.current.identifier
+                )
                 markSignedIn(provider: .apple, accountName: credential.fullName?.givenName ?? "Atlas Owner")
                 appendOutput("Native Apple sign-in synced with API.")
                 accountStatusMessage = "Apple account activated and synced."
@@ -564,14 +557,9 @@ final class SessionStore: ObservableObject {
             {
                 accountStatusMessage = "Apple sign-in was cancelled."
             } else {
-                accountStatusMessage = "Native Apple sign-in failed on this device. Switching to secure browser fallback."
-                await beginAppleWebSignIn()
+                accountStatusMessage = "Native Apple sign-in failed on this device. Please try again."
             }
         }
-    }
-
-    func clearPendingExternalAuthURL() {
-        pendingExternalAuthURL = nil
     }
 
     func signInWithGooglePlaceholder() {

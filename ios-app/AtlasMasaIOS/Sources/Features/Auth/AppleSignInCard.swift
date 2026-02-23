@@ -3,7 +3,6 @@ import SwiftUI
 
 struct AppleSignInCard: View {
     @EnvironmentObject private var session: SessionStore
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         AtlasScreen(
@@ -50,13 +49,6 @@ struct AppleSignInCard: View {
                 .frame(height: 50)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                Button("Continue with Apple in browser (fallback)") {
-                    Task {
-                        await session.beginAppleWebSignIn()
-                    }
-                }
-                .buttonStyle(AtlasSecondaryButtonStyle())
-
                 HStack(spacing: 10) {
                     Button("Continue with Google") {
                         session.signInWithGooglePlaceholder()
@@ -90,11 +82,6 @@ struct AppleSignInCard: View {
                     }
                 }
             }
-        }
-        .onChange(of: session.pendingExternalAuthURL) { _, url in
-            guard let url else { return }
-            openURL(url)
-            session.clearPendingExternalAuthURL()
         }
     }
 

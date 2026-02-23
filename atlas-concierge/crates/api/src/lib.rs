@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use atlas_agents::ConciergeAgent;
-use atlas_core::{ChatInput, TripPlanRequest};
+use atlas_core::{detect_locale, ChatInput, TripPlanRequest};
 use atlas_ml::AtlasMlStack;
 use atlas_observability::AppMetrics;
 use atlas_retrieval::HybridRetriever;
@@ -126,6 +126,7 @@ struct AppleOAuthConfig {
     client_secret: String,
     redirect_uri: String,
     frontend_origin: String,
+    native_client_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -183,6 +184,15 @@ struct AppleOAuthCallbackQuery {
     state: Option<String>,
     error: Option<String>,
     error_description: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AppleNativeExchangeRequest {
+    identity_token: String,
+    authorization_code: Option<String>,
+    email: Option<String>,
+    display_name: Option<String>,
+    locale: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -867,6 +877,7 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/v1/auth/google/start", get(auth_google_start))
         .route("/v1/auth/google/callback", get(auth_google_callback))
         .route("/v1/auth/apple/start", get(auth_apple_start))
+        .route("/v1/auth/apple/native", post(auth_apple_native))
         .route(
             "/v1/auth/apple/callback",
             get(auth_apple_callback_get).post(auth_apple_callback_post),
@@ -1334,6 +1345,186 @@ async fn auth_apple_start(
         .into_response()
 }
 
+async fn auth_apple_native(
+    State(state): State<ApiState>,
+    Json(input): Json<AppleNativeExchangeRequest>,
+) -> impl IntoResponse {
+    let Some(config) = state.apple_oauth.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "oauth_unavailable",
+                "message": "Apple Sign In is not configured"
+            })),
+        )
+            .into_response();
+    };
+
+    let identity_token = sanitize_limited_text(input.identity_token.as_str(), 8_192);
+    if identity_token.trim().is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "invalid_identity_token",
+                "message": "identity_token is required"
+            })),
+        )
+            .into_response();
+    }
+
+    let allowed_audiences = if config.native_client_ids.is_empty() {
+        vec![config.client_id.clone()]
+    } else {
+        config.native_client_ids.clone()
+    };
+
+    let claims = match verify_apple_id_token(
+        &state.http_client,
+        identity_token.as_str(),
+        allowed_audiences.as_slice(),
+    )
+    .await
+    {
+        Ok(value) => value,
+        Err(_) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "id_token_verification_failed",
+                    "message": "Apple identity token validation failed"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let now_ts = chrono::Utc::now().timestamp();
+    if claims.exp.unwrap_or(0) <= now_ts {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "id_token_expired",
+                "message": "Apple identity token is expired"
+            })),
+        )
+            .into_response();
+    }
+
+    let email = claims
+        .email
+        .as_deref()
+        .map(|value| value.trim().to_lowercase())
+        .or_else(|| {
+            input
+                .email
+                .as_deref()
+                .map(|value| value.trim().to_lowercase())
+        })
+        .filter(|value| !value.is_empty());
+
+    let Some(email) = email else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "missing_email",
+                "message": "Apple did not provide an email. Authorize email sharing once, then retry."
+            })),
+        )
+            .into_response();
+    };
+
+    let verified = claims
+        .email_verified
+        .as_ref()
+        .and_then(bool_from_jsonish)
+        .unwrap_or(false);
+    if !verified {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "email_not_verified",
+                "message": "Apple account email must be verified"
+            })),
+        )
+            .into_response();
+    }
+
+    let name_from_request = input
+        .display_name
+        .as_deref()
+        .map(|value| sanitize_limited_text(value, MAX_PROFILE_FIELD_LEN))
+        .filter(|value| !value.trim().is_empty());
+    let display_name = name_from_request.unwrap_or_else(|| {
+        email
+            .split('@')
+            .next()
+            .unwrap_or("Atlas/אטלס User")
+            .trim()
+            .to_string()
+    });
+
+    let locale_source = input
+        .locale
+        .as_deref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("en");
+    let locale = match detect_locale(None, locale_source) {
+        atlas_core::Locale::He => "he",
+        atlas_core::Locale::En => "en",
+        atlas_core::Locale::Ar => "ar",
+        atlas_core::Locale::Ru => "ru",
+        atlas_core::Locale::Fr => "fr",
+        atlas_core::Locale::Unknown => "en",
+    }
+    .to_string();
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let user =
+        find_or_create_user_by_email(&state, "apple", email, display_name, locale, now).await;
+
+    let session_id = match issue_session_for_user(&state, &user).await {
+        Ok(value) => value,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": "session_issue_failed",
+                    "message": "Unable to issue a session"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let mut response = (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "provider": "apple",
+            "user_id": user.user_id,
+            "authorization_code_received": input.authorization_code.is_some(),
+        })),
+    )
+        .into_response();
+
+    let cookie_value = build_session_cookie(
+        &state.cookie_name,
+        session_id.as_str(),
+        state.session_ttl.as_secs(),
+        state.cookie_secure,
+        state.cookie_same_site.as_str(),
+        state.cookie_domain.as_str(),
+    );
+    if let Ok(header_value) = HeaderValue::from_str(&cookie_value) {
+        response
+            .headers_mut()
+            .insert(header::SET_COOKIE, header_value);
+    }
+
+    response
+}
+
 async fn auth_apple_callback_get(
     State(state): State<ApiState>,
     Query(query): Query<AppleOAuthCallbackQuery>,
@@ -1451,7 +1642,7 @@ async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQue
     let claims = match verify_apple_id_token(
         &state.http_client,
         token.id_token.as_str(),
-        config.client_id.as_str(),
+        std::slice::from_ref(&config.client_id),
     )
     .await
     {
@@ -2298,6 +2489,7 @@ async fn social_login(State(_state): State<ApiState>) -> impl IntoResponse {
             "allowed_methods": [
                 "/v1/auth/google/start",
                 "/v1/auth/apple/start",
+                "/v1/auth/apple/native",
                 "/v1/auth/passkey/register/start",
                 "/v1/auth/passkey/login/start"
             ]
@@ -6762,12 +6954,31 @@ fn build_apple_oauth_config() -> Option<AppleOAuthConfig> {
     let frontend_origin = env::var("ATLAS_FRONTEND_ORIGIN")
         .ok()
         .unwrap_or_else(|| "https://atlasmasa.com".to_string());
+    let mut native_client_ids = env::var("ATLAS_APPLE_NATIVE_CLIENT_IDS")
+        .ok()
+        .map(|value| {
+            value
+                .split(',')
+                .map(|item| item.trim().to_string())
+                .filter(|item| !item.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| {
+            vec![
+                "com.atlasmasa.ios".to_string(),
+                "com.atlasmasa.macos".to_string(),
+            ]
+        });
+    if !native_client_ids.iter().any(|value| value == &client_id) {
+        native_client_ids.push(client_id.clone());
+    }
 
     Some(AppleOAuthConfig {
         client_id,
         client_secret,
         redirect_uri,
         frontend_origin,
+        native_client_ids,
     })
 }
 
@@ -6854,7 +7065,7 @@ fn sanitize_return_to(value: &str) -> String {
 async fn verify_apple_id_token(
     http_client: &Client,
     id_token: &str,
-    expected_client_id: &str,
+    expected_client_ids: &[String],
 ) -> Result<AppleIdTokenClaims> {
     let mut segments = id_token.split('.');
     let header_segment = segments
@@ -6941,7 +7152,11 @@ async fn verify_apple_id_token(
     let valid_aud = claims
         .aud
         .as_ref()
-        .map(|aud| aud.includes(expected_client_id))
+        .map(|aud| {
+            expected_client_ids
+                .iter()
+                .any(|client_id| aud.includes(client_id.as_str()))
+        })
         .unwrap_or(false);
     if !valid_aud {
         anyhow::bail!("apple id_token audience mismatch");
@@ -7008,6 +7223,7 @@ fn is_public_endpoint(path: &str) -> bool {
             | "/v1/auth/google/start"
             | "/v1/auth/google/callback"
             | "/v1/auth/apple/start"
+            | "/v1/auth/apple/native"
             | "/v1/auth/apple/callback"
             | "/v1/auth/passkey/register/start"
             | "/v1/auth/passkey/register/finish"
@@ -8112,6 +8328,7 @@ fn is_auth_rate_limited_endpoint(path: &str) -> bool {
         "/v1/auth/google/start"
             | "/v1/auth/google/callback"
             | "/v1/auth/apple/start"
+            | "/v1/auth/apple/native"
             | "/v1/auth/apple/callback"
             | "/v1/auth/passkey/register/start"
             | "/v1/auth/passkey/register/finish"

@@ -141,11 +141,15 @@ struct NoteUpsertPayload: Encodable {
 struct NativeAppleExchangePayload: Encodable {
     let identityToken: String
     let authorizationCode: String?
+    let email: String?
+    let displayName: String?
     let locale: String
 
     enum CodingKeys: String, CodingKey {
         case identityToken = "identity_token"
         case authorizationCode = "authorization_code"
+        case email
+        case displayName = "display_name"
         case locale
     }
 }
