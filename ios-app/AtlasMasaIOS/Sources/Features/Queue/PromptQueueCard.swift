@@ -8,6 +8,14 @@ struct PromptQueueCard: View {
             title: "Prompt Queue",
             subtitle: "Queue prompts and run local reasoning in managed background passes"
         ) {
+            AtlasPanel(heading: "How queued reasoning works", caption: "Local processing model + purpose") {
+                Text("Queued prompts are processed by Atlas local reasoning workers to produce execution-focused outputs. The queue is part of the app's practical mission: keep users moving forward on money, health, and operations under real constraints.")
+                    .foregroundStyle(AtlasTheme.textSecondary)
+                Text("Open AI Guide for full details on training domains, system limits, and personalization behavior.")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.accentWarm)
+            }
+
             AtlasPanel(heading: "Queue controls", caption: "Designed for on-the-go execution under limited attention") {
                 TextField("Write a prompt for local reasoning", text: $session.pendingPrompt, axis: .vertical)
                     .lineLimit(3 ... 8)

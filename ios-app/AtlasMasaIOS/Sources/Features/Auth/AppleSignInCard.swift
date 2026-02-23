@@ -7,8 +7,8 @@ struct AppleSignInCard: View {
 
     var body: some View {
         AtlasScreen(
-            title: "Account Access",
-            subtitle: "Traditional provider auth plus passwordless flows, no legacy passwords"
+            title: "Account",
+            subtitle: "Combined sign-up/sign-in with Apple, Google, and Passwordless (more secure)"
         ) {
             AtlasPanel(heading: "Provider status", caption: "Live capability check from Rust API when available") {
                 if let health = session.health {
@@ -27,7 +27,21 @@ struct AppleSignInCard: View {
                 .buttonStyle(AtlasSecondaryButtonStyle())
             }
 
-            AtlasPanel(heading: "Sign up", caption: "Create secure account using provider auth or passwordless") {
+            AtlasPanel(
+                heading: "How account state drives personalization",
+                caption: "Why this is the entry gate for long-term memory and execution plans"
+            ) {
+                Text("Atlas uses secure account identity to persist your personalization graph across sessions and devices. The AI uses your signed-in data (survey, notes, queue outputs, and workspace sessions) to produce tailored execution plans.")
+                    .foregroundStyle(AtlasTheme.textSecondary)
+                Text("No legacy passwords are used: provider auth + passkeys + secure sessions.")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.accentWarm)
+            }
+
+            AtlasPanel(
+                heading: "Secure account (sign up / sign in)",
+                caption: "One combined flow. Choose your preferred secure method."
+            ) {
                 SignInWithAppleButton(.signIn) { request in
                     request.requestedScopes = [.fullName, .email]
                 } onCompletion: { result in
@@ -36,40 +50,33 @@ struct AppleSignInCard: View {
                 .frame(height: 50)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                HStack {
-                    Button("Sign up with Google") {
-                        session.signInWithGooglePlaceholder()
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-
-                    Button("Passwordless sign up") {
-                        session.signUpWithPasswordless()
-                    }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
-                }
-
-                Button("Start Apple OAuth in browser") {
+                Button("Continue with Apple in browser (fallback)") {
                     Task {
-                        await session.beginAppleWebSignIn { url in
-                            openURL(url)
-                        }
+                        await session.beginAppleWebSignIn()
                     }
                 }
                 .buttonStyle(AtlasSecondaryButtonStyle())
-            }
 
-            AtlasPanel(heading: "Sign in", caption: "Use secure provider session or passwordless entry") {
-                HStack {
-                    Button("Sign in with Google") {
+                HStack(spacing: 10) {
+                    Button("Continue with Google") {
                         session.signInWithGooglePlaceholder()
                     }
                     .buttonStyle(AtlasSecondaryButtonStyle())
 
-                    Button("Passwordless sign in") {
+                    Button("Passwordless (more secure) Sign in") {
                         session.signInWithPasswordless()
                     }
                     .buttonStyle(AtlasPrimaryButtonStyle())
                 }
+
+                Button("Passwordless (more secure) Sign up") {
+                    session.signUpWithPasswordless()
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+
+                Text(session.accountStatusMessage)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textSecondary)
 
                 if session.isSignedIn {
                     HStack {
@@ -83,6 +90,11 @@ struct AppleSignInCard: View {
                     }
                 }
             }
+        }
+        .onChange(of: session.pendingExternalAuthURL) { _, url in
+            guard let url else { return }
+            openURL(url)
+            session.clearPendingExternalAuthURL()
         }
     }
 

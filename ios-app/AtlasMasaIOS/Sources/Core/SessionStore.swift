@@ -18,6 +18,8 @@ final class SessionStore: ObservableObject {
     @Published var isSignedIn = false
     @Published var accountProvider: AuthProvider?
     @Published var accountLabel = "Guest Operator"
+    @Published var accountStatusMessage = "Use provider auth or passwordless to activate your account."
+    @Published var pendingExternalAuthURL: URL?
     @Published var selectedTier: AccountTier = .localTrial
     @Published var trialDaysRemaining = 90
 
@@ -55,6 +57,9 @@ final class SessionStore: ObservableObject {
     let api: APIClient
     private let localReasoning = LocalReasoningEngine()
     private var queueWorkerTask: Task<Void, Never>?
+    private var runtimeTelemetryTask: Task<Void, Never>?
+    private var pendingRuntimeTelemetry: [String] = []
+    private var lastRuntimeTelemetryAt = Date.distantPast
 
     private let queueStorageLegacyKey = "atlas_ios_prompt_queue_v2"
     private let queueFileName = "prompt-queue-v3.json"
@@ -506,17 +511,20 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    func beginAppleWebSignIn(openURL: (URL) -> Void) async {
+    func beginAppleWebSignIn(returnTo: String = "/concierge-local.html") async {
         do {
-            let response = try await api.startAppleOAuth(returnTo: "/concierge-local.html")
+            let response = try await api.startAppleOAuth(returnTo: returnTo)
             guard let url = URL(string: response.authorizeURL) else {
                 appendOutput("Apple OAuth URL invalid.")
+                accountStatusMessage = "Apple sign-in URL is invalid. Retry in a few seconds."
                 return
             }
-            openURL(url)
+            pendingExternalAuthURL = url
             appendOutput("Apple OAuth started via web fallback.")
+            accountStatusMessage = "Opening secure Apple sign-in in browser."
         } catch {
             appendOutput("Apple OAuth web start failed: \(error.localizedDescription)")
+            accountStatusMessage = "Apple browser fallback is unavailable right now. Try Passwordless or Google."
         }
     }
 
@@ -525,11 +533,13 @@ final class SessionStore: ObservableObject {
         case let .success(auth):
             guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else {
                 appendOutput("Apple authorization returned unexpected credential.")
+                accountStatusMessage = "Apple sign-in returned an unexpected credential payload."
                 return
             }
             guard let tokenData = credential.identityToken,
                   let identityToken = String(data: tokenData, encoding: .utf8) else {
                 appendOutput("Apple identity token missing.")
+                accountStatusMessage = "Apple sign-in did not return an identity token on this build."
                 return
             }
             let authCode = credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
@@ -538,30 +548,48 @@ final class SessionStore: ObservableObject {
                 try await api.exchangeNativeApple(identityToken: identityToken, authorizationCode: authCode, locale: Locale.current.identifier)
                 markSignedIn(provider: .apple, accountName: credential.fullName?.givenName ?? "Atlas Owner")
                 appendOutput("Native Apple sign-in synced with API.")
+                accountStatusMessage = "Apple account activated and synced."
             } catch {
                 // Keep sign-in local-first so user can still use the app even if API sync fails.
                 markSignedIn(provider: .apple, accountName: credential.fullName?.givenName ?? "Atlas Owner")
                 appendOutput("Apple sign-in completed locally. API sync pending.")
+                accountStatusMessage = "Apple account activated locally. Cloud sync endpoint is pending."
             }
 
         case let .failure(error):
             appendOutput("Apple sign-in cancelled/failed: \(error.localizedDescription)")
+            let nsError = error as NSError
+            if nsError.domain == ASAuthorizationError.errorDomain,
+               nsError.code == ASAuthorizationError.canceled.rawValue
+            {
+                accountStatusMessage = "Apple sign-in was cancelled."
+            } else {
+                accountStatusMessage = "Native Apple sign-in failed on this device. Switching to secure browser fallback."
+                await beginAppleWebSignIn()
+            }
         }
+    }
+
+    func clearPendingExternalAuthURL() {
+        pendingExternalAuthURL = nil
     }
 
     func signInWithGooglePlaceholder() {
         markSignedIn(provider: .google, accountName: "Google account")
         appendOutput("Google sign-in session created locally. Connect API OAuth secrets to finalize remote sync.")
+        accountStatusMessage = "Google account activated (local mode)."
     }
 
     func signInWithPasswordless() {
         markSignedIn(provider: .passkey, accountName: "Device passkey")
         appendOutput("Passwordless sign-in active. Device-secure flow enabled.")
+        accountStatusMessage = "Passwordless sign-in active."
     }
 
     func signUpWithPasswordless() {
         markSignedIn(provider: .passkey, accountName: "Atlas member")
         appendOutput("Passwordless sign-up complete. Local encrypted session started.")
+        accountStatusMessage = "Passwordless account created."
     }
 
     func signOut() {
@@ -573,6 +601,7 @@ final class SessionStore: ObservableObject {
             _ = try? await api.logout()
         }
         appendOutput("Signed out.")
+        accountStatusMessage = "Signed out. Re-authenticate to continue synced personalization."
     }
 
     func setTier(_ tier: AccountTier) {
@@ -892,6 +921,59 @@ final class SessionStore: ObservableObject {
         systemOutput.insert(String(sanitized.prefix(280)), at: 0)
         if systemOutput.count > 40 {
             systemOutput = Array(systemOutput.prefix(40))
+        }
+        forwardRuntimeTelemetryIfNeeded(String(sanitized.prefix(280)))
+    }
+
+    private func forwardRuntimeTelemetryIfNeeded(_ line: String) {
+        guard shouldForwardRuntimeEvent(line) else { return }
+        pendingRuntimeTelemetry.append(line)
+        if pendingRuntimeTelemetry.count > 24 {
+            pendingRuntimeTelemetry = Array(pendingRuntimeTelemetry.suffix(24))
+        }
+        guard runtimeTelemetryTask == nil else { return }
+        runtimeTelemetryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            await self?.flushRuntimeTelemetry()
+        }
+    }
+
+    private func shouldForwardRuntimeEvent(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        return lower.contains("failed")
+            || lower.contains("error")
+            || lower.contains("unavailable")
+            || lower.contains("missing")
+            || lower.contains("cancelled")
+            || lower.contains("pending")
+    }
+
+    private func flushRuntimeTelemetry() async {
+        runtimeTelemetryTask = nil
+        guard !pendingRuntimeTelemetry.isEmpty else { return }
+        guard Date().timeIntervalSince(lastRuntimeTelemetryAt) >= 45 else {
+            runtimeTelemetryTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 12_000_000_000)
+                await self?.flushRuntimeTelemetry()
+            }
+            return
+        }
+
+        let payload = pendingRuntimeTelemetry
+        pendingRuntimeTelemetry.removeAll(keepingCapacity: true)
+
+        do {
+            try await api.submitFeedback(
+                category: "bug",
+                severity: "normal",
+                message: "IOS_RUNTIME_TELEMETRY\n" + payload.joined(separator: "\n"),
+                tags: ["ios", "runtime", "auto-report"],
+                source: "ios_runtime_auto"
+            )
+            lastRuntimeTelemetryAt = Date()
+        } catch {
+            // Keep latest items for a retry without interrupting user flow.
+            pendingRuntimeTelemetry = Array((payload + pendingRuntimeTelemetry).suffix(24))
         }
     }
 

@@ -70,6 +70,27 @@ struct APIClient {
         _ = try await postRaw(path: "/v1/notes/upsert", body: NoteUpsertPayload(userID: nil, title: title, content: content))
     }
 
+    func submitFeedback(
+        category: String,
+        severity: String,
+        message: String,
+        tags: [String],
+        source: String
+    ) async throws {
+        _ = try await postRaw(
+            path: "/v1/feedback/submit",
+            body: FeedbackSubmitPayload(
+                userID: nil,
+                category: category,
+                severity: severity,
+                message: message,
+                tags: tags,
+                targetEmployee: "product_team",
+                source: source
+            )
+        )
+    }
+
     func exchangeNativeApple(identityToken: String, authorizationCode: String?, locale: String) async throws {
         // Scaffold endpoint for native Sign in with Apple exchange.
         _ = try await postRaw(path: "/v1/auth/apple/native", body: NativeAppleExchangePayload(identityToken: identityToken, authorizationCode: authorizationCode, locale: locale))
@@ -178,3 +199,23 @@ struct APIClient {
 }
 
 private struct EmptyPayload: Encodable {}
+
+private struct FeedbackSubmitPayload: Encodable {
+    let userID: String?
+    let category: String
+    let severity: String
+    let message: String
+    let tags: [String]
+    let targetEmployee: String
+    let source: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case category
+        case severity
+        case message
+        case tags
+        case targetEmployee = "target_employee"
+        case source
+    }
+}

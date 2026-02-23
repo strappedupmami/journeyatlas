@@ -14,15 +14,24 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: AtlasMasaIOS/Sources
+      - path: AtlasMasaIOS/Assets.xcassets
+        buildPhase: resources
     info:
       path: AtlasMasaIOS/Info.plist
       properties:
         CFBundleDisplayName: Atlas/אטלס
+        CFBundleIconName: AppIcon
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortraitUpsideDown
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortraitUpsideDown
         NSFaceIDUsageDescription: Use Face ID to authenticate passkeys and protect your Atlas/אטלס account.
         ITSAppUsesNonExemptEncryption: false
     entitlements:
@@ -31,6 +40,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.atlasmasa.ios
         DEVELOPMENT_TEAM: BW93SGS88H
+        CODE_SIGN_STYLE: Automatic
   AtlasMasaIOSTests:
     type: bundle.unit-test
     platform: iOS

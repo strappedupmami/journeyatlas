@@ -6,32 +6,27 @@ struct RootDashboardView: View {
             CommandCenterCard()
                 .tabItem { Label("Command", systemImage: "sparkles.square.filled.on.square") }
 
-            AdaptiveSurveyCard()
-                .tabItem { Label("Survey", systemImage: "point.3.connected.trianglepath.dotted") }
-
-            PromptQueueCard()
-                .tabItem { Label("Queue", systemImage: "tray.full") }
+            ProactiveFeedCard()
+                .tabItem { Label("Execution", systemImage: "dollarsign.circle") }
 
             WorkspacesCard()
-                .tabItem { Label("Workspaces", systemImage: "rectangle.3.group.bubble.left") }
+                .tabItem { Label("Workspaces", systemImage: "wrench.and.screwdriver") }
 
-            ProactiveFeedCard()
-                .tabItem { Label("Execution", systemImage: "bolt.heart") }
+            MobilityOpsCard()
+                .tabItem { Label("Mobility", systemImage: "car.side.fill") }
+
+            // Keep Account first in the tab overflow ("More") menu.
+            AppleSignInCard()
+                .tabItem { Label("Account", systemImage: "person.badge.key") }
+
+            AIGuideCard()
+                .tabItem { Label("AI Guide", systemImage: "book.closed") }
 
             NotesCard()
                 .tabItem { Label("Memory", systemImage: "brain.head.profile") }
 
-            MobilityOpsCard()
-                .tabItem { Label("Mobility", systemImage: "car.side") }
-
-            AppleSignInCard()
-                .tabItem { Label("Access", systemImage: "person.badge.key") }
-
             SubscriptionCard()
                 .tabItem { Label("Plans", systemImage: "creditcard") }
-
-            SystemOutputCard()
-                .tabItem { Label("Output", systemImage: "terminal") }
         }
         .tint(AtlasTheme.accentWarm)
     }

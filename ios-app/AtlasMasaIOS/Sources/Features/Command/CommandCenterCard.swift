@@ -28,6 +28,17 @@ struct CommandCenterCard: View {
             }
 
             AtlasPanel(
+                heading: "AI transparency (quick)",
+                caption: "Why Atlas exists and how this plan is generated"
+            ) {
+                Text("Atlas is built for financial mobility, healthier cognitive execution, and resilient travel/work operations. This command plan is generated from your check-in + survey + notes + workspace memory, then prioritized into immediate, mid-term, and long-horizon actions.")
+                    .foregroundStyle(AtlasTheme.textSecondary)
+                Text("Open AI Guide from the More menu for full training, workflow, and privacy details.")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.accentWarm)
+            }
+
+            AtlasPanel(
                 heading: "Daily execution check-in",
                 caption: "Set your core horizon signals so the orchestration loop can prioritize correctly"
             ) {
@@ -58,6 +69,57 @@ struct CommandCenterCard: View {
                         session.applyDailyCheckIn()
                     }
                     .buttonStyle(AtlasPrimaryButtonStyle())
+                }
+            }
+
+            AtlasPanel(
+                heading: "Adaptive deep survey",
+                caption: "Branching intake is now part of Command and powers long-term personalization quality"
+            ) {
+                if let survey = session.survey {
+                    ProgressView(value: Double(survey.progress.percent), total: 100)
+                        .tint(AtlasTheme.accent)
+                    Text("\(survey.progress.answered)/\(survey.progress.total) answered · \(survey.progress.percent)%")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(AtlasTheme.textSecondary)
+
+                    if let question = survey.question {
+                        Text(question.title)
+                            .font(.system(size: 17, weight: .semibold, design: .serif))
+                            .foregroundStyle(AtlasTheme.textPrimary)
+
+                        if let description = question.description, !description.isEmpty {
+                            Text(description)
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(AtlasTheme.textSecondary)
+                        }
+
+                        ForEach(question.choices) { choice in
+                            Button(choice.label) {
+                                Task { await session.answerSurvey(choice) }
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+                        }
+                    } else {
+                        Text("Survey complete. Start an additional pass whenever you want more depth.")
+                            .foregroundStyle(AtlasTheme.accentWarm)
+                    }
+                } else {
+                    Text("Survey loading...")
+                        .foregroundStyle(AtlasTheme.textSecondary)
+                }
+
+                HStack {
+                    Button("Reload survey") {
+                        Task { await session.loadSurvey() }
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+
+                    Button(session.isAdditionalSurveyPassActive ? "Additional pass in progress" : "Start additional pass") {
+                        Task { await session.startAdditionalSurveyPass() }
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                    .disabled(session.isAdditionalSurveyPassActive)
                 }
             }
 

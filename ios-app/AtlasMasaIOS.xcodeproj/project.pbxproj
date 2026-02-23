@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -13,6 +13,8 @@
 		058AC3B76DBEC0C906A31485 /* SystemOutputCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6F81FED4A2F47B178CD467 /* SystemOutputCard.swift */; };
 		303CDA112E0C9FC3E2C419BF /* WorkspacesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0788DC188770B93B6ECEFD7 /* WorkspacesCard.swift */; };
 		4184C4556F14CCAC189A8A64 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79518C0E78CCD7BBC70ECCEC /* AppEnvironment.swift */; };
+		488506F8DBBFD30B280D2C97 /* AIGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718E7D41EE3739075E172D54 /* AIGuideCard.swift */; };
+		5FDC3721CF2269032B946984 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 56B47B94BE2FC686806F4D11 /* Assets.xcassets */; };
 		61C6EABFD9EA39AB9B2AF8F9 /* NotesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2FB058F29862322D6CD10F /* NotesCard.swift */; };
 		753F48951C6A8CEBFF52602A /* AtlasMasaIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A948780B2AEA121FB71DC9 /* AtlasMasaIOSApp.swift */; };
 		84BA43DE8345B7E22528D7C7 /* PromptQueueCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7804C547F063AB826CA5A6 /* PromptQueueCard.swift */; };
@@ -50,7 +52,9 @@
 		4BC2757A1F0F487EE0C57394 /* JobMarketRadar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobMarketRadar.swift; sourceTree = "<group>"; };
 		4F771EBB5CCDBB602C1E9E99 /* AppleSignInCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCard.swift; sourceTree = "<group>"; };
 		5014C35464AC8AB293BFC704 /* AtlasMasaIOSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasMasaIOSTests.swift; sourceTree = "<group>"; };
+		56B47B94BE2FC686806F4D11 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		623A587F018149ECA85AECE8 /* SubscriptionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCard.swift; sourceTree = "<group>"; };
+		718E7D41EE3739075E172D54 /* AIGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIGuideCard.swift; sourceTree = "<group>"; };
 		79518C0E78CCD7BBC70ECCEC /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		845A4AD25BE117ED58D88E98 /* LocalReasoningEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalReasoningEngine.swift; sourceTree = "<group>"; };
 		8F8D7ECAE9A1E1601E3FD789 /* MobilityOpsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobilityOpsCard.swift; sourceTree = "<group>"; };
@@ -146,6 +150,7 @@
 		6030CB3326E8AB2268265ED9 = {
 			isa = PBXGroup;
 			children = (
+				A6898E2FDAED2316AABDB4FF /* AtlasMasaIOS */,
 				D27EFC02ABE1AE57745884B3 /* Sources */,
 				3A78C9281C5CC075582472AC /* Tests */,
 				33BEB47EF5E7E8235BD4A03C /* Products */,
@@ -177,6 +182,14 @@
 			path = Billing;
 			sourceTree = "<group>";
 		};
+		A6898E2FDAED2316AABDB4FF /* AtlasMasaIOS */ = {
+			isa = PBXGroup;
+			children = (
+				56B47B94BE2FC686806F4D11 /* Assets.xcassets */,
+			);
+			path = AtlasMasaIOS;
+			sourceTree = "<group>";
+		};
 		B505690997BB62AB1887B422 /* Features */ = {
 			isa = PBXGroup;
 			children = (
@@ -184,6 +197,7 @@
 				9CBC0D27B8A70286A7067CAF /* Billing */,
 				7A24DDF96373FF15507B6BC2 /* Command */,
 				30F201DDD7FD179E0B26090A /* Feed */,
+				DB0C7C838D4D689760FA24FE /* Guide */,
 				548D07F3FB6009D64C1A86CD /* Mobility */,
 				C9A051349858C4DA3F688577 /* Notes */,
 				52729BA6CB69C6126C1D3385 /* Queue */,
@@ -229,6 +243,14 @@
 			path = Auth;
 			sourceTree = "<group>";
 		};
+		DB0C7C838D4D689760FA24FE /* Guide */ = {
+			isa = PBXGroup;
+			children = (
+				718E7D41EE3739075E172D54 /* AIGuideCard.swift */,
+			);
+			path = Guide;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -255,6 +277,7 @@
 			buildConfigurationList = E1A106023A79756C35DCB84F /* Build configuration list for PBXNativeTarget "AtlasMasaIOS" */;
 			buildPhases = (
 				7372E9B4D45213A36DE6015A /* Sources */,
+				A76454C3154FE0A4A2B92A41 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -278,6 +301,7 @@
 				TargetAttributes = {
 					67A8EFD2783E0D88F868C4D9 = {
 						DevelopmentTeam = BW93SGS88H;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -291,7 +315,6 @@
 			);
 			mainGroup = 6030CB3326E8AB2268265ED9;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -300,6 +323,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A76454C3154FE0A4A2B92A41 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5FDC3721CF2269032B946984 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		56F6FC10978C19E5C0B7EB1E /* Sources */ = {
@@ -314,6 +348,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				488506F8DBBFD30B280D2C97 /* AIGuideCard.swift in Sources */,
 				F23225A88586FB7DC2B0C025 /* APIClient.swift in Sources */,
 				A06DBD816B579E5E05884CEB /* AdaptiveSurveyCard.swift in Sources */,
 				4184C4556F14CCAC189A8A64 /* AppEnvironment.swift in Sources */,
@@ -355,6 +390,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AtlasMasaIOS/AtlasMasaIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = BW93SGS88H;
 				INFOPLIST_FILE = AtlasMasaIOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -374,6 +410,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AtlasMasaIOS/AtlasMasaIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = BW93SGS88H;
 				INFOPLIST_FILE = AtlasMasaIOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
