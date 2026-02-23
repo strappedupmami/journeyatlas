@@ -10,23 +10,6 @@ struct AppleSignInCard: View {
             title: "Account Access",
             subtitle: "Traditional provider auth plus passwordless flows, no legacy passwords"
         ) {
-            AtlasPanel(heading: "Provider status", caption: "Live capability check from Rust API when available") {
-                if let health = session.health {
-                    capabilityRow("Apple", available: health.capabilities.appleOAuth)
-                    capabilityRow("Google", available: health.capabilities.googleOAuth)
-                    capabilityRow("Passkey", available: health.capabilities.passkey)
-                    capabilityRow("Billing", available: health.capabilities.billing)
-                } else {
-                    Text("Health check pending. Refresh to verify provider readiness.")
-                        .foregroundStyle(AtlasTheme.textSecondary)
-                }
-
-                Button("Refresh provider status") {
-                    Task { await session.refreshHealth() }
-                }
-                .buttonStyle(AtlasSecondaryButtonStyle())
-            }
-
             AtlasPanel(heading: "Sign up", caption: "Create secure account using provider auth or passwordless") {
                 SignInWithAppleButton(.signIn) { request in
                     request.requestedScopes = [.fullName, .email]
@@ -82,6 +65,31 @@ struct AppleSignInCard: View {
                         .buttonStyle(AtlasSecondaryButtonStyle())
                     }
                 }
+            }
+
+            AtlasPanel(heading: "Provider status", caption: "Live capability check from Rust API when available") {
+                if let health = session.health {
+                    capabilityRow("Apple", available: health.capabilities.appleOAuth)
+                    capabilityRow("Google", available: health.capabilities.googleOAuth)
+                    capabilityRow("Passkey", available: health.capabilities.passkey)
+                    capabilityRow("Billing", available: health.capabilities.billing)
+                } else {
+                    Text("Health check pending. Refresh to verify provider readiness.")
+                        .foregroundStyle(AtlasTheme.textSecondary)
+                }
+
+                Button("Refresh provider status") {
+                    Task { await session.refreshHealth() }
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+            }
+
+            AtlasPanel(heading: "How account state drives personalization", caption: "Why account state matters") {
+                Text("Atlas uses secure account identity to persist your personalization graph across sessions and devices. The AI uses your signed-in data (survey, notes, queue outputs, and workspace sessions) to produce tailored execution plans.")
+                    .foregroundStyle(AtlasTheme.textSecondary)
+                Text("No legacy passwords are used: provider auth + passkeys + secure sessions.")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.accentWarm)
             }
         }
     }
