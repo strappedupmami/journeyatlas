@@ -2,6 +2,9 @@ import AuthenticationServices
 import CryptoKit
 import Foundation
 import Security
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @MainActor
 final class SessionStore: ObservableObject {
@@ -16,6 +19,7 @@ final class SessionStore: ObservableObject {
     @Published var promptQueue: [PromptQueueItem] = []
 
     @Published var isSignedIn = false
+    @Published var isAppleSignInInProgress = false
     @Published var accountProvider: AuthProvider?
     @Published var accountLabel = "Guest Operator"
     @Published var accountStatusMessage = "Use provider auth or passwordless to activate your account."
@@ -59,6 +63,7 @@ final class SessionStore: ObservableObject {
     private var runtimeTelemetryTask: Task<Void, Never>?
     private var pendingRuntimeTelemetry: [String] = []
     private var lastRuntimeTelemetryAt = Date.distantPast
+    private var appleAuthCoordinator: AppleAuthorizationCoordinator?
 
     private let queueStorageLegacyKey = "atlas_ios_prompt_queue_v2"
     private let queueFileName = "prompt-queue-v3.json"
@@ -557,7 +562,23 @@ final class SessionStore: ObservableObject {
             {
                 accountStatusMessage = "Apple sign-in was cancelled."
             } else {
-                accountStatusMessage = "Native Apple sign-in failed on this device. Please try again."
+                accountStatusMessage = appleSignInFailureMessage(error: nsError)
+                appendOutput("Apple sign-in technical details: domain=\(nsError.domain) code=\(nsError.code)")
+            }
+        }
+    }
+
+    func startNativeAppleSignIn() {
+        guard !isAppleSignInInProgress else { return }
+        isAppleSignInInProgress = true
+        accountStatusMessage = "Launching Apple sign-in…"
+        Task { @MainActor in
+            defer { isAppleSignInInProgress = false }
+            do {
+                let auth = try await requestAppleAuthorization()
+                await handleAppleAuthorization(result: .success(auth))
+            } catch {
+                await handleAppleAuthorization(result: .failure(error))
             }
         }
     }
@@ -566,6 +587,71 @@ final class SessionStore: ObservableObject {
         markSignedIn(provider: .google, accountName: "Google account")
         appendOutput("Google sign-in session created locally. Connect API OAuth secrets to finalize remote sync.")
         accountStatusMessage = "Google account activated (local mode)."
+    }
+
+    private func requestAppleAuthorization() async throws -> ASAuthorization {
+        guard let anchor = activePresentationAnchor() else {
+            throw AppleAuthFlowError.missingPresentationAnchor
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.fullName, .email]
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            let coordinator = AppleAuthorizationCoordinator(
+                anchor: anchor,
+                onSuccess: { authorization in
+                    continuation.resume(returning: authorization)
+                },
+                onFailure: { error in
+                    continuation.resume(throwing: error)
+                },
+                onFinish: { [weak self] in
+                    self?.appleAuthCoordinator = nil
+                }
+            )
+            appleAuthCoordinator = coordinator
+            controller.delegate = coordinator
+            controller.presentationContextProvider = coordinator
+            controller.performRequests()
+        }
+    }
+
+    private func appleSignInFailureMessage(error: NSError) -> String {
+        if error.domain == ASAuthorizationError.errorDomain {
+            if error.code == ASAuthorizationError.unknown.rawValue {
+                return "Apple sign-in failed (AuthorizationError 1000). Check Apple capability + provisioning for bundle \(Bundle.main.bundleIdentifier ?? "unknown.bundle")."
+            }
+            if error.code == ASAuthorizationError.notHandled.rawValue {
+                return "Apple sign-in could not be completed by the OS right now. Try again in a few seconds."
+            }
+            if error.code == ASAuthorizationError.failed.rawValue {
+                return "Apple sign-in failed. Confirm your Apple ID is active on this device and app capability is enabled."
+            }
+        }
+        if let code = AppleAuthFlowError(rawValue: error.code) {
+            switch code {
+            case .missingPresentationAnchor:
+                return "Apple sign-in UI could not be presented. Reopen the app and try again."
+            }
+        }
+        return "Native Apple sign-in failed on this device. Please try again."
+    }
+
+    private func activePresentationAnchor() -> ASPresentationAnchor? {
+#if canImport(UIKit)
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })
+        else {
+            return nil
+        }
+        if let keyWindow = scene.windows.first(where: { $0.isKeyWindow }) {
+            return keyWindow
+        }
+        return scene.windows.first
+#else
+        return nil
+#endif
     }
 
     func signInWithPasswordless() {
@@ -4516,6 +4602,48 @@ private enum SecurePersistence {
             return try loadOrCreateKeyMaterial(account: account)
         }
         throw SecurePersistenceError.keychainFailure(addStatus)
+    }
+}
+
+private enum AppleAuthFlowError: Int, Error {
+    case missingPresentationAnchor
+}
+
+private final class AppleAuthorizationCoordinator: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private let anchor: ASPresentationAnchor
+    private let onSuccess: (ASAuthorization) -> Void
+    private let onFailure: (Error) -> Void
+    private let onFinish: () -> Void
+    private var completed = false
+
+    init(
+        anchor: ASPresentationAnchor,
+        onSuccess: @escaping (ASAuthorization) -> Void,
+        onFailure: @escaping (Error) -> Void,
+        onFinish: @escaping () -> Void
+    ) {
+        self.anchor = anchor
+        self.onSuccess = onSuccess
+        self.onFailure = onFailure
+        self.onFinish = onFinish
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        anchor
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard !completed else { return }
+        completed = true
+        onSuccess(authorization)
+        onFinish()
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        guard !completed else { return }
+        completed = true
+        onFailure(error)
+        onFinish()
     }
 }
 

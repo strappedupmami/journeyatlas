@@ -1,4 +1,3 @@
-import AuthenticationServices
 import SwiftUI
 
 struct AppleSignInCard: View {
@@ -41,13 +40,21 @@ struct AppleSignInCard: View {
                 heading: "Secure account (sign up / sign in)",
                 caption: "One combined flow. Choose your preferred secure method."
             ) {
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    Task { await session.handleAppleAuthorization(result: result) }
+                Button {
+                    session.startNativeAppleSignIn()
+                } label: {
+                    HStack(spacing: 10) {
+                        Text("")
+                            .font(.system(size: 18, weight: .semibold, design: .default))
+                        Text(session.isAppleSignInInProgress ? "Connecting to Apple…" : "Sign in with Apple")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
                 }
-                .frame(height: 50)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .buttonStyle(AtlasSecondaryButtonStyle())
+                .disabled(session.isAppleSignInInProgress)
 
                 HStack(spacing: 10) {
                     Button("Continue with Google") {
