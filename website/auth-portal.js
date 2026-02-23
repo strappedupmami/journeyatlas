@@ -16,7 +16,7 @@
   const stayOnAuthPage = params.get("stay_auth") === "1";
 
   if (mode === "signin") {
-    document.title = "Atlas/אטלס | Sign In";
+    document.title = "Atlas Masa | Sign In";
     if (titleEl) titleEl.textContent = "Welcome back";
     if (subtitleEl) {
       subtitleEl.textContent =
@@ -402,7 +402,7 @@
       "/v1/auth/passkey/register/start",
       "POST",
       {
-        display_name: "Atlas/אטלס Member",
+        display_name: "Atlas Masa Member",
         locale: (document.documentElement.lang || "en").slice(0, 2),
       },
       false

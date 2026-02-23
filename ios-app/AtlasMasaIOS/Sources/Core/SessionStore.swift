@@ -6,7 +6,7 @@ import Security
 @MainActor
 final class SessionStore: ObservableObject {
     @Published var health: HealthResponse?
-    @Published var systemOutput: [String] = ["Booting Atlas/אטלס Travel Design OS (Swift local tier)..."]
+    @Published var systemOutput: [String] = ["Booting Atlas Masa Travel Design OS (Swift local tier)..."]
     @Published var survey: SurveyNextResponse?
     @Published var feedItems: [FeedItem] = []
     @Published var notes: [UserNote] = []

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Atlas/אטלס AI Studio | אטלס</title>
+    <title>Atlas Masa AI Studio | אטלס</title>
     <meta
       name="description"
       content="מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת וזרם ביצוע."
@@ -299,7 +299,7 @@
   <body>
     <header class="header">
       <div class="container header__inner">
-        <a class="brand" href="homepage.html" aria-label="Atlas/אטלס home">
+        <a class="brand" href="homepage.html" aria-label="Atlas Masa home">
           <span class="brand__mark" aria-hidden="true">
             <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
               <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
@@ -333,7 +333,7 @@
           <div class="nav__item nav__item--menu">
             <a class="nav__trigger" href="vans-company-future.html" data-i18n="studio.nav.theory">תיאוריה</a>
             <div class="nav__menu" role="menu" aria-label="Vans and company sections">
-              <a class="nav__menu-link" href="vans-company-future.html#brands">Atlas/אטלס and BlackHaven</a>
+              <a class="nav__menu-link" href="vans-company-future.html#brands">Atlas Masa and BlackHaven</a>
               <a class="nav__menu-link" href="vans-company-future.html#platform">Vehicle platform roadmap</a>
               <a class="nav__menu-link" href="vans-company-future.html#operations">Operations and safe harbor hubs</a>
             </div>
@@ -379,7 +379,7 @@
     <main class="section">
       <div class="container concierge-app">
         <div class="section__head">
-          <span class="pill" data-i18n="studio.pill">Atlas/אטלס AI</span>
+          <span class="pill" data-i18n="studio.pill">Atlas Masa AI</span>
           <h1 data-i18n="studio.title">סטודיו AI לניהול חיים, עבודה ותנועה</h1>
           <p class="sub" data-i18n="studio.sub">
             הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח,
@@ -717,7 +717,7 @@
       window.ATLAS_PAGE_I18N = {
         he: {
           meta: {
-            title: "Atlas/אטלס AI Studio | אטלס",
+            title: "Atlas Masa AI Studio | אטלס",
             description:
               "מערכת AI אישית לניידות, עבודה וחיים: קונסיירז', סטודיו תשובות, סקר מותאם בזמן אמת וזרם ביצוע.",
           },
@@ -730,7 +730,7 @@
               login: "התחברות",
               signup: "הרשמה",
             },
-            pill: "Atlas/אטלס AI",
+            pill: "Atlas Masa AI",
             title: "סטודיו AI לניהול חיים, עבודה ותנועה",
             sub: "הקונסיירז׳ הוא רק פיצ׳ר אחד: זו מערכת אישית שמארגנת ביצוע, שומרת זיכרון ארוך-טווח, ומספקת זרם ביצוע כדי לקדם אותך ביום-יום.",
             featureTitle: "איזה פיצ׳ר מפעילים עכשיו?",
@@ -844,7 +844,7 @@
         },
         en: {
           meta: {
-            title: "Atlas/אטלס AI Studio",
+            title: "Atlas Masa AI Studio",
             description:
               "Personal AI for movement, work, and life: concierge, response studio, adaptive survey, and execution stream.",
           },
@@ -857,7 +857,7 @@
               login: "Log in",
               signup: "Sign up",
             },
-            pill: "Atlas/אטלס AI",
+            pill: "Atlas Masa AI",
             title: "AI Studio for Life, Work, and Mobility",
             sub: "Concierge is only one feature. This system builds long-term memory, proactive outputs, and daily execution support.",
             featureTitle: "Which feature do you want now?",
@@ -2230,7 +2230,7 @@
         }
 
         const email = getIdentityEmail();
-        const displayName = state.user && state.user.name ? state.user.name : "Atlas/אטלס Member";
+        const displayName = state.user && state.user.name ? state.user.name : "Atlas Masa Member";
         const startPayload = {
           display_name: displayName,
           locale: state.locale,
@@ -2928,7 +2928,7 @@
                 action_type: "create_reminder",
                 label: state.locale === "he" ? "תזכורת ליציאה למסלול" : "Reminder for trip departure",
                 payload: {
-                  title: "Atlas/אטלס trip departure",
+                  title: "Atlas Masa trip departure",
                   details: summary,
                   due_at_utc: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
                   reminders_app: state.studio.reminders_app,
@@ -3020,7 +3020,7 @@
         const payload = action.payload || {};
         if (action.action_type === "create_reminder") {
           const result = await request("/v1/actions/reminder", "POST", {
-            title: payload.title || "Atlas/אטלס reminder",
+            title: payload.title || "Atlas Masa reminder",
             details: payload.details || "",
             due_at_utc: payload.due_at_utc,
             reminders_app: payload.reminders_app || state.studio.reminders_app,

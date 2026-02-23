@@ -1252,7 +1252,7 @@ async fn auth_google_callback(
         userinfo.email.to_lowercase(),
         userinfo
             .name
-            .unwrap_or_else(|| "Atlas/אטלס User".to_string()),
+            .unwrap_or_else(|| "Atlas Masa User".to_string()),
         userinfo.locale.unwrap_or_else(|| "en".to_string()),
         now,
     )
@@ -1458,7 +1458,7 @@ async fn auth_apple_native(
         email
             .split('@')
             .next()
-            .unwrap_or("Atlas/אטלס User")
+            .unwrap_or("Atlas Masa User")
             .trim()
             .to_string()
     });
@@ -1730,7 +1730,7 @@ async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQue
     let display_name = email
         .split('@')
         .next()
-        .unwrap_or("Atlas/אטלס User")
+        .unwrap_or("Atlas Masa User")
         .trim()
         .to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -1739,7 +1739,7 @@ async fn auth_apple_callback_inner(state: ApiState, query: AppleOAuthCallbackQue
         "apple",
         email,
         if display_name.is_empty() {
-            "Atlas/אטלס User".to_string()
+            "Atlas Masa User".to_string()
         } else {
             display_name
         },
@@ -1806,7 +1806,7 @@ async fn auth_passkey_register_start(
     let display_name = input
         .display_name
         .clone()
-        .unwrap_or_else(|| "Atlas/אטלס User".to_string());
+        .unwrap_or_else(|| "Atlas Masa User".to_string());
     let locale = input.locale.clone().unwrap_or_else(|| "en".to_string());
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -2278,7 +2278,7 @@ async fn chat(
                         _ => "Create reminder".to_string(),
                     },
                     payload: serde_json::json!({
-                        "title": "Atlas/אטלס follow-up",
+                        "title": "Atlas Masa follow-up",
                         "details": "Review plan and execute first action",
                         "due_at_utc": (chrono::Utc::now() + chrono::Duration::hours(2)).to_rfc3339(),
                         "reminders_app": effective_studio_pref.reminders_app
@@ -2293,7 +2293,7 @@ async fn chat(
                             _ => "Create alarm".to_string(),
                         },
                         payload: serde_json::json!({
-                            "label": "Atlas/אטלס focus sprint",
+                            "label": "Atlas Masa focus sprint",
                             "time_local": "08:30",
                             "days": ["Mon", "Tue", "Wed", "Thu", "Sun"],
                             "alarms_app": effective_studio_pref.alarms_app
@@ -2346,7 +2346,7 @@ async fn chat(
                         _ => "Create reminder".to_string(),
                     },
                     payload: serde_json::json!({
-                        "title": "Atlas/אטלס guest follow-up",
+                        "title": "Atlas Masa guest follow-up",
                         "details": "Execute your next step",
                         "due_at_utc": (chrono::Utc::now() + chrono::Duration::hours(2)).to_rfc3339(),
                         "reminders_app": guest_pref.reminders_app
@@ -4911,7 +4911,7 @@ fn default_company_status() -> CompanyStatusRecord {
         current_focus: vec![
             "Mobile-first AI concierge and studio".to_string(),
             "Deep personalization and proactive support".to_string(),
-            "Atlas/אטלס travel/work ecosystem MVP".to_string(),
+            "Atlas Masa travel/work ecosystem MVP".to_string(),
         ],
         upcoming: vec![
             "Expanded user account intelligence".to_string(),
@@ -4919,7 +4919,7 @@ fn default_company_status() -> CompanyStatusRecord {
             "Pilot-ready operations and legal routing".to_string(),
         ],
         open_for_investment: true,
-        message: "Atlas/אטלס is open to strategic partnerships and investments while building a long-term mobility ecosystem.".to_string(),
+        message: "Atlas Masa is open to strategic partnerships and investments while building a long-term mobility ecosystem.".to_string(),
     }
 }
 
@@ -7032,7 +7032,7 @@ fn build_webauthn_runtime() -> Option<WebauthnRuntimeConfig> {
         .unwrap_or_else(|| "https://atlasmasa.com".to_string());
     let rp_name = env::var("ATLAS_WEBAUTHN_RP_NAME")
         .ok()
-        .unwrap_or_else(|| "Atlas/אטלס".to_string());
+        .unwrap_or_else(|| "Atlas Masa".to_string());
 
     let origin_url = Url::parse(origin.as_str()).ok()?;
     let builder = WebauthnBuilder::new(rp_id.as_str(), &origin_url)
@@ -8061,7 +8061,7 @@ async fn generate_premium_openai_reply(
         })
         .collect::<Vec<_>>();
 
-    let system_prompt = "You are Atlas/אטלס Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum.";
+    let system_prompt = "You are Atlas Masa Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum.";
     let payload = serde_json::json!({
         "model": runtime.model,
         "reasoning": {

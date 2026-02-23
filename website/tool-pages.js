@@ -139,7 +139,7 @@
       title: "Memory Import Workspace",
       kicker: "AI Context Tool",
       subtitle:
-        "Import structured memories from external sources into Atlas/אטלס context layers.",
+        "Import structured memories from external sources into Atlas Masa context layers.",
       launch: "memory",
       summary: [
         "Brings Notebook/Thread insights into your operational context.",
@@ -237,7 +237,7 @@
   const openBtn = document.getElementById("open-tool-btn");
   const fullBtn = document.getElementById("open-studio-btn");
 
-  document.title = `Atlas/אטלס | ${def.title}`;
+  document.title = `Atlas Masa | ${def.title}`;
   if (titleEl) titleEl.textContent = def.title;
   if (subtitleEl) subtitleEl.textContent = def.subtitle;
   if (kickerEl) kickerEl.textContent = def.kicker;

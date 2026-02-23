@@ -5,7 +5,7 @@ struct CommandCenterCard: View {
 
     var body: some View {
         AtlasScreen(
-            title: "Atlas/אטלס Life OS",
+            title: "Atlas Masa Life OS",
             subtitle: "Swift-native command center for daily, mid-term, and long-horizon execution"
         ) {
             AtlasPanel(

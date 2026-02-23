@@ -1,4 +1,4 @@
-# Atlas/אטלס iOS App
+# Atlas Masa iOS App
 
 Native Swift Life OS app for movement-based living/work execution.
 
