@@ -1,4 +1,6 @@
 using AtlasMasaWindows.Models;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -7,6 +9,8 @@ namespace AtlasMasaWindows.Services;
 public sealed class AppStateStore
 {
     private const string FileName = "atlas_windows_state_v1.json";
+    private static readonly byte[] EnvelopeHeader = Encoding.UTF8.GetBytes("ATLASWIN1");
+    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("atlas/windows/state/v1");
     private readonly string _directory;
     private readonly string _filePath;
     private readonly string _tmpFilePath;
@@ -40,9 +44,14 @@ public sealed class AppStateStore
                 return new AtlasDataEnvelope();
             }
 
-            await using var stream = File.OpenRead(_filePath);
-            var data = await JsonSerializer.DeserializeAsync<AtlasDataEnvelope>(stream, _jsonOptions, cancellationToken);
-            return data ?? new AtlasDataEnvelope();
+            var fileBytes = await File.ReadAllBytesAsync(_filePath, cancellationToken);
+            var plaintext = TryDecryptEnvelope(fileBytes) ?? fileBytes;
+            var data = JsonSerializer.Deserialize<AtlasDataEnvelope>(plaintext, _jsonOptions);
+            if (data != null)
+            {
+                return data;
+            }
+            return new AtlasDataEnvelope();
         }
         catch
         {
@@ -61,11 +70,9 @@ public sealed class AppStateStore
         {
             Directory.CreateDirectory(_directory);
             envelope.LastSavedAt = DateTimeOffset.UtcNow;
-
-            await using (var stream = File.Create(_tmpFilePath))
-            {
-                await JsonSerializer.SerializeAsync(stream, envelope, _jsonOptions, cancellationToken);
-            }
+            var plaintext = JsonSerializer.SerializeToUtf8Bytes(envelope, _jsonOptions);
+            var encrypted = EncryptEnvelope(plaintext);
+            await File.WriteAllBytesAsync(_tmpFilePath, encrypted, cancellationToken);
 
             if (File.Exists(_filePath))
             {
@@ -79,6 +86,39 @@ public sealed class AppStateStore
         finally
         {
             _fileLock.Release();
+        }
+    }
+
+    private static byte[] EncryptEnvelope(byte[] plaintext)
+    {
+        var cipher = ProtectedData.Protect(plaintext, Entropy, DataProtectionScope.CurrentUser);
+        var output = new byte[EnvelopeHeader.Length + cipher.Length];
+        Buffer.BlockCopy(EnvelopeHeader, 0, output, 0, EnvelopeHeader.Length);
+        Buffer.BlockCopy(cipher, 0, output, EnvelopeHeader.Length, cipher.Length);
+        return output;
+    }
+
+    private static byte[]? TryDecryptEnvelope(byte[] fileBytes)
+    {
+        if (fileBytes.Length <= EnvelopeHeader.Length)
+        {
+            return null;
+        }
+        if (!fileBytes.AsSpan(0, EnvelopeHeader.Length).SequenceEqual(EnvelopeHeader))
+        {
+            // Legacy plaintext state before encryption rollout.
+            return null;
+        }
+
+        try
+        {
+            var protectedPayload = new byte[fileBytes.Length - EnvelopeHeader.Length];
+            Buffer.BlockCopy(fileBytes, EnvelopeHeader.Length, protectedPayload, 0, protectedPayload.Length);
+            return ProtectedData.Unprotect(protectedPayload, Entropy, DataProtectionScope.CurrentUser);
+        }
+        catch
+        {
+            return null;
         }
     }
 }

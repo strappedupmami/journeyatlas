@@ -28,7 +28,8 @@ abstract class AtlasDatabase : RoomDatabase() {
                     "atlas_android.db"
                 )
                     .setQueryExecutor(Executors.newFixedThreadPool(2))
-                    .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                    // TRUNCATE limits residual WAL snapshots on disk for sensitive local AI state.
+                    .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                     .fallbackToDestructiveMigration()
                     .build().also {
                     INSTANCE = it

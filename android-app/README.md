@@ -20,7 +20,10 @@ Native Android app for Atlas local-core Life OS.
 
 ## Performance and reliability hardening
 - DB indexes on queue/memory/note/workspace hot paths.
-- WAL mode + bounded query thread pool for smoother I/O under load.
+- Encrypted-at-rest local persistence:
+  - Android Keystore AES-GCM for session state and sensitive Room fields
+  - no Android cloud backup (`allowBackup=false`) in production builds.
+- TRUNCATE journal mode + bounded query thread pool for smoother I/O while limiting WAL residue.
 - Queue safeguards:
   - max queue size cap
   - bounded per-run processing batch

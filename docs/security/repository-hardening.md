@@ -112,3 +112,7 @@ Operator policy:
 - Rotate credentials immediately after accidental disclosure.
 - Treat every CI secret as compromised if fork policy or workflow permissions are changed.
 - Keep auth surface strictly passwordless: Google OAuth, Apple Sign In, and passkeys only.
+
+## 7) App hardening baseline
+
+See `/Users/avrohom/Downloads/journeyatlas/docs/security/app-enterprise-hardening.md` for platform-specific controls across iOS, macOS, Android, and Windows (encrypted local persistence, host allowlists, manifest defaults, and release verification steps).

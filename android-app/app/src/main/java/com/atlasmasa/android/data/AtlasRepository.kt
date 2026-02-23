@@ -28,6 +28,7 @@ class AtlasRepository private constructor(
     private val apiClient: ApiClient,
 ) {
     private val dao = AtlasDatabase.get(context).dao()
+    private val crypto = DeviceCrypto("persistence_fields")
     private val localReasoningEngine = LocalReasoningEngine()
     private val availableCores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
     private val highPerfDevice = availableCores >= 8
@@ -46,13 +47,13 @@ class AtlasRepository private constructor(
 
     fun observeSessionState(): Flow<AtlasSessionState> = sessionPrefs.observeState()
 
-    fun observeNotes(): Flow<List<UserNote>> = dao.observeNotes().map { list -> list.map { it.toDomain() } }
+    fun observeNotes(): Flow<List<UserNote>> = dao.observeNotes().map { list -> list.map { decryptNoteEntity(it) } }
 
-    fun observePromptQueue(): Flow<List<PromptQueueItem>> = dao.observeQueue().map { list -> list.map { it.toDomain() } }
+    fun observePromptQueue(): Flow<List<PromptQueueItem>> = dao.observeQueue().map { list -> list.map { decryptQueueEntity(it) } }
 
-    fun observeMemoryRecords(): Flow<List<MemoryRecord>> = dao.observeMemory().map { list -> list.map { it.toDomain() } }
+    fun observeMemoryRecords(): Flow<List<MemoryRecord>> = dao.observeMemory().map { list -> list.map { decryptMemoryEntity(it) } }
 
-    fun observeWorkspaceSessions(): Flow<List<WorkspaceSession>> = dao.observeWorkspaceSessions().map { list -> list.map { it.toDomain() } }
+    fun observeWorkspaceSessions(): Flow<List<WorkspaceSession>> = dao.observeWorkspaceSessions().map { list -> list.map { decryptWorkspaceEntity(it) } }
 
     suspend fun addSystemOutput(line: String) {
         val current = sessionPrefs.observeState().first()
@@ -140,7 +141,7 @@ class AtlasRepository private constructor(
                 weight = if (moneyToday) 0.92 else 0.7,
                 recency = System.currentTimeMillis(),
                 tagsCsv = tags.joinToString(","),
-                value = "daily=$daily | mid=$mid | long=$long | blocker=$blockers",
+                value = encryptField("daily=$daily | mid=$mid | long=$long | blocker=$blockers"),
             )
         )
 
@@ -148,8 +149,8 @@ class AtlasRepository private constructor(
             WorkspaceSessionEntity(
                 id = UUID.randomUUID().toString(),
                 lane = WorkspaceLane.COMMAND,
-                title = if (daily.isBlank()) "Daily check-in" else daily.take(60),
-                summary = "Mood=$mood Energy=$energy Gym=$gymToday Money=$moneyToday",
+                title = encryptField(if (daily.isBlank()) "Daily check-in" else daily.take(60)),
+                summary = encryptField("Mood=$mood Energy=$energy Gym=$gymToday Money=$moneyToday"),
                 updatedAtEpochMs = System.currentTimeMillis(),
             )
         )
@@ -162,8 +163,8 @@ class AtlasRepository private constructor(
 
         val note = NoteEntity(
             id = UUID.randomUUID().toString(),
-            title = cleanTitle,
-            content = cleanContent,
+            title = encryptField(cleanTitle),
+            content = encryptField(cleanContent),
             createdAtEpochMs = System.currentTimeMillis(),
         )
         dao.upsertNote(note)
@@ -175,7 +176,7 @@ class AtlasRepository private constructor(
                 weight = 0.64,
                 recency = System.currentTimeMillis(),
                 tagsCsv = "notes,manual",
-                value = "${note.title}: ${note.content.take(220)}",
+                value = encryptField("$cleanTitle: ${cleanContent.take(220)}"),
             )
         )
     }
@@ -193,13 +194,13 @@ class AtlasRepository private constructor(
         dao.upsertQueueItem(
             PromptQueueEntity(
                 id = UUID.randomUUID().toString(),
-                prompt = trimmedPrompt.take(2_000),
+                prompt = encryptField(trimmedPrompt.take(2_000)),
                 status = PromptQueueStatus.QUEUED,
                 createdAtEpochMs = System.currentTimeMillis(),
                 startedAtEpochMs = null,
                 completedAtEpochMs = null,
                 progress = 0.0,
-                checkpointNote = "Queued",
+                checkpointNote = encryptField("Queued"),
                 outputSummary = null,
                 nextAction = null,
                 confidence = null,
@@ -211,27 +212,28 @@ class AtlasRepository private constructor(
 
     suspend fun processNextQueuedPrompt(): Boolean = withContext(Dispatchers.IO) {
         val queued = dao.nextQueuedItem() ?: return@withContext false
+        val decryptedPrompt = decryptField(queued.prompt)
         dao.upsertQueueItem(
             queued.copy(
                 status = PromptQueueStatus.RUNNING,
                 startedAtEpochMs = System.currentTimeMillis(),
                 progress = 0.2,
-                checkpointNote = "Model running",
+                checkpointNote = encryptField("Model running"),
                 errorMessage = null,
             )
         )
 
         return@withContext runCatching {
-            val notes = dao.listRecentNotes(4).map { it.toDomain() }
-            val result = localReasoningEngine.reason(queued.prompt, notes)
+            val notes = dao.listRecentNotes(4).map { decryptNoteEntity(it) }
+            val result = localReasoningEngine.reason(decryptedPrompt, notes)
             dao.upsertQueueItem(
                 queued.copy(
                     status = PromptQueueStatus.DONE,
                     progress = 1.0,
                     completedAtEpochMs = System.currentTimeMillis(),
-                    checkpointNote = "Completed",
-                    outputSummary = result.summary,
-                    nextAction = result.nextAction,
+                    checkpointNote = encryptField("Completed"),
+                    outputSummary = encryptField(result.summary),
+                    nextAction = encryptField(result.nextAction),
                     confidence = result.confidence,
                     errorMessage = null,
                 )
@@ -244,7 +246,7 @@ class AtlasRepository private constructor(
                     weight = result.confidence,
                     recency = System.currentTimeMillis(),
                     tagsCsv = "queue,reasoning",
-                    value = "${result.summary} | ${result.nextAction}",
+                    value = encryptField("${result.summary} | ${result.nextAction}"),
                 )
             )
             true
@@ -254,8 +256,8 @@ class AtlasRepository private constructor(
                     status = PromptQueueStatus.FAILED,
                     completedAtEpochMs = System.currentTimeMillis(),
                     progress = 1.0,
-                    checkpointNote = "Failed",
-                    errorMessage = err.message ?: "Unknown queue error",
+                    checkpointNote = encryptField("Failed"),
+                    errorMessage = encryptField(err.message ?: "Unknown queue error"),
                 )
             )
             true
@@ -286,7 +288,7 @@ class AtlasRepository private constructor(
 
     suspend fun generateFeed(): List<FeedItem> {
         val state = sessionPrefs.observeState().first()
-        val memory = dao.listRecentMemory(8)
+        val memory = dao.listRecentMemory(8).map { decryptMemoryEntity(it) }
         val feed = mutableListOf<FeedItem>()
 
         if (state.dailyPriority.isNotBlank()) {
@@ -381,6 +383,61 @@ class AtlasRepository private constructor(
         dao.trimMemory(memoryCutoff)
     }
 
+    private fun encryptField(value: String): String {
+        if (value.isEmpty()) return value
+        return crypto.encrypt(value)
+    }
+
+    private fun decryptField(value: String): String {
+        if (value.isEmpty()) return value
+        return crypto.decrypt(value) ?: ""
+    }
+
+    private fun decryptOptionalField(value: String?): String? {
+        if (value.isNullOrEmpty()) return value
+        return crypto.decrypt(value)
+    }
+
+    private fun decryptNoteEntity(entity: NoteEntity): UserNote = UserNote(
+        id = entity.id,
+        title = decryptField(entity.title),
+        content = decryptField(entity.content),
+        createdAtEpochMs = entity.createdAtEpochMs,
+    )
+
+    private fun decryptQueueEntity(entity: PromptQueueEntity): PromptQueueItem = PromptQueueItem(
+        id = entity.id,
+        prompt = decryptField(entity.prompt),
+        status = entity.status,
+        createdAtEpochMs = entity.createdAtEpochMs,
+        startedAtEpochMs = entity.startedAtEpochMs,
+        completedAtEpochMs = entity.completedAtEpochMs,
+        progress = entity.progress,
+        checkpointNote = decryptOptionalField(entity.checkpointNote),
+        outputSummary = decryptOptionalField(entity.outputSummary),
+        nextAction = decryptOptionalField(entity.nextAction),
+        confidence = entity.confidence,
+        errorMessage = decryptOptionalField(entity.errorMessage),
+    )
+
+    private fun decryptMemoryEntity(entity: MemoryEntity): MemoryRecord = MemoryRecord(
+        id = entity.id,
+        type = entity.type,
+        source = entity.source,
+        weight = entity.weight,
+        recency = entity.recency,
+        tags = entity.tagsCsv.split(',').filter { it.isNotBlank() },
+        value = decryptField(entity.value),
+    )
+
+    private fun decryptWorkspaceEntity(entity: WorkspaceSessionEntity): WorkspaceSession = WorkspaceSession(
+        id = entity.id,
+        lane = entity.lane,
+        title = decryptField(entity.title),
+        summary = decryptField(entity.summary),
+        updatedAtEpochMs = entity.updatedAtEpochMs,
+    )
+
     companion object {
         @Volatile
         private var INSTANCE: AtlasRepository? = null
@@ -398,43 +455,3 @@ class AtlasRepository private constructor(
         }
     }
 }
-
-private fun NoteEntity.toDomain(): UserNote = UserNote(
-    id = id,
-    title = title,
-    content = content,
-    createdAtEpochMs = createdAtEpochMs,
-)
-
-private fun PromptQueueEntity.toDomain(): PromptQueueItem = PromptQueueItem(
-    id = id,
-    prompt = prompt,
-    status = status,
-    createdAtEpochMs = createdAtEpochMs,
-    startedAtEpochMs = startedAtEpochMs,
-    completedAtEpochMs = completedAtEpochMs,
-    progress = progress,
-    checkpointNote = checkpointNote,
-    outputSummary = outputSummary,
-    nextAction = nextAction,
-    confidence = confidence,
-    errorMessage = errorMessage,
-)
-
-private fun MemoryEntity.toDomain(): MemoryRecord = MemoryRecord(
-    id = id,
-    type = type,
-    source = source,
-    weight = weight,
-    recency = recency,
-    tags = tagsCsv.split(',').filter { it.isNotBlank() },
-    value = value,
-)
-
-private fun WorkspaceSessionEntity.toDomain(): WorkspaceSession = WorkspaceSession(
-    id = id,
-    lane = lane,
-    title = title,
-    summary = summary,
-    updatedAtEpochMs = updatedAtEpochMs,
-)

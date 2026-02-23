@@ -6,10 +6,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class ApiClient(
@@ -23,10 +25,28 @@ class ApiClient(
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(12, TimeUnit.SECONDS)
         .writeTimeout(12, TimeUnit.SECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .addInterceptor { chain ->
+            val request = chain.request()
+            val url = request.url
+            if (url.scheme != "https" || url.host !in ALLOWED_HOSTS) {
+                throw IOException("Blocked insecure or untrusted host: ${url.host}")
+            }
+            chain.proceed(request)
+        }
         .retryOnConnectionFailure(true)
         .build(),
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
+    private val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
+
+    init {
+        require(isAllowedBaseUrl(normalizedBaseUrl)) {
+            "API base URL must be HTTPS and on an approved Atlas host."
+        }
+    }
+
     @Serializable
     private data class HealthWire(
         val status: String,
@@ -44,7 +64,7 @@ class ApiClient(
 
     suspend fun healthCapabilities(): Result<HealthCapabilities> = withContext(Dispatchers.IO) {
         runCatching {
-            val req = Request.Builder().url("${baseUrl.trimEnd('/')}/health").get().build()
+            val req = Request.Builder().url("$normalizedBaseUrl/health").get().build()
             okHttp.newCall(req).execute().use { rsp ->
                 if (!rsp.isSuccessful) error("health status ${rsp.code}")
                 val body = rsp.body?.string().orEmpty()
@@ -57,6 +77,18 @@ class ApiClient(
                     deepPersonalization = payload.capabilities.deepPersonalization,
                 )
             }
+        }
+    }
+
+    companion object {
+        private val ALLOWED_HOSTS = setOf(
+            "api.atlasmasa.com",
+            "journeyatlas-production.up.railway.app",
+        )
+
+        private fun isAllowedBaseUrl(baseUrl: String): Boolean {
+            val parsed = baseUrl.toHttpUrlOrNull() ?: return false
+            return parsed.scheme == "https" && parsed.host in ALLOWED_HOSTS
         }
     }
 }

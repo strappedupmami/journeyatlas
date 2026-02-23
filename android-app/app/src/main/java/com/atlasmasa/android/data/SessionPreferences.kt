@@ -15,18 +15,21 @@ private val Context.dataStore by preferencesDataStore(name = "atlas_session")
 class SessionPreferences(private val context: Context) {
     private val stateKey: Preferences.Key<String> = stringPreferencesKey("session_state_json")
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val crypto = DeviceCrypto("session_state")
 
     fun observeState(): Flow<AtlasSessionState> {
         return context.dataStore.data.map { prefs ->
             prefs[stateKey]?.let {
-                runCatching { json.decodeFromString(AtlasSessionState.serializer(), it) }.getOrNull()
+                val decoded = crypto.decrypt(it) ?: return@let null
+                runCatching { json.decodeFromString(AtlasSessionState.serializer(), decoded) }.getOrNull()
             } ?: AtlasSessionState()
         }
     }
 
     suspend fun saveState(state: AtlasSessionState) {
         context.dataStore.edit { prefs ->
-            prefs[stateKey] = json.encodeToString(AtlasSessionState.serializer(), state)
+            val encoded = json.encodeToString(AtlasSessionState.serializer(), state)
+            prefs[stateKey] = crypto.encrypt(encoded)
         }
     }
 }

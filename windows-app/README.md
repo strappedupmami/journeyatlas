@@ -15,6 +15,7 @@ Production-target Windows app for Atlas local compute + local storage workflows.
   - `Mobility + Ops`
   - `System Output`
 - Persistent local state under `%LOCALAPPDATA%/Atlas/Windows/atlas_windows_state_v1.json`
+  - encrypted at rest with Windows DPAPI (`CurrentUser` scope)
 - Resumable queue (queued/running prompts recover after restart)
 - Local reasoning engine with emergency/wealth/execution routing
 - Dynamic performance profile:
