@@ -48,7 +48,7 @@ struct PromptQueueCard: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(item.prompt)
-                                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                                    .font(.system(size: 16, weight: .semibold, design: .default))
                                     .foregroundStyle(AtlasTheme.textPrimary)
                                 Spacer()
                                 Text(item.status.rawValue.uppercased())

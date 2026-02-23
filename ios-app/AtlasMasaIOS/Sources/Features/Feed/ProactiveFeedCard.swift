@@ -33,7 +33,7 @@ struct ProactiveFeedCard: View {
                         HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(workspace.title)
-                                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                                    .font(.system(size: 15, weight: .semibold, design: .default))
                                     .foregroundStyle(AtlasTheme.textPrimary)
                                 Text(workspace.nextActionNow)
                                     .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -61,7 +61,7 @@ struct ProactiveFeedCard: View {
                     ForEach(session.feedItems) { item in
                         VStack(alignment: .leading, spacing: 6) {
                             Text(item.title)
-                                .font(.system(size: 18, weight: .semibold, design: .serif))
+                                .font(.system(size: 18, weight: .semibold, design: .default))
                                 .foregroundStyle(AtlasTheme.textPrimary)
                             Text(item.summary)
                                 .foregroundStyle(AtlasTheme.textSecondary)
@@ -89,7 +89,7 @@ struct ProactiveFeedCard: View {
                     ForEach(session.jobMarketOpportunities.prefix(4)) { opportunity in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(opportunity.title)
-                                .font(.system(size: 17, weight: .semibold, design: .serif))
+                                .font(.system(size: 17, weight: .semibold, design: .default))
                                 .foregroundStyle(AtlasTheme.textPrimary)
                             Text("\(opportunity.location) · \(opportunity.salaryBandUSD)")
                                 .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -128,7 +128,7 @@ struct ProactiveFeedCard: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(offer.title)
-                                    .font(.system(size: 17, weight: .semibold, design: .serif))
+                                    .font(.system(size: 17, weight: .semibold, design: .default))
                                     .foregroundStyle(AtlasTheme.textPrimary)
                                 Spacer()
                                 Text(offer.type.rawValue.uppercased())
@@ -162,7 +162,7 @@ struct ProactiveFeedCard: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(stream.title)
-                                    .font(.system(size: 17, weight: .semibold, design: .serif))
+                                    .font(.system(size: 17, weight: .semibold, design: .default))
                                     .foregroundStyle(AtlasTheme.textPrimary)
                                 Spacer()
                                 Text("CONF \(Int(stream.confidence * 100))%")
@@ -200,7 +200,7 @@ struct ProactiveFeedCard: View {
                         .foregroundStyle(AtlasTheme.textSecondary)
 
                     Text("Quiz")
-                        .font(.system(size: 16, weight: .semibold, design: .serif))
+                        .font(.system(size: 16, weight: .semibold, design: .default))
                         .foregroundStyle(AtlasTheme.textPrimary)
                     ForEach(learning.quiz) { question in
                         VStack(alignment: .leading, spacing: 4) {
@@ -223,7 +223,7 @@ struct ProactiveFeedCard: View {
                     }
 
                     Text(learning.podcastTitle)
-                        .font(.system(size: 16, weight: .semibold, design: .serif))
+                        .font(.system(size: 16, weight: .semibold, design: .default))
                         .foregroundStyle(AtlasTheme.textPrimary)
                     Text(learning.podcastSummary)
                         .foregroundStyle(AtlasTheme.textSecondary)

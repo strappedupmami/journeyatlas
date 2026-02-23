@@ -47,7 +47,7 @@ struct AdaptiveSurveyCard: View {
                 if let survey = session.survey {
                     if let question = survey.question {
                         Text(question.title)
-                            .font(.system(size: 18, weight: .semibold, design: .serif))
+                            .font(.system(size: 18, weight: .semibold, design: .default))
                             .foregroundStyle(AtlasTheme.textPrimary)
 
                         if let description = question.description, !description.isEmpty {

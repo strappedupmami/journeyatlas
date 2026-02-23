@@ -80,7 +80,7 @@ struct WorkspacesCard: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(workspace.title)
-                                    .font(.system(size: 18, weight: .semibold, design: .serif))
+                                    .font(.system(size: 18, weight: .semibold, design: .default))
                                     .foregroundStyle(AtlasTheme.textPrimary)
                                 Spacer()
                                 Text("CONF \(Int(workspace.confidence * 100))%")
@@ -188,7 +188,7 @@ struct WorkspacesCard: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(item.prompt)
-                                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                                    .font(.system(size: 16, weight: .semibold, design: .default))
                                     .foregroundStyle(AtlasTheme.textPrimary)
                                 Spacer()
                                 Text(item.status.rawValue.uppercased())

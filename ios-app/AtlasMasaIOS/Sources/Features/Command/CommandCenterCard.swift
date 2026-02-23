@@ -85,7 +85,7 @@ struct CommandCenterCard: View {
 
                     if let question = survey.question {
                         Text(question.title)
-                            .font(.system(size: 17, weight: .semibold, design: .serif))
+                            .font(.system(size: 17, weight: .semibold, design: .default))
                             .foregroundStyle(AtlasTheme.textPrimary)
 
                         if let description = question.description, !description.isEmpty {
@@ -135,7 +135,7 @@ struct CommandCenterCard: View {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(action.title)
-                                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                                    .font(.system(size: 16, weight: .semibold, design: .default))
                                     .foregroundStyle(AtlasTheme.textPrimary)
                                 Spacer()
                                 Text(action.horizon)

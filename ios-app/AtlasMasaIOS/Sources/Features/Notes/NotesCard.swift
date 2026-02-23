@@ -46,7 +46,7 @@ struct NotesCard: View {
                     ForEach(session.memoryInsights) { insight in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(insight.label)
-                                .font(.system(size: 15, weight: .semibold, design: .serif))
+                                .font(.system(size: 15, weight: .semibold, design: .default))
                                 .foregroundStyle(AtlasTheme.textPrimary)
                             Text(insight.value)
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -78,7 +78,7 @@ struct NotesCard: View {
                     ForEach(session.notes) { note in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(note.title)
-                                .font(.system(size: 16, weight: .semibold, design: .serif))
+                                .font(.system(size: 16, weight: .semibold, design: .default))
                                 .foregroundStyle(AtlasTheme.textPrimary)
                             Text(note.content)
                                 .foregroundStyle(AtlasTheme.textSecondary)

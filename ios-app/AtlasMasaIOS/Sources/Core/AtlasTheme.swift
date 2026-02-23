@@ -45,7 +45,7 @@ struct AtlasScreen<Content: View>: View {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(title)
-                            .font(.system(size: 30, weight: .semibold, design: .serif))
+                            .font(.system(size: 30, weight: .semibold, design: .default))
                             .foregroundStyle(AtlasTheme.textPrimary)
                         Text(subtitle)
                             .font(.system(size: 14, weight: .medium, design: .rounded))
@@ -70,7 +70,7 @@ struct AtlasPanel<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(heading)
-                    .font(.system(size: 20, weight: .semibold, design: .serif))
+                    .font(.system(size: 20, weight: .semibold, design: .default))
                     .foregroundStyle(AtlasTheme.textPrimary)
                 if let caption, !caption.isEmpty {
                     Text(caption)
