@@ -108,12 +108,30 @@ actor LocalReasoningEngine {
         let fallbackAction = model.nextActions.indices.contains(labelIndex)
             ? model.nextActions[labelIndex]
             : "Define one action for now, one for this week, and one for this quarter."
-        let nextAction = localizedNextAction(for: labelKey, fallback: fallbackAction, prefersHebrew: prefersHebrew)
+        let baselineSummary = summarize(
+            boundedPrompt,
+            labelBrief: labelBrief,
+            notesCount: notes.count,
+            prefersHebrew: prefersHebrew
+        )
+        let baselineAction = localizedNextAction(
+            for: labelKey,
+            fallback: fallbackAction,
+            prefersHebrew: prefersHebrew
+        )
+        let dynamic = composeDynamicResponse(
+            prompt: boundedPrompt,
+            labelKey: labelKey,
+            baselineSummary: baselineSummary,
+            baselineAction: baselineAction,
+            notes: notes,
+            prefersHebrew: prefersHebrew
+        )
 
         return LocalReasoningOutput(
             model: model.modelName,
-            summary: summarize(boundedPrompt, labelBrief: labelBrief, notesCount: notes.count, prefersHebrew: prefersHebrew),
-            nextAction: nextAction,
+            summary: dynamic.summary,
+            nextAction: dynamic.nextAction,
             confidence: confidence,
             generatedAt: Date()
         )
@@ -269,6 +287,207 @@ actor LocalReasoningEngine {
         default:
             return fallback
         }
+    }
+
+    private func composeDynamicResponse(
+        prompt: String,
+        labelKey: String,
+        baselineSummary: String,
+        baselineAction: String,
+        notes: [UserNote],
+        prefersHebrew: Bool
+    ) -> (summary: String, nextAction: String) {
+        let lower = prompt.lowercased()
+        let variant = stableVariant(for: prompt)
+        let objective = extractObjective(from: prompt, prefersHebrew: prefersHebrew)
+        let lane = inferDynamicLane(from: lower, labelKey: labelKey)
+        let firstMove = firstMoveForLane(
+            lane: lane,
+            objective: objective,
+            prefersHebrew: prefersHebrew
+        )
+        let checkpoint = checkpointForLane(lane: lane, prefersHebrew: prefersHebrew)
+        let noteSignal = notes
+            .map { sanitizeContextToken($0.title) }
+            .first(where: { !$0.isEmpty })
+        let noteLine = noteSignal.map { value in
+            prefersHebrew ? "הקשר מהזיכרון: \(value)." : "Memory context: \(value)."
+        }
+
+        let summary: String
+        if let noteLine {
+            summary = "\(baselineSummary) \(noteLine)"
+        } else {
+            summary = baselineSummary
+        }
+
+        let nextAction: String
+        if prefersHebrew {
+            switch variant {
+            case 0:
+                nextAction = "מהלך ראשון (25 דק׳): \(firstMove) לאחר מכן: \(checkpoint)"
+            case 1:
+                nextAction = "ביצוע מיידי: \(firstMove) סגירה תפעולית: \(checkpoint)"
+            case 2:
+                nextAction = "תכל׳ס עכשיו: \(firstMove) נקודת בקרה: \(checkpoint)"
+            default:
+                nextAction = "שלב פתיחה: \(firstMove) אחריו נעילה: \(checkpoint)"
+            }
+        } else {
+            switch variant {
+            case 0:
+                nextAction = "Immediate move (25 min): \(firstMove) Then checkpoint: \(checkpoint)"
+            case 1:
+                nextAction = "Execute now: \(firstMove) Operational close: \(checkpoint)"
+            case 2:
+                nextAction = "Do this first: \(firstMove) Control point: \(checkpoint)"
+            default:
+                nextAction = "Opening step: \(firstMove) Follow with lock-in: \(checkpoint)"
+            }
+        }
+
+        return (summary, nextAction)
+    }
+
+    private func stableVariant(for text: String) -> Int {
+        text.unicodeScalars.reduce(0) { partial, scalar in
+            (partial + Int(scalar.value)) % 4
+        }
+    }
+
+    private func extractObjective(from prompt: String, prefersHebrew: Bool) -> String {
+        let cleaned = prompt
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            return prefersHebrew ? "להניע יעד ברור" : "move one concrete objective forward"
+        }
+
+        let words = cleaned.split(separator: " ").map(String.init)
+        let slice = words.prefix(12).joined(separator: " ")
+        return slice.count > 140 ? String(slice.prefix(140)) + "..." : slice
+    }
+
+    private enum DynamicLane {
+        case auth
+        case billing
+        case product
+        case mobility
+        case writing
+        case strategy
+        case general
+    }
+
+    private func inferDynamicLane(from lowerPrompt: String, labelKey: String) -> DynamicLane {
+        if containsAny(lowerPrompt, [
+            "auth", "oauth", "passkey", "login", "signin", "sign in", "apple", "google", "session",
+            "token", "callback", "webauthn", "security",
+        ]) {
+            return .auth
+        }
+        if containsAny(lowerPrompt, [
+            "stripe", "subscription", "billing", "payment", "checkout", "price", "revenue", "sales", "offer",
+        ]) {
+            return .billing
+        }
+        if containsAny(lowerPrompt, [
+            "ux", "ui", "page", "design", "layout", "feature", "app", "ios", "macos", "frontend",
+        ]) {
+            return .product
+        }
+        if containsAny(lowerPrompt, [
+            "route", "trip", "travel", "van", "mobility", "drive", "km", "camp",
+        ]) {
+            return .mobility
+        }
+        if containsAny(lowerPrompt, [
+            "doc", "write", "content", "script", "prompt", "copy", "message", "email",
+        ]) {
+            return .writing
+        }
+        if labelKey == "travel_design_strategy" || containsAny(lowerPrompt, [
+            "strategy", "roadmap", "plan", "quarter", "goal", "long-term", "long term",
+        ]) {
+            return .strategy
+        }
+        return .general
+    }
+
+    private func firstMoveForLane(lane: DynamicLane, objective: String, prefersHebrew: Bool) -> String {
+        switch lane {
+        case .auth:
+            return prefersHebrew
+                ? "הריצו תרחיש כניסה אחד מקצה לקצה סביב \"\(objective)\", ותעדו נקודת שבירה מדויקת"
+                : "run one end-to-end auth path for \"\(objective)\" and capture the exact break point"
+        case .billing:
+            return prefersHebrew
+                ? "הגדירו הצעת ערך+מחיר אחת סביב \"\(objective)\", וצרו בדיקת Checkout מלאה"
+                : "define one value proposition + price around \"\(objective)\", then run a full checkout test"
+        case .product:
+            return prefersHebrew
+                ? "הוציאו שיפור מוצר קטן וישיר סביב \"\(objective)\" שניתן למדוד היום"
+                : "ship one small measurable product improvement for \"\(objective)\" today"
+        case .mobility:
+            return prefersHebrew
+                ? "בנו בלוק תפעול/מסלול אחד סביב \"\(objective)\" עם חלופה חוקית ברורה"
+                : "build one operations/route block for \"\(objective)\" with a clear legal fallback"
+        case .writing:
+            return prefersHebrew
+                ? "נסחו טיוטה תפעולית אחת סביב \"\(objective)\" והפכו אותה להנחיות ביצוע"
+                : "draft one operational brief for \"\(objective)\" and convert it into executable instructions"
+        case .strategy:
+            return prefersHebrew
+                ? "הגדירו אבן דרך אסטרטגית אחת סביב \"\(objective)\" עם מדד הצלחה מוגדר"
+                : "define one strategic milestone for \"\(objective)\" with a concrete success metric"
+        case .general:
+            return prefersHebrew
+                ? "בחרו מהלך אחד סביב \"\(objective)\" שמייצר תוצאה מוכחת היום"
+                : "choose one move around \"\(objective)\" that creates a provable result today"
+        }
+    }
+
+    private func checkpointForLane(lane: DynamicLane, prefersHebrew: Bool) -> String {
+        switch lane {
+        case .auth:
+            return prefersHebrew
+                ? "לאמת לוגים + קוד סטטוס + צילום מסך תוצאה, ואז לקבוע תיקון הבא"
+                : "verify logs + status code + screenshot of result, then schedule the next patch"
+        case .billing:
+            return prefersHebrew
+                ? "למדוד שיעור התחלה ל-Checkout ונקודת נטישה ראשית"
+                : "measure checkout start rate and identify the main drop-off point"
+        case .product:
+            return prefersHebrew
+                ? "לאשר שהשינוי עובד במכשיר אמיתי ולתעד לפני/אחרי"
+                : "confirm the change on a real device and log before/after behavior"
+        case .mobility:
+            return prefersHebrew
+                ? "לנעול תוכנית גיבוי (דלק/שירות/לינה חוקית) לפני היציאה"
+                : "lock backup plan (fuel/service/legal overnight) before execution"
+        case .writing:
+            return prefersHebrew
+                ? "להוציא גרסה שניתנת לפרסום/ביצוע ולהגדיר מועד בדיקה"
+                : "publish/execute one usable version and set a review checkpoint"
+        case .strategy:
+            return prefersHebrew
+                ? "לקבוע נקודת בדיקה שבועית עם מדד יחיד ברור"
+                : "set a weekly review with one explicit metric"
+        case .general:
+            return prefersHebrew
+                ? "לתעד תוצאה אחת ולהגדיר את הפעולה הבאה בתוך היום"
+                : "log one outcome and set the next action inside the same day"
+        }
+    }
+
+    private func containsAny(_ value: String, _ needles: [String]) -> Bool {
+        needles.contains(where: { value.contains($0) })
+    }
+
+    private func sanitizeContextToken(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func emergencyOverride(for text: String, prefersHebrew: Bool) -> (summary: String, nextAction: String)? {
