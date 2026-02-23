@@ -4,7 +4,7 @@ struct RootDashboardView: View {
     var body: some View {
         TabView {
             CommandCenterCard()
-                .tabItem { Label("Command", systemImage: "sparkles.square.filled.on.square") }
+                .tabItem { Label("Concierge", systemImage: "message.fill") }
 
             ProactiveFeedCard()
                 .tabItem { Label("Execution", systemImage: "dollarsign.circle") }

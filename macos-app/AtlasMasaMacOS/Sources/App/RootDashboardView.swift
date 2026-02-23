@@ -4,7 +4,10 @@ struct RootDashboardView: View {
     var body: some View {
         TabView {
             CommandCenterCard()
-                .tabItem { Label("Command", systemImage: "sparkles.square.filled.on.square") }
+                .tabItem { Label("Concierge", systemImage: "message.fill") }
+
+            AIGuideCard()
+                .tabItem { Label("AI Guide", systemImage: "book.closed") }
 
             AdaptiveSurveyCard()
                 .tabItem { Label("Survey", systemImage: "point.3.connected.trianglepath.dotted") }
