@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="database" path="atlas_android.db"/>
+    <include domain="database" path="atlas_android.db-wal"/>
+    <include domain="database" path="atlas_android.db-shm"/>
+    <include domain="sharedpref" path="atlas_session.preferences_pb"/>
+</full-backup-content>

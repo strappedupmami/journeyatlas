@@ -1,0 +1,7 @@
+-keep class kotlinx.serialization.** { *; }
+-keep class com.atlasmasa.android.domain.** { *; }
+-keep class com.atlasmasa.android.data.** { *; }
+-keep class com.atlasmasa.android.workers.** { *; }
+-keep class androidx.profileinstaller.** { *; }
+-dontwarn kotlin.Unit
+-keepattributes Signature
