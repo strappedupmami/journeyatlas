@@ -6,7 +6,7 @@ struct SubscriptionCard: View {
     var body: some View {
         AtlasScreen(
             title: "Plans + Billing",
-            subtitle: "Use local-first mode for free, then upgrade only if you need cloud compute + cloud storage"
+            subtitle: "Every account starts with a 2-month free trial, then Pro continues at ₪20/month."
         ) {
             AtlasPanel(heading: "Active plan", caption: "Switch between local-first and cloud reasoning modes") {
                 Picker("Plan", selection: $session.selectedTier) {
@@ -23,10 +23,10 @@ struct SubscriptionCard: View {
                     .foregroundStyle(AtlasTheme.textSecondary)
 
                 if session.selectedTier == .localTrial {
-                    Text("Local tier is free: on-device reasoning + on-device storage.")
+                    Text("Trial pricing: free for 60 days, then choose Pro at ₪20/month.")
                         .foregroundStyle(AtlasTheme.accentWarm)
                 } else {
-                    Text("Tier 2 requires Stripe + Apple Pay capable checkout on web and app entitlement sync.")
+                    Text("Pro pricing: ₪20/month after the 2-month trial window.")
                         .foregroundStyle(AtlasTheme.accentWarm)
                 }
             }
@@ -50,8 +50,8 @@ struct SubscriptionCard: View {
 
             AtlasPanel(heading: "Revenue path", caption: "Economic model alignment") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("• Tier 1: free local mode, no cloud dependency")
-                    Text("• Tier 2: paid cloud storage + paid cloud reasoning")
+                    Text("• Free trial: 2 months for every new account")
+                    Text("• Paid plan: ₪20/month after trial")
                     Text("• Mobility: van rental as parallel revenue stream")
                     Text("• Team/business: fleet pricing with SLA")
                 }

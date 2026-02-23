@@ -380,18 +380,18 @@ enum AccountTier: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .localTrial:
-            return "Tier 1 · Local Reasoning"
+            return "Free Trial · 2 Months"
         case .cloudPro:
-            return "Tier 2 · Cloud Reasoning"
+            return "Pro · ₪20/month"
         }
     }
 
     var subtitle: String {
         switch self {
         case .localTrial:
-            return "Runs locally in Swift apps. No cloud compute required."
+            return "Full access for 60 days. After trial, continue with Pro."
         case .cloudPro:
-            return "Server reasoning for deeper workloads and scale."
+            return "Cloud reasoning and sync for ₪20 per month."
         }
     }
 }

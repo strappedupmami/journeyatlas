@@ -8,6 +8,8 @@ import UIKit
 
 @MainActor
 final class SessionStore: ObservableObject {
+    private static let localTrialDurationDays = 60
+
     @Published var health: HealthResponse?
     @Published var systemOutput: [String] = ["Booting Atlas Masa Travel Design OS (Swift local tier)..."]
     @Published var survey: SurveyNextResponse?
@@ -26,7 +28,7 @@ final class SessionStore: ObservableObject {
     @Published var accountLabel = "Guest Operator"
     @Published var accountStatusMessage = "Use provider auth or passwordless to activate your account."
     @Published var selectedTier: AccountTier = .localTrial
-    @Published var trialDaysRemaining = 90
+    @Published var trialDaysRemaining = SessionStore.localTrialDurationDays
 
     @Published var dailyPriority = ""
     @Published var midTermGoal = ""
@@ -4833,7 +4835,7 @@ final class SessionStore: ObservableObject {
         accountProvider = state.accountProvider
         accountLabel = state.accountLabel
         selectedTier = state.selectedTier
-        trialDaysRemaining = state.trialDaysRemaining
+        trialDaysRemaining = max(0, min(state.trialDaysRemaining, SessionStore.localTrialDurationDays))
         dailyPriority = state.dailyPriority
         midTermGoal = state.midTermGoal
         longTermVision = state.longTermVision
