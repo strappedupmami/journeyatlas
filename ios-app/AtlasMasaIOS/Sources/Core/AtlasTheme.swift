@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 enum AtlasTheme {
     static let backgroundTop = Color(red: 0.09, green: 0.03, blue: 0.06)
@@ -57,6 +60,12 @@ struct AtlasScreen<Content: View>: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 18)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    dismissKeyboard()
+                }
+            )
         }
     }
 }
@@ -172,3 +181,16 @@ extension View {
             )
     }
 }
+
+#if canImport(UIKit)
+private func dismissKeyboard() {
+    UIApplication.shared.sendAction(
+        #selector(UIResponder.resignFirstResponder),
+        to: nil,
+        from: nil,
+        for: nil
+    )
+}
+#else
+private func dismissKeyboard() {}
+#endif

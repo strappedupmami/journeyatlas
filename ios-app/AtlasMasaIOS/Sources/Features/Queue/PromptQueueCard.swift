@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PromptQueueCard: View {
     @EnvironmentObject private var session: SessionStore
+    @FocusState private var queuePromptFocused: Bool
 
     var body: some View {
         AtlasScreen(
@@ -20,19 +21,23 @@ struct PromptQueueCard: View {
                 TextField("Write a prompt for local reasoning", text: $session.pendingPrompt, axis: .vertical)
                     .lineLimit(3 ... 8)
                     .atlasFieldStyle()
+                    .focused($queuePromptFocused)
 
                 HStack {
                     Button("Add to queue") {
+                        queuePromptFocused = false
                         session.enqueuePrompt()
                     }
                     .buttonStyle(AtlasPrimaryButtonStyle())
 
                     Button("Run worker") {
+                        queuePromptFocused = false
                         session.startPromptQueueWorker()
                     }
                     .buttonStyle(AtlasSecondaryButtonStyle())
 
                     Button("Clear") {
+                        queuePromptFocused = false
                         session.clearPromptQueue()
                     }
                     .buttonStyle(AtlasSecondaryButtonStyle())
@@ -74,6 +79,14 @@ struct PromptQueueCard: View {
                                 .fill(Color.black.opacity(0.2))
                         )
                     }
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    queuePromptFocused = false
                 }
             }
         }
