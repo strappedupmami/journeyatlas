@@ -154,6 +154,100 @@ struct NativeAppleExchangePayload: Encodable {
     }
 }
 
+struct PasskeyRegistrationStartPayload: Encodable {
+    let email: String?
+    let displayName: String?
+    let locale: String?
+
+    enum CodingKeys: String, CodingKey {
+        case email
+        case displayName = "display_name"
+        case locale
+    }
+}
+
+struct PasskeyLoginStartPayload: Encodable {
+    let email: String?
+}
+
+struct PasskeyRegistrationCredentialResponsePayload: Encodable {
+    let clientDataJSON: String
+    let attestationObject: String
+    let transports: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case clientDataJSON
+        case attestationObject
+        case transports
+    }
+}
+
+struct PasskeyRegistrationCredentialPayload: Encodable {
+    let id: String
+    let rawId: String
+    let type: String
+    let response: PasskeyRegistrationCredentialResponsePayload
+    let clientExtensionResults: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case rawId
+        case type
+        case response
+        case clientExtensionResults
+    }
+}
+
+struct PasskeyRegistrationFinishPayload: Encodable {
+    let requestID: String
+    let credential: PasskeyRegistrationCredentialPayload
+
+    enum CodingKeys: String, CodingKey {
+        case requestID = "request_id"
+        case credential
+    }
+}
+
+struct PasskeyAuthenticationCredentialResponsePayload: Encodable {
+    let clientDataJSON: String
+    let authenticatorData: String
+    let signature: String
+    let userHandle: String?
+
+    enum CodingKeys: String, CodingKey {
+        case clientDataJSON
+        case authenticatorData
+        case signature
+        case userHandle
+    }
+}
+
+struct PasskeyAuthenticationCredentialPayload: Encodable {
+    let id: String
+    let rawId: String
+    let type: String
+    let response: PasskeyAuthenticationCredentialResponsePayload
+    let clientExtensionResults: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case rawId
+        case type
+        case response
+        case clientExtensionResults
+    }
+}
+
+struct PasskeyLoginFinishPayload: Encodable {
+    let requestID: String
+    let credential: PasskeyAuthenticationCredentialPayload
+
+    enum CodingKeys: String, CodingKey {
+        case requestID = "request_id"
+        case credential
+    }
+}
+
 struct AuthSessionUser: Codable {
     let userID: String
     let provider: String
@@ -174,6 +268,18 @@ struct AuthSessionUser: Codable {
 
 struct AuthMeResponse: Codable {
     let user: AuthSessionUser
+}
+
+struct AuthLoginResponse: Codable {
+    let token: String
+    let user: AuthSessionUser
+    let sessionExpiresAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case token
+        case user
+        case sessionExpiresAt = "session_expires_at"
+    }
 }
 
 struct ExecutionCheckinPayload: Encodable {

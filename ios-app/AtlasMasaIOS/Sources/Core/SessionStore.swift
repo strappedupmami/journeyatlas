@@ -20,6 +20,7 @@ final class SessionStore: ObservableObject {
 
     @Published var isSignedIn = false
     @Published var isAppleSignInInProgress = false
+    @Published var isPasskeyInProgress = false
     @Published var accountProvider: AuthProvider?
     @Published var accountLabel = "Guest Operator"
     @Published var accountStatusMessage = "Use provider auth or passwordless to activate your account."
@@ -64,6 +65,7 @@ final class SessionStore: ObservableObject {
     private var pendingRuntimeTelemetry: [String] = []
     private var lastRuntimeTelemetryAt = Date.distantPast
     private var appleAuthCoordinator: AppleAuthorizationCoordinator?
+    private var passkeyAuthCoordinator: AppleAuthorizationCoordinator?
 
     private let queueStorageLegacyKey = "atlas_ios_prompt_queue_v2"
     private let queueFileName = "prompt-queue-v3.json"
@@ -654,16 +656,362 @@ final class SessionStore: ObservableObject {
 #endif
     }
 
-    func signInWithPasswordless() {
-        markSignedIn(provider: .passkey, accountName: "Device passkey")
-        appendOutput("Passwordless sign-in active. Device-secure flow enabled.")
+    private func performPasskeySignUpFlow() async throws {
+        let start = try await api.passkeyRegisterStart(
+            displayName: "Atlas Masa Member",
+            locale: currentLocaleCode()
+        )
+        let parsed = try parsePasskeyRegistrationStart(start)
+        let credential = try await requestPasskeyRegistration(
+            rpID: parsed.rpID,
+            challenge: parsed.challenge,
+            userID: parsed.userID,
+            userName: parsed.userName,
+            userVerification: parsed.userVerification
+        )
+        try await api.passkeyRegisterFinish(
+            payload: PasskeyRegistrationFinishPayload(
+                requestID: parsed.requestID,
+                credential: serializePasskeyRegistrationCredential(credential)
+            )
+        )
+        appendOutput("Passkey registration completed. Finalizing secure sign-in.")
+        try await performPasskeySignInFlow()
+    }
+
+    private func performPasskeySignInFlow() async throws {
+        let start = try await api.passkeyLoginStart()
+        let parsed = try parsePasskeyLoginStart(start)
+        let credential = try await requestPasskeyAssertion(
+            rpID: parsed.rpID,
+            challenge: parsed.challenge,
+            userVerification: parsed.userVerification
+        )
+        let response = try await api.passkeyLoginFinish(
+            payload: PasskeyLoginFinishPayload(
+                requestID: parsed.requestID,
+                credential: serializePasskeyAssertionCredential(credential)
+            )
+        )
+        let provider = AuthProvider(rawValue: response.user.provider) ?? .passkey
+        let displayName = response.user.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? response.user.email
+            : response.user.name
+        markSignedIn(provider: provider, accountName: displayName)
+        memoryCollectionEnabled = response.user.memoryOptIn
+        appendOutput("Passwordless sign-in completed and verified with API.")
         accountStatusMessage = "Passwordless sign-in active."
     }
 
+    private func requestPasskeyRegistration(
+        rpID: String,
+        challenge: Data,
+        userID: Data,
+        userName: String,
+        userVerification: String?
+    ) async throws -> ASAuthorizationPlatformPublicKeyCredentialRegistration {
+        guard !rpID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NSError(domain: "AtlasPasskey", code: 2001, userInfo: [
+                NSLocalizedDescriptionKey: "Passkey RP identifier is missing from server payload."
+            ])
+        }
+
+        let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: rpID)
+        let request = provider.createCredentialRegistrationRequest(
+            challenge: challenge,
+            name: userName,
+            userID: userID
+        )
+        if let preference = passkeyUserVerificationPreference(from: userVerification) {
+            request.userVerificationPreference = preference
+        }
+
+        let authorization = try await requestPasskeyAuthorization(request: request)
+        guard let credential = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialRegistration else {
+            throw NSError(domain: "AtlasPasskey", code: 2002, userInfo: [
+                NSLocalizedDescriptionKey: "Unexpected passkey registration credential type."
+            ])
+        }
+        return credential
+    }
+
+    private func requestPasskeyAssertion(
+        rpID: String,
+        challenge: Data,
+        userVerification: String?
+    ) async throws -> ASAuthorizationPlatformPublicKeyCredentialAssertion {
+        guard !rpID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NSError(domain: "AtlasPasskey", code: 2003, userInfo: [
+                NSLocalizedDescriptionKey: "Passkey RP identifier is missing from server payload."
+            ])
+        }
+
+        let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: rpID)
+        let request = provider.createCredentialAssertionRequest(challenge: challenge)
+        if let preference = passkeyUserVerificationPreference(from: userVerification) {
+            request.userVerificationPreference = preference
+        }
+
+        let authorization = try await requestPasskeyAuthorization(request: request)
+        guard let credential = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion else {
+            throw NSError(domain: "AtlasPasskey", code: 2004, userInfo: [
+                NSLocalizedDescriptionKey: "Unexpected passkey sign-in credential type."
+            ])
+        }
+        return credential
+    }
+
+    private func requestPasskeyAuthorization(request: ASAuthorizationRequest) async throws -> ASAuthorization {
+        guard let anchor = activePresentationAnchor() else {
+            throw AppleAuthFlowError.missingPresentationAnchor
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            let coordinator = AppleAuthorizationCoordinator(
+                anchor: anchor,
+                onSuccess: { authorization in
+                    continuation.resume(returning: authorization)
+                },
+                onFailure: { error in
+                    continuation.resume(throwing: error)
+                },
+                onFinish: { [weak self] in
+                    self?.passkeyAuthCoordinator = nil
+                }
+            )
+            passkeyAuthCoordinator = coordinator
+            controller.delegate = coordinator
+            controller.presentationContextProvider = coordinator
+            controller.performRequests()
+        }
+    }
+
+    private func parsePasskeyRegistrationStart(_ start: PasskeyStartEnvelope) throws -> ParsedPasskeyRegistrationStart {
+        let options = passkeyPublicKeyOptions(from: start.options)
+
+        guard let challengeString = options["challenge"] as? String,
+              let challenge = decodeBase64URL(challengeString)
+        else {
+            throw NSError(domain: "AtlasPasskey", code: 2010, userInfo: [
+                NSLocalizedDescriptionKey: "Passkey challenge payload is invalid."
+            ])
+        }
+
+        guard let user = options["user"] as? [String: Any],
+              let userIDString = user["id"] as? String,
+              let userID = decodeBase64URL(userIDString)
+        else {
+            throw NSError(domain: "AtlasPasskey", code: 2011, userInfo: [
+                NSLocalizedDescriptionKey: "Passkey user payload is invalid."
+            ])
+        }
+
+        let rp = options["rp"] as? [String: Any]
+        let rpID = ((rp?["id"] as? String)?.trimmedNil())
+            ?? AppEnvironment.apiBaseURL.host
+            ?? "api.atlasmasa.com"
+
+        let userName = ((user["name"] as? String)?.trimmedNil())
+            ?? ((user["displayName"] as? String)?.trimmedNil())
+            ?? "Atlas Masa Member"
+
+        let authenticatorSelection = (options["authenticatorSelection"] as? [String: Any])
+            ?? (options["authenticator_selection"] as? [String: Any])
+        let userVerification = (authenticatorSelection?["userVerification"] as? String)
+            ?? (authenticatorSelection?["user_verification"] as? String)
+
+        return ParsedPasskeyRegistrationStart(
+            requestID: start.requestID,
+            rpID: rpID,
+            challenge: challenge,
+            userID: userID,
+            userName: userName,
+            userVerification: userVerification
+        )
+    }
+
+    private func parsePasskeyLoginStart(_ start: PasskeyStartEnvelope) throws -> ParsedPasskeyLoginStart {
+        let options = passkeyPublicKeyOptions(from: start.options)
+        guard let challengeString = options["challenge"] as? String,
+              let challenge = decodeBase64URL(challengeString)
+        else {
+            throw NSError(domain: "AtlasPasskey", code: 2012, userInfo: [
+                NSLocalizedDescriptionKey: "Passkey challenge payload is invalid."
+            ])
+        }
+
+        let rpID = ((options["rpId"] as? String)?.trimmedNil())
+            ?? ((options["rp_id"] as? String)?.trimmedNil())
+            ?? AppEnvironment.apiBaseURL.host
+            ?? "api.atlasmasa.com"
+
+        let userVerification = (options["userVerification"] as? String)
+            ?? (options["user_verification"] as? String)
+
+        return ParsedPasskeyLoginStart(
+            requestID: start.requestID,
+            rpID: rpID,
+            challenge: challenge,
+            userVerification: userVerification
+        )
+    }
+
+    private func passkeyPublicKeyOptions(from options: [String: Any]) -> [String: Any] {
+        if let value = options["publicKey"] as? [String: Any] {
+            return value
+        }
+        if let value = options["public_key"] as? [String: Any] {
+            return value
+        }
+        return options
+    }
+
+    private func serializePasskeyRegistrationCredential(
+        _ credential: ASAuthorizationPlatformPublicKeyCredentialRegistration
+    ) -> PasskeyRegistrationCredentialPayload {
+        let id = encodeBase64URL(credential.credentialID)
+        return PasskeyRegistrationCredentialPayload(
+            id: id,
+            rawId: id,
+            type: "public-key",
+            response: PasskeyRegistrationCredentialResponsePayload(
+                clientDataJSON: encodeBase64URL(credential.rawClientDataJSON),
+                attestationObject: encodeBase64URL(credential.rawAttestationObject),
+                transports: []
+            ),
+            clientExtensionResults: [:]
+        )
+    }
+
+    private func serializePasskeyAssertionCredential(
+        _ credential: ASAuthorizationPlatformPublicKeyCredentialAssertion
+    ) -> PasskeyAuthenticationCredentialPayload {
+        let id = encodeBase64URL(credential.credentialID)
+        let userHandleData = credential.userID as Data?
+        return PasskeyAuthenticationCredentialPayload(
+            id: id,
+            rawId: id,
+            type: "public-key",
+            response: PasskeyAuthenticationCredentialResponsePayload(
+                clientDataJSON: encodeBase64URL(credential.rawClientDataJSON),
+                authenticatorData: encodeBase64URL(credential.rawAuthenticatorData),
+                signature: encodeBase64URL(credential.signature),
+                userHandle: userHandleData.flatMap { $0.isEmpty ? nil : encodeBase64URL($0) }
+            ),
+            clientExtensionResults: [:]
+        )
+    }
+
+    private func passkeyUserVerificationPreference(
+        from value: String?
+    ) -> ASAuthorizationPublicKeyCredentialUserVerificationPreference? {
+        switch value?.lowercased() {
+        case "required":
+            return .required
+        case "discouraged":
+            return .discouraged
+        case "preferred":
+            return .preferred
+        default:
+            return nil
+        }
+    }
+
+    private func encodeBase64URL(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    private func decodeBase64URL(_ value: String) -> Data? {
+        var base64 = value
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = base64.count % 4
+        if remainder > 0 {
+            base64 += String(repeating: "=", count: 4 - remainder)
+        }
+        return Data(base64Encoded: base64)
+    }
+
+    private func currentLocaleCode() -> String {
+        if #available(iOS 16.0, *) {
+            if let code = Locale.current.language.languageCode?.identifier,
+               !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                return code
+            }
+        }
+        let fallback = Locale.current.identifier
+            .split(separator: "_")
+            .first
+            .map(String.init)
+            ?? "en"
+        return fallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "en" : fallback
+    }
+
+    private func passkeyFailureMessage(error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == ASAuthorizationError.errorDomain {
+            if nsError.code == ASAuthorizationError.canceled.rawValue {
+                return "Passkey flow was cancelled."
+            }
+            if nsError.code == ASAuthorizationError.notHandled.rawValue {
+                return "Passkey request was not handled by the OS. Verify device passcode and iCloud Keychain."
+            }
+            if nsError.code == ASAuthorizationError.failed.rawValue {
+                return "Passkey flow failed on this device. Verify Associated Domains + passkey capability, then retry."
+            }
+            if nsError.code == ASAuthorizationError.unknown.rawValue {
+                return "Passkey flow failed with an unknown OS error. Verify app entitlements and server RP ID."
+            }
+        }
+        if let code = AppleAuthFlowError(rawValue: nsError.code) {
+            switch code {
+            case .missingPresentationAnchor:
+                return "Passkey UI could not be presented. Reopen the app and try again."
+            }
+        }
+        if let apiError = error as? APIError {
+            return apiError.localizedDescription
+        }
+        return error.localizedDescription
+    }
+
+    func signInWithPasswordless() {
+        guard !isPasskeyInProgress else { return }
+        isPasskeyInProgress = true
+        accountStatusMessage = "Launching passwordless sign-in…"
+
+        Task { @MainActor in
+            defer { isPasskeyInProgress = false }
+            do {
+                try await performPasskeySignInFlow()
+            } catch {
+                let message = passkeyFailureMessage(error: error)
+                appendOutput("Passkey sign-in failed: \(message)")
+                accountStatusMessage = message
+            }
+        }
+    }
+
     func signUpWithPasswordless() {
-        markSignedIn(provider: .passkey, accountName: "Atlas member")
-        appendOutput("Passwordless sign-up complete. Local encrypted session started.")
-        accountStatusMessage = "Passwordless account created."
+        guard !isPasskeyInProgress else { return }
+        isPasskeyInProgress = true
+        accountStatusMessage = "Creating secure passwordless account…"
+
+        Task { @MainActor in
+            defer { isPasskeyInProgress = false }
+            do {
+                try await performPasskeySignUpFlow()
+                accountStatusMessage = "Passwordless account created and signed in."
+            } catch {
+                let message = passkeyFailureMessage(error: error)
+                appendOutput("Passkey sign-up failed: \(message)")
+                accountStatusMessage = message
+            }
+        }
     }
 
     func signOut() {
@@ -4603,6 +4951,22 @@ private enum SecurePersistence {
         }
         throw SecurePersistenceError.keychainFailure(addStatus)
     }
+}
+
+private struct ParsedPasskeyRegistrationStart {
+    let requestID: String
+    let rpID: String
+    let challenge: Data
+    let userID: Data
+    let userName: String
+    let userVerification: String?
+}
+
+private struct ParsedPasskeyLoginStart {
+    let requestID: String
+    let rpID: String
+    let challenge: Data
+    let userVerification: String?
 }
 
 private enum AppleAuthFlowError: Int, Error {

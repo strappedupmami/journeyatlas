@@ -61,17 +61,20 @@ struct AppleSignInCard: View {
                         session.signInWithGooglePlaceholder()
                     }
                     .buttonStyle(AtlasSecondaryButtonStyle())
+                    .disabled(session.isPasskeyInProgress || session.isAppleSignInInProgress)
 
-                    Button("Passwordless (more secure) Sign in") {
+                    Button(session.isPasskeyInProgress ? "Passwordless: Working…" : "Passwordless (more secure) Sign in") {
                         session.signInWithPasswordless()
                     }
                     .buttonStyle(AtlasPrimaryButtonStyle())
+                    .disabled(session.isPasskeyInProgress || session.isAppleSignInInProgress)
                 }
 
-                Button("Passwordless (more secure) Sign up") {
+                Button(session.isPasskeyInProgress ? "Creating account…" : "Passwordless (more secure) Sign up") {
                     session.signUpWithPasswordless()
                 }
                 .buttonStyle(AtlasSecondaryButtonStyle())
+                .disabled(session.isPasskeyInProgress || session.isAppleSignInInProgress)
 
                 Text(session.accountStatusMessage)
                     .font(.system(size: 13, weight: .medium, design: .rounded))

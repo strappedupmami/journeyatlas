@@ -110,6 +110,34 @@ struct APIClient {
         )
     }
 
+    func passkeyRegisterStart(displayName: String, locale: String) async throws -> PasskeyStartEnvelope {
+        let data = try await postRaw(
+            path: "/v1/auth/passkey/register/start",
+            body: PasskeyRegistrationStartPayload(
+                email: nil,
+                displayName: displayName,
+                locale: locale
+            )
+        )
+        return try decodePasskeyStartEnvelope(data: data)
+    }
+
+    func passkeyRegisterFinish(payload: PasskeyRegistrationFinishPayload) async throws {
+        _ = try await postRaw(path: "/v1/auth/passkey/register/finish", body: payload)
+    }
+
+    func passkeyLoginStart() async throws -> PasskeyStartEnvelope {
+        let data = try await postRaw(
+            path: "/v1/auth/passkey/login/start",
+            body: PasskeyLoginStartPayload(email: nil)
+        )
+        return try decodePasskeyStartEnvelope(data: data)
+    }
+
+    func passkeyLoginFinish(payload: PasskeyLoginFinishPayload) async throws -> AuthLoginResponse {
+        try await post(path: "/v1/auth/passkey/login/finish", body: payload)
+    }
+
     private func get<T: Decodable>(path: String) async throws -> T {
         let request = try request(path: path, method: "GET")
         let (data, response) = try await session.data(for: request)
@@ -182,6 +210,21 @@ struct APIClient {
         return try JSONDecoder().decode(type, from: data)
     }
 
+    private func decodePasskeyStartEnvelope(data: Data) throws -> PasskeyStartEnvelope {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw APIError.invalidResponse
+        }
+        guard let requestID = object["request_id"] as? String,
+              !requestID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw APIError.invalidResponse
+        }
+        guard let options = object["options"] as? [String: Any] else {
+            throw APIError.invalidResponse
+        }
+        return PasskeyStartEnvelope(requestID: requestID, options: options)
+    }
+
     private static func makeSecureSession() -> URLSession {
         let config = URLSessionConfiguration.default
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -210,6 +253,11 @@ struct APIClient {
         }
         return false
     }
+}
+
+struct PasskeyStartEnvelope: @unchecked Sendable {
+    let requestID: String
+    let options: [String: Any]
 }
 
 private struct EmptyPayload: Encodable {}
