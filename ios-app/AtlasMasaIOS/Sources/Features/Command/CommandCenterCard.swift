@@ -2,31 +2,13 @@ import SwiftUI
 
 struct CommandCenterCard: View {
     @EnvironmentObject private var session: SessionStore
+    @FocusState private var conciergePromptFocused: Bool
 
     var body: some View {
         AtlasScreen(
-            title: "Atlas Masa Life OS",
+            title: "Atlas Life OS",
             subtitle: "Swift-native command center for daily, mid-term, and long-horizon execution"
         ) {
-            AtlasPanel(
-                heading: "Account status",
-                caption: "Passwordless, provider auth, and secure session state"
-            ) {
-                HStack(spacing: 10) {
-                    AtlasPill(title: session.isSignedIn ? "Signed in" : "Guest")
-                    AtlasPill(title: session.selectedTier.title)
-                }
-
-                Text("Operator: \(session.accountLabel)")
-                    .foregroundStyle(AtlasTheme.textSecondary)
-
-                if session.selectedTier == .localTrial {
-                    Text("Local-first mode: execution runs on device and persists across restarts.")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AtlasTheme.accentWarm)
-                }
-            }
-
             AtlasPanel(
                 heading: "Safety + rehabilitation guardrails",
                 caption: "Atlas actively de-escalates suspicious patterns and redirects toward safe, pro-social progress"
@@ -66,8 +48,86 @@ struct CommandCenterCard: View {
                 heading: "Model Inference Brief",
                 caption: "Always-on local model synthesis for command decisions"
             ) {
-                Text(session.commandModelBrief)
-                    .foregroundStyle(AtlasTheme.textSecondary)
+                ResponseFeedbackCard(
+                    source: "ios_concierge_command_brief",
+                    prompt: conciergePromptSnapshot,
+                    response: session.commandModelBrief
+                )
+            }
+
+            AtlasPanel(
+                heading: "Concierge Prompt Studio",
+                caption: "Choose output type like NotebookLM: Standard, Podcast, or Quiz (great for itinerary rehearsal)"
+            ) {
+                Text("Write a prompt for local reasoning")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textPrimary)
+
+                TextField("Type your message", text: $session.pendingPrompt, axis: .vertical)
+                    .lineLimit(3 ... 8)
+                    .atlasFieldStyle()
+                    .focused($conciergePromptFocused)
+
+                Picker("Output type", selection: $session.pendingPromptOutputType) {
+                    ForEach(PromptOutputType.allCases) { outputType in
+                        Text(outputType.title).tag(outputType)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(session.pendingPromptOutputType.subtitle)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.accentWarm)
+
+                HStack(spacing: 10) {
+                    Button("Send") {
+                        conciergePromptFocused = false
+                        session.enqueuePrompt()
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Clear") {
+                        conciergePromptFocused = false
+                        session.clearPromptQueue()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+
+                if recentConciergeItems.isEmpty {
+                    Text("No concierge prompts yet. Send one to generate a standard reply, podcast, or rehearsal quiz.")
+                        .foregroundStyle(AtlasTheme.textSecondary)
+                } else {
+                    ForEach(recentConciergeItems) { item in
+                        VStack(alignment: .leading, spacing: 8) {
+                            AtlasChatBubble(text: item.prompt, isUser: true)
+
+                            if let output = item.output {
+                                AtlasChatBubble(text: queueFeedbackResponseText(output), isUser: false)
+                                HStack(spacing: 8) {
+                                    AtlasPill(title: (output.outputType ?? item.outputType ?? .standard).title)
+                                    AtlasPill(title: item.status.rawValue.uppercased())
+                                }
+                                ResponseFeedbackCard(
+                                    source: "ios_concierge_prompt",
+                                    prompt: item.prompt,
+                                    response: queueFeedbackResponseText(output)
+                                )
+                            } else if let error = item.errorMessage {
+                                AtlasChatBubble(text: "Error: \(error)", isUser: false)
+                            } else {
+                                AtlasChatBubble(
+                                    text: "\(item.status.rawValue.capitalized)... generating \((item.outputType ?? .standard).title.lowercased()) output.",
+                                    isUser: false
+                                )
+                            }
+                        }
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.black.opacity(0.2))
+                        )
+                    }
+                }
             }
 
             AtlasPanel(
@@ -187,5 +247,44 @@ struct CommandCenterCard: View {
                 }
             }
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    conciergePromptFocused = false
+                }
+            }
+        }
+    }
+
+    private var conciergePromptSnapshot: String {
+        let parts = [
+            session.dailyPriority,
+            session.midTermGoal,
+            session.longTermVision,
+            session.checkInMood,
+            session.checkInBlockers,
+        ]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.joined(separator: "\n")
+    }
+
+    private var recentConciergeItems: [PromptQueueItem] {
+        Array(session.promptQueue.suffix(6))
+    }
+
+    private func queueFeedbackResponseText(_ output: LocalReasoningOutput) -> String {
+        var lines = [
+            "Type: \((output.outputType ?? .standard).title)",
+            "Summary: \(output.summary)",
+            "Next action: \(output.nextAction)",
+        ]
+        let body = (output.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !body.isEmpty {
+            lines.append("")
+            lines.append(body)
+        }
+        return lines.joined(separator: "\n")
     }
 }
