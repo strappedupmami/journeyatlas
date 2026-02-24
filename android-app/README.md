@@ -48,6 +48,25 @@ Native Android app for Atlas local-core Life OS.
    - `app` / `yosefDebug` / `yashaDebug`
    - `yosefRelease` / `yashaRelease` for performance validation.
 
+## Local LLM bridge (optional, local-first)
+Prompt queue reasoning can use a local OpenAI-compatible endpoint first, then fall back to deterministic local reasoning.
+
+BuildConfig keys:
+- `LOCAL_LLM_ENABLED` (`true` by default)
+- `LOCAL_LLM_ENDPOINT` (default: `http://127.0.0.1:8080/v1/chat/completions`)
+- `LOCAL_LLM_MODEL` (default: `atlas-local-3b`)
+
+Shared runtime launcher:
+
+```bash
+cd /Users/avrohom/Downloads/journeyatlas
+ATLAS_LLM_HF_REPO=unsloth/Qwen2.5-3B-Instruct-GGUF:q4_k_m \
+ATLAS_LLM_MODEL_ALIAS=atlas-local-3b \
+./scripts/start-local-llm-runtime.sh
+```
+
+See `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md` for cross-platform rollout details.
+
 ## Notes
 - This tier is designed for local compute/storage.
 - Cloud capabilities can be layered later behind pro subscription.

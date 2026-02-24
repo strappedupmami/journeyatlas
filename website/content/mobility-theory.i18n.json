@@ -41,7 +41,7 @@
         "faq": "שאלות נפוצות",
         "policies": "כללים ומדיניות",
         "contact": "צור קשר",
-        "concierge": "עוזר מסע חכם"
+        "concierge": "חשבון"
       }
     }
   },
@@ -87,7 +87,7 @@
         "faq": "FAQ",
         "policies": "Policies",
         "contact": "Contact",
-        "concierge": "Smart Concierge"
+        "concierge": "Account"
       }
     }
   },
@@ -133,7 +133,7 @@
         "faq": "الأسئلة الشائعة",
         "policies": "السياسات",
         "contact": "اتصل بنا",
-        "concierge": "المساعد الذكي"
+        "concierge": "الحساب"
       }
     }
   },
@@ -179,7 +179,7 @@
         "faq": "FAQ",
         "policies": "Правила",
         "contact": "Контакты",
-        "concierge": "Умный консьерж"
+        "concierge": "Аккаунт"
       }
     }
   },
@@ -225,7 +225,7 @@
         "faq": "FAQ",
         "policies": "Politiques",
         "contact": "Contact",
-        "concierge": "Concierge intelligent"
+        "concierge": "Compte"
       }
     }
   }

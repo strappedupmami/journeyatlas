@@ -22,3 +22,11 @@ Concierge-grade AI problem solver backend for the Atlas/אטלס ecosystem.
 - `atlas-tests`: integration tests
 
 See run instructions in `docs/RUNBOOK.md`.
+
+## Cloud AI Providers
+Backend premium inference supports both:
+- OpenAI (`ATLAS_OPENAI_API_KEY`, `ATLAS_OPENAI_MODEL`, `ATLAS_OPENAI_REASONING_EFFORT`)
+- Google DeepMind Gemini (`ATLAS_GEMINI_API_KEY`, `ATLAS_GEMINI_MODEL`, `ATLAS_GEMINI_TEMPERATURE`, `ATLAS_GEMINI_MAX_OUTPUT_TOKENS`)
+
+Provider preference/fallback can be set with:
+- `ATLAS_AI_PROVIDER_PREFERENCE=auto|openai|gemini`

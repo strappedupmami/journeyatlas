@@ -328,4 +328,67 @@ final class AtlasMasaMacOSTests: XCTestCase {
         XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-income-ladder-real_estate" }))
         XCTAssertTrue(store.tailoredOffers.contains(where: { $0.id == "offer-business-playbook-real_estate" }))
     }
+
+    @MainActor
+    func testCodingWorkspaceScanOpenSaveAndPromptMemory() throws {
+        let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
+
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("atlas-coding-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let mainFile = root.appendingPathComponent("main.swift")
+        try """
+        import Foundation
+        print("hello")
+        """
+            .write(to: mainFile, atomically: true, encoding: .utf8)
+
+        store.setCodingWorkspaceRootPath(root.path)
+        store.rescanCodingWorkspace()
+        XCTAssertTrue(store.codingWorkspaceFiles.contains(mainFile.path))
+
+        store.openCodingFile(mainFile.path)
+        XCTAssertTrue(store.codingEditorText.contains("hello"))
+
+        store.setCodingEditorText("import Foundation\nprint(\"updated\")\n")
+        XCTAssertTrue(store.codingEditorIsDirty)
+        store.saveCodingFile()
+        XCTAssertFalse(store.codingEditorIsDirty)
+
+        let disk = try String(contentsOf: mainFile, encoding: .utf8)
+        XCTAssertTrue(disk.contains("updated"))
+
+        store.codingPromptDraft = "How should I validate this quick script?"
+        store.submitCodingPrompt()
+        XCTAssertGreaterThanOrEqual(store.codingMessages.count, 2)
+        XCTAssertFalse(store.codingMemoryRecords.isEmpty)
+    }
+
+    @MainActor
+    func testCodingWorkspaceSlashGrepFindsFileContent() throws {
+        let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
+
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("atlas-coding-grep-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let file = root.appendingPathComponent("script.sh")
+        try "echo local_agent_ready\n".write(to: file, atomically: true, encoding: .utf8)
+
+        store.setCodingWorkspaceRootPath(root.path)
+        store.rescanCodingWorkspace()
+        store.codingPromptDraft = "/grep local_agent_ready"
+        store.submitCodingPrompt()
+
+        let hasMatch = store.codingMessages.contains { message in
+            message.content.contains("script.sh")
+                && message.content.lowercased().contains("local_agent_ready")
+        }
+        XCTAssertTrue(hasMatch)
+    }
 }

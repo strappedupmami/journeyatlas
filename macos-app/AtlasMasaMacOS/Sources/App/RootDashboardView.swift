@@ -15,6 +15,9 @@ struct RootDashboardView: View {
             PromptQueueCard()
                 .tabItem { Label("Queue", systemImage: "tray.full") }
 
+            CodingWorkspaceCard()
+                .tabItem { Label("Code", systemImage: "chevron.left.forwardslash.chevron.right") }
+
             WorkspacesCard()
                 .tabItem { Label("Workspaces", systemImage: "rectangle.3.group.bubble.left") }
 

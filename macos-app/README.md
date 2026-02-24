@@ -37,6 +37,25 @@ Default API base: `https://api.atlasmasa.com`
 Override at runtime via `UserDefaults` key:
 - `atlas.api.base`
 
+## Local LLM bridge (optional, local-first)
+Queue/feed/workspace inference can use a local OpenAI-compatible endpoint first, then fall back to deterministic local logic.
+
+Runtime keys (`UserDefaults`):
+- `atlas.local.llm.enabled` (`true` by default)
+- `atlas.local.llm.endpoint` (default: `http://127.0.0.1:8080/v1/chat/completions`)
+- `atlas.local.llm.model` (default: `atlas-local-3b`)
+
+Shared runtime launcher:
+
+```bash
+cd /Users/avrohom/Downloads/journeyatlas
+ATLAS_LLM_HF_REPO=unsloth/Qwen2.5-3B-Instruct-GGUF:q4_k_m \
+ATLAS_LLM_MODEL_ALIAS=atlas-local-3b \
+./scripts/start-local-llm-runtime.sh
+```
+
+See `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md` for cross-platform rollout details.
+
 ## Local model training
 Train/update the on-device travel-design local model from project data:
 

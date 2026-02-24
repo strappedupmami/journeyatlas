@@ -90,6 +90,8 @@ pub struct ApiState {
     pub google_oauth: Option<GoogleOAuthConfig>,
     pub apple_oauth: Option<AppleOAuthConfig>,
     pub openai_runtime: Option<OpenAiRuntimeConfig>,
+    pub gemini_runtime: Option<GeminiRuntimeConfig>,
+    pub ai_provider_preference: CloudAiProviderPreference,
     pub billing_runtime: Option<BillingRuntimeConfig>,
     pub webauthn_runtime: Option<WebauthnRuntimeConfig>,
     pub passkey_registrations: Arc<RwLock<HashMap<String, PasskeyRegistrationStateRecord>>>,
@@ -143,6 +145,36 @@ struct OpenAiRuntimeConfig {
     api_key: String,
     model: String,
     default_reasoning_effort: String,
+}
+
+#[derive(Debug, Clone)]
+struct GeminiRuntimeConfig {
+    api_key: String,
+    model: String,
+    temperature: f32,
+    max_output_tokens: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CloudAiProviderPreference {
+    OpenAiFirst,
+    GeminiFirst,
+    Auto,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CloudAiBackend {
+    OpenAi,
+    Gemini,
+}
+
+impl CloudAiBackend {
+    fn backend_id(self) -> &'static str {
+        match self {
+            Self::OpenAi => "openai_responses",
+            Self::Gemini => "google_gemini",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -824,6 +856,8 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
     let google_oauth = build_google_oauth_config();
     let apple_oauth = build_apple_oauth_config();
     let openai_runtime = build_openai_runtime_config();
+    let gemini_runtime = build_gemini_runtime_config();
+    let ai_provider_preference = build_cloud_ai_provider_preference();
     let billing_runtime = build_billing_runtime_config();
     let webauthn_runtime = build_webauthn_runtime();
 
@@ -852,6 +886,8 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         google_oauth,
         apple_oauth,
         openai_runtime,
+        gemini_runtime,
+        ai_provider_preference,
         billing_runtime,
         webauthn_runtime,
         passkey_registrations: Arc::new(RwLock::new(HashMap::new())),
@@ -2408,7 +2444,9 @@ async fn chat(
                 }
             }
 
-            if state.openai_runtime.is_some() && cloud_compute_enabled {
+            let configured_cloud_backends = configured_cloud_ai_backends(&state);
+
+            if !configured_cloud_backends.is_empty() && cloud_compute_enabled {
                 let survey_state = premium_user
                     .as_ref()
                     .and_then(|user| state.survey_states.read().get(&user.user_id).cloned());
@@ -2434,34 +2472,58 @@ async fn chat(
                         )
                     })
                     .unwrap_or_default();
-                if let Ok(premium_reply) = generate_premium_openai_reply(
-                    &state,
-                    &request,
-                    premium_user.as_ref(),
-                    survey_state.as_ref(),
-                    &notes,
-                    memory_context.as_slice(),
-                    response.reply_text.as_str(),
-                )
-                .await
-                {
-                    response.reply_text = premium_reply;
+
+                let mut selected_backend: Option<CloudAiBackend> = None;
+                for backend in configured_cloud_backends.iter().copied() {
+                    let candidate = match backend {
+                        CloudAiBackend::OpenAi => {
+                            generate_premium_openai_reply(
+                                &state,
+                                &request,
+                                premium_user.as_ref(),
+                                survey_state.as_ref(),
+                                &notes,
+                                memory_context.as_slice(),
+                                response.reply_text.as_str(),
+                            )
+                            .await
+                        }
+                        CloudAiBackend::Gemini => {
+                            generate_premium_gemini_reply(
+                                &state,
+                                &request,
+                                premium_user.as_ref(),
+                                survey_state.as_ref(),
+                                &notes,
+                                memory_context.as_slice(),
+                                response.reply_text.as_str(),
+                            )
+                            .await
+                        }
+                    };
+
+                    if let Ok(premium_reply) = candidate {
+                        response.reply_text = premium_reply;
+                        selected_backend = Some(backend);
+                        break;
+                    }
+                }
+
+                if let Some(backend) = selected_backend {
                     if let Some(payload_obj) = response.json_payload.as_object_mut() {
                         payload_obj.insert(
                             "ai_backend".to_string(),
-                            serde_json::json!("openai_responses"),
+                            serde_json::json!(backend.backend_id()),
                         );
                         payload_obj.insert(
                             "ai_model".to_string(),
-                            serde_json::json!(state
-                                .openai_runtime
-                                .as_ref()
-                                .map(|cfg| cfg.model.clone())
-                                .unwrap_or_default()),
+                            serde_json::json!(
+                                cloud_ai_model_name(&state, backend).unwrap_or_default()
+                            ),
                         );
                     }
                 }
-            } else if state.openai_runtime.is_some() {
+            } else if !configured_cloud_backends.is_empty() {
                 if let Some(payload_obj) = response.json_payload.as_object_mut() {
                     payload_obj.insert("ai_backend".to_string(), serde_json::json!("local_only"));
                 }
@@ -2868,7 +2930,7 @@ async fn note_rewrite(
             .as_str(),
         MAX_REWRITE_INSTRUCTION_LEN,
     );
-    let rewritten = match rewrite_note_with_openai(&state, &note, instruction.as_str()).await {
+    let rewritten = match rewrite_note_with_cloud_ai(&state, &note, instruction.as_str()).await {
         Ok(value) => value,
         Err(error) => {
             return (
@@ -6995,6 +7057,83 @@ fn build_openai_runtime_config() -> Option<OpenAiRuntimeConfig> {
     })
 }
 
+fn build_gemini_runtime_config() -> Option<GeminiRuntimeConfig> {
+    let api_key = env::var("ATLAS_GEMINI_API_KEY")
+        .ok()
+        .or_else(|| env::var("ATLAS_GOOGLE_DEEPMIND_API_KEY").ok())
+        .or_else(|| env::var("ATLAS_GOOGLE_AI_API_KEY").ok())?;
+    let model = env::var("ATLAS_GEMINI_MODEL")
+        .ok()
+        .or_else(|| env::var("ATLAS_GOOGLE_DEEPMIND_MODEL").ok())
+        .unwrap_or_else(|| "gemini-2.0-flash".to_string());
+    let temperature = env::var("ATLAS_GEMINI_TEMPERATURE")
+        .ok()
+        .and_then(|value| value.trim().parse::<f32>().ok())
+        .map(|value| value.clamp(0.0, 1.0))
+        .unwrap_or(0.18);
+    let max_output_tokens = env::var("ATLAS_GEMINI_MAX_OUTPUT_TOKENS")
+        .ok()
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .map(|value| value.clamp(256, 8_192))
+        .unwrap_or(2_048);
+
+    Some(GeminiRuntimeConfig {
+        api_key,
+        model,
+        temperature,
+        max_output_tokens,
+    })
+}
+
+fn build_cloud_ai_provider_preference() -> CloudAiProviderPreference {
+    let raw = env::var("ATLAS_AI_PROVIDER_PREFERENCE")
+        .ok()
+        .or_else(|| env::var("ATLAS_PREMIUM_AI_PROVIDER").ok())
+        .unwrap_or_else(|| "auto".to_string());
+    match raw.trim().to_lowercase().as_str() {
+        "openai" | "openai_first" => CloudAiProviderPreference::OpenAiFirst,
+        "gemini" | "gemini_first" | "google" | "google_deepmind" => {
+            CloudAiProviderPreference::GeminiFirst
+        }
+        _ => CloudAiProviderPreference::Auto,
+    }
+}
+
+fn configured_cloud_ai_backends(state: &ApiState) -> Vec<CloudAiBackend> {
+    let openai_ready = state.openai_runtime.is_some();
+    let gemini_ready = state.gemini_runtime.is_some();
+    let mut backends = Vec::with_capacity(2);
+
+    let preferred_order = match state.ai_provider_preference {
+        CloudAiProviderPreference::OpenAiFirst => [CloudAiBackend::OpenAi, CloudAiBackend::Gemini],
+        CloudAiProviderPreference::GeminiFirst => [CloudAiBackend::Gemini, CloudAiBackend::OpenAi],
+        CloudAiProviderPreference::Auto => {
+            if gemini_ready && !openai_ready {
+                [CloudAiBackend::Gemini, CloudAiBackend::OpenAi]
+            } else {
+                [CloudAiBackend::OpenAi, CloudAiBackend::Gemini]
+            }
+        }
+    };
+
+    for backend in preferred_order {
+        match backend {
+            CloudAiBackend::OpenAi if openai_ready => backends.push(backend),
+            CloudAiBackend::Gemini if gemini_ready => backends.push(backend),
+            _ => {}
+        }
+    }
+
+    backends
+}
+
+fn cloud_ai_model_name(state: &ApiState, backend: CloudAiBackend) -> Option<String> {
+    match backend {
+        CloudAiBackend::OpenAi => state.openai_runtime.as_ref().map(|cfg| cfg.model.clone()),
+        CloudAiBackend::Gemini => state.gemini_runtime.as_ref().map(|cfg| cfg.model.clone()),
+    }
+}
+
 fn build_billing_runtime_config() -> Option<BillingRuntimeConfig> {
     let stripe_secret_key = env::var("ATLAS_STRIPE_SECRET_KEY").ok()?;
     let monthly_price_id = env::var("ATLAS_STRIPE_MONTHLY_PRICE_ID").ok()?;
@@ -8177,6 +8316,217 @@ async fn rewrite_note_with_openai(
         .context("OpenAI rewrite output missing")
 }
 
+async fn generate_premium_gemini_reply(
+    state: &ApiState,
+    request: &ChatRequest,
+    user: Option<&UserRecord>,
+    survey: Option<&SurveyStateRecord>,
+    notes: &[UserNoteRecord],
+    memory_context: &[MemoryRetrievedItem],
+    fallback_reply: &str,
+) -> Result<String> {
+    let runtime = state
+        .gemini_runtime
+        .as_ref()
+        .context("Gemini runtime is not configured")?;
+
+    let user_context = user.map(|value| {
+        serde_json::json!({
+            "name": value.name,
+            "locale": value.locale,
+            "trip_style": value.trip_style,
+            "risk_preference": value.risk_preference,
+            "memory_opt_in": value.memory_opt_in
+        })
+    });
+    let survey_context = survey.map(|value| serde_json::to_value(value).unwrap_or_default());
+    let notes_context = notes
+        .iter()
+        .take(12)
+        .map(|note| {
+            serde_json::json!({
+                "title": note.title,
+                "content": note.content,
+                "tags": note.tags
+            })
+        })
+        .collect::<Vec<_>>();
+    let memory_context = memory_context
+        .iter()
+        .take(12)
+        .map(|entry| {
+            serde_json::json!({
+                "memory_type": entry.memory_type,
+                "stability": entry.stability,
+                "source": entry.source,
+                "text": entry.text,
+                "weight": entry.weight,
+                "recency_score": entry.recency_score,
+                "relevance_score": entry.relevance_score,
+                "tags": entry.tags
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let context_json = serde_json::json!({
+        "user": user_context,
+        "survey": survey_context,
+        "notes": notes_context,
+        "memory_context": memory_context,
+        "fallback_reply": fallback_reply
+    });
+    let prompt = format!(
+        "You are Atlas Masa Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum.\n\nUser request:\n{}\n\nContext JSON:\n{}",
+        request.text,
+        context_json
+    );
+
+    let payload = serde_json::json!({
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    { "text": prompt }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": runtime.temperature,
+            "maxOutputTokens": runtime.max_output_tokens
+        }
+    });
+
+    let endpoint = build_gemini_generate_content_url(runtime.model.as_str())?;
+    let response = state
+        .http_client
+        .post(endpoint)
+        .header("x-goog-api-key", runtime.api_key.as_str())
+        .json(&payload)
+        .send()
+        .await
+        .context("Gemini request failed")?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        anyhow::bail!("Gemini non-success status {}: {}", status.as_u16(), body);
+    }
+
+    let body: serde_json::Value = response.json().await.context("Gemini parse failed")?;
+    extract_gemini_output_text(&body)
+        .filter(|value| !value.trim().is_empty())
+        .context("Gemini output text missing")
+}
+
+async fn rewrite_note_with_gemini(
+    state: &ApiState,
+    note: &UserNoteRecord,
+    instruction: &str,
+) -> Result<String> {
+    let runtime = state
+        .gemini_runtime
+        .as_ref()
+        .context("Gemini runtime is not configured")?;
+
+    let prompt = format!(
+        "Rewrite notes into premium executive language while preserving facts and actionability.\n\nInstruction:\n{}\n\nTitle: {}\n\nNote:\n{}",
+        instruction,
+        note.title,
+        note.content
+    );
+    let payload = serde_json::json!({
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    { "text": prompt }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": runtime.temperature,
+            "maxOutputTokens": runtime.max_output_tokens
+        }
+    });
+
+    let endpoint = build_gemini_generate_content_url(runtime.model.as_str())?;
+    let response = state
+        .http_client
+        .post(endpoint)
+        .header("x-goog-api-key", runtime.api_key.as_str())
+        .json(&payload)
+        .send()
+        .await
+        .context("Gemini note rewrite request failed")?;
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        anyhow::bail!("Gemini note rewrite failed {}: {}", status.as_u16(), body);
+    }
+
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .context("Gemini rewrite parse failed")?;
+    extract_gemini_output_text(&body)
+        .filter(|value| !value.trim().is_empty())
+        .context("Gemini rewrite output missing")
+}
+
+async fn rewrite_note_with_cloud_ai(
+    state: &ApiState,
+    note: &UserNoteRecord,
+    instruction: &str,
+) -> Result<String> {
+    let backends = configured_cloud_ai_backends(state);
+    if backends.is_empty() {
+        anyhow::bail!("No cloud AI runtime is configured");
+    }
+
+    let mut last_error: Option<anyhow::Error> = None;
+    for backend in backends {
+        let result = match backend {
+            CloudAiBackend::OpenAi => rewrite_note_with_openai(state, note, instruction).await,
+            CloudAiBackend::Gemini => rewrite_note_with_gemini(state, note, instruction).await,
+        };
+        match result {
+            Ok(output) => return Ok(output),
+            Err(error) => {
+                last_error = Some(
+                    error.context(format!("cloud ai backend {} failed", backend.backend_id())),
+                );
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("cloud AI rewrite failed")))
+}
+
+fn build_gemini_generate_content_url(model: &str) -> Result<Url> {
+    let normalized = model
+        .trim()
+        .trim_start_matches("models/")
+        .trim()
+        .to_string();
+    if normalized.is_empty() {
+        anyhow::bail!("Gemini model is empty");
+    }
+    if !normalized
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+    {
+        anyhow::bail!("Gemini model contains unsupported characters");
+    }
+    Url::parse(
+        format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+            normalized
+        )
+        .as_str(),
+    )
+    .context("Gemini URL parse failed")
+}
+
 fn extract_openai_output_text(payload: &serde_json::Value) -> Option<String> {
     if let Some(value) = payload.get("output_text").and_then(|value| value.as_str()) {
         return Some(value.to_string());
@@ -8196,6 +8546,26 @@ fn extract_openai_output_text(payload: &serde_json::Value) -> Option<String> {
                         chunks.push(text.to_string());
                     }
                 }
+            }
+        }
+    }
+    if chunks.is_empty() {
+        None
+    } else {
+        Some(chunks.join("\n\n"))
+    }
+}
+
+fn extract_gemini_output_text(payload: &serde_json::Value) -> Option<String> {
+    let candidates = payload.get("candidates")?.as_array()?;
+    let first = candidates.first()?;
+    let parts = first.get("content")?.get("parts")?.as_array()?;
+    let mut chunks = Vec::new();
+    for part in parts {
+        if let Some(text) = part.get("text").and_then(|value| value.as_str()) {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                chunks.push(trimmed.to_string());
             }
         }
     }

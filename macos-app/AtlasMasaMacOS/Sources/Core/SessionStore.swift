@@ -17,6 +17,22 @@ final class SessionStore: ObservableObject {
     @Published var pendingPrompt = ""
     @Published var promptQueue: [PromptQueueItem] = []
 
+    @Published var codingWorkspaceRootPath = ""
+    @Published var codingWorkspaceFiles: [String] = []
+    @Published var codingSelectedFilePath: String?
+    @Published var codingEditorText = ""
+    @Published var codingEditorIsDirty = false
+    @Published var codingPromptDraft = ""
+    @Published var codingMessages: [CodingWorkspaceMessage] = []
+    @Published var codingMemoryRecords: [CodingMemoryRecord] = []
+    @Published var codingCommandDraft = "git status"
+    @Published var codingCommandOutput = ""
+    @Published var codingIsRunningCommand = false
+    @Published var codingIsGeneratingReply = false
+    @Published var commandModelBrief = "Model inference will generate a command brief after your check-in."
+    @Published var workspaceModelBrief = "Model inference will generate workspace guidance after lane context is available."
+    @Published var feedInferenceStatus = "Model inference idle"
+
     @Published var isSignedIn = false
     @Published var accountProvider: AuthProvider?
     @Published var accountLabel = "Guest Operator"
@@ -60,6 +76,43 @@ final class SessionStore: ObservableObject {
     let api: APIClient
     private let localReasoning = LocalReasoningEngine()
     private var queueWorkerTask: Task<Void, Never>?
+    private var localInferenceModelName: String {
+        let configured = UserDefaults.standard.string(forKey: LocalInferenceDefaults.modelKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (configured?.isEmpty == false) ? configured! : "atlas-local-3b"
+    }
+    private var localInferenceEnabled: Bool {
+        if UserDefaults.standard.object(forKey: LocalInferenceDefaults.enabledKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: LocalInferenceDefaults.enabledKey)
+    }
+    private var localInferenceEndpointURL: URL? {
+        let configured = UserDefaults.standard.string(forKey: LocalInferenceDefaults.endpointKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = "http://127.0.0.1:8080/v1/chat/completions"
+        let raw = (configured?.isEmpty == false) ? configured! : fallback
+        guard var url = URL(string: raw) else { return nil }
+
+        if (url.path.isEmpty || url.path == "/"),
+           var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        {
+            components.path = "/v1/chat/completions"
+            if let rebuilt = components.url {
+                url = rebuilt
+            }
+        }
+
+        guard let scheme = url.scheme?.lowercased() else { return nil }
+        if scheme == "http" {
+            let host = (url.host ?? "").lowercased()
+            guard host == "localhost" || host == "127.0.0.1" else { return nil }
+        } else if scheme != "https" {
+            return nil
+        }
+
+        return url
+    }
 
     private let queueStorageLegacyKey = "atlas_macos_prompt_queue_v2"
     private let queueFileName = "prompt-queue-v3.json"
@@ -68,6 +121,11 @@ final class SessionStore: ObservableObject {
     private let stateFileName = "session-state-v3.json"
     private let stateBackupFileName = "session-state-v3.bak.json"
     private static let checkpointFormatter = ISO8601DateFormatter()
+    private enum LocalInferenceDefaults {
+        static let enabledKey = "atlas.local.llm.enabled"
+        static let endpointKey = "atlas.local.llm.endpoint"
+        static let modelKey = "atlas.local.llm.model"
+    }
     private var surveyAnswers: [String: String] = [:]
     private var surveyQuestionSessionIndex: [String: String] = [:]
     private var surveyQuestionLaneIndex: [String: String] = [:]
@@ -494,12 +552,15 @@ final class SessionStore: ObservableObject {
 
     func bootstrap() async {
         appendOutput(await localReasoning.modelStatusLine())
+        appendOutput(localLLMRuntimeStatusLine())
         await refreshHealth()
         await syncSessionFromServerIfAvailable()
         await loadSurvey()
         await loadNotes()
-        await refreshFeed()
         rebuildInsightsAndExecutionPlan()
+        await refreshCommandModelBrief()
+        await refreshWorkspaceModelBrief()
+        await refreshFeed()
         startPromptQueueWorker()
     }
 
@@ -603,6 +664,7 @@ final class SessionStore: ObservableObject {
         activeWorkspaceLane = lane
         ensureWorkspaceSessionsSeeded()
         persistStateToDisk()
+        Task { await refreshWorkspaceModelBrief() }
     }
 
     func activeSessionID(for lane: WorkspaceLane) -> String? {
@@ -626,6 +688,7 @@ final class SessionStore: ObservableObject {
         activeWorkspaceLane = lane
         persistStateToDisk()
         appendOutput("Created session notebook in \(lane.title).")
+        Task { await refreshWorkspaceModelBrief() }
     }
 
     func activateWorkspaceSession(_ sessionID: String) {
@@ -634,6 +697,7 @@ final class SessionStore: ObservableObject {
         activeWorkspaceLane = target.lane
         persistStateToDisk()
         appendOutput("Active notebook switched to \(target.title).")
+        Task { await refreshWorkspaceModelBrief() }
     }
 
     func startAdditionalSurveyPass() async {
@@ -654,6 +718,11 @@ final class SessionStore: ObservableObject {
             appendOutput("Detected friction signal. Offer anonymized product feedback report to team.")
         }
         Task { await submitExecutionCheckInIfPossible() }
+        Task {
+            await refreshCommandModelBrief()
+            await refreshWorkspaceModelBrief()
+            await refreshFeed()
+        }
         persistStateToDisk()
     }
 
@@ -662,6 +731,7 @@ final class SessionStore: ObservableObject {
             do {
                 let payload = try await api.feedProactive()
                 feedItems = payload.items
+                feedInferenceStatus = "Cloud proactive feed active"
                 appendOutput("Cloud proactive feed refreshed.")
                 return
             } catch {
@@ -669,7 +739,15 @@ final class SessionStore: ObservableObject {
             }
         }
 
-        feedItems = localFeedFromExecutionPlan()
+        if let modelItems = await modelDrivenFeedItems() {
+            feedItems = modelItems
+            feedInferenceStatus = "Model-generated local feed active"
+            appendOutput("Local model generated execution feed.")
+        } else {
+            feedItems = localFeedFromExecutionPlan()
+            feedInferenceStatus = "Fallback deterministic local feed active"
+            appendOutput("Local model feed unavailable; using deterministic fallback feed.")
+        }
     }
 
     func loadSurvey() async {
@@ -785,6 +863,10 @@ final class SessionStore: ObservableObject {
     func deleteLocalMemory() {
         notes = []
         promptQueue = []
+        codingMessages = []
+        codingMemoryRecords = []
+        codingPromptDraft = ""
+        codingCommandOutput = ""
         executionActions = []
         memoryInsights = []
         tailoredOffers = []
@@ -868,10 +950,408 @@ final class SessionStore: ObservableObject {
         startPromptQueueWorker()
     }
 
+    func launchWorkspaceStudioModule(moduleTitle: String, moduleInstruction: String) {
+        let title = sanitizeWorkspaceMemoryValue(moduleTitle, maxLength: 72)
+        let instruction = sanitizeWorkspaceMemoryValue(moduleInstruction, maxLength: 420)
+        guard !title.isEmpty, !instruction.isEmpty else { return }
+
+        let lane = activeWorkspaceLane
+        let lanePlan = workspacePlans.first(where: { $0.lane == lane })
+        let sessionID = activeSessionID(for: lane)
+        let activeSessionTitle = sessionID
+            .flatMap { id in workspaceSessions.first(where: { $0.id == id })?.title } ?? "Core Session"
+
+        let signalLines = workspaceMemoryRecords
+            .filter { $0.lane == lane || $0.lane == nil }
+            .sorted { lhs, rhs in
+                if lhs.updatedAtUTC == rhs.updatedAtUTC {
+                    return lhs.weight > rhs.weight
+                }
+                return lhs.updatedAtUTC > rhs.updatedAtUTC
+            }
+            .prefix(5)
+            .map {
+                "- \(workspaceSignalLabel(for: $0.key)): \(sanitizeWorkspaceMemoryValue($0.value, maxLength: 110))"
+            }
+            .joined(separator: "\n")
+
+        let prompt = """
+        You are Atlas Workspace Studio, a pro-grade on-device operator assistant.
+        Return concise, execution-ready output.
+
+        Workspace lane: \(lane.title)
+        Module: \(title)
+        Objective: \(lanePlan?.objective ?? workspaceObjective(for: lane))
+        Active notebook: \(activeSessionTitle)
+        Next action baseline: \(lanePlan?.nextActionNow ?? "No baseline action yet.")
+        Model lane brief: \(workspaceModelBrief)
+
+        Relevant signals:
+        \(signalLines.isEmpty ? "- No strong memory signals yet." : signalLines)
+
+        Task:
+        \(instruction)
+
+        Required format:
+        1) Immediate move (one sentence)
+        2) Three-step execution plan
+        3) Primary risk + fallback protocol
+        4) Metric to review in 24 hours
+        """
+
+        pendingPrompt = sanitizeModelInput(prompt, maxLength: 1800)
+        enqueuePrompt()
+
+        var merged = workspaceMemoryRecords
+        let now = Date()
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: lane,
+            sessionID: sessionID,
+            source: .system,
+            key: "studio_module_\(workspaceStudioKey(from: title))",
+            value: "\(title): \(instruction)",
+            weight: 0.76,
+            tags: ["workspace_studio", lane.rawValue, "model_module"],
+            now: now
+        )
+        workspaceMemoryRecords = normalizeWorkspaceMemoryRecords(merged, now: now)
+        refreshWorkspaceSessionSnapshots()
+        workspacePlans = buildWorkspacePlans(from: researchStreams, memoryRecords: workspaceMemoryRecords)
+        persistStateToDisk()
+        appendOutput("Workspace studio module queued: \(title) (\(lane.title)).")
+        Task { await refreshWorkspaceModelBrief() }
+    }
+
     func clearPromptQueue() {
         promptQueue = []
         persistPromptQueueToDisk()
         appendOutput("Prompt queue cleared.")
+    }
+
+    func setCodingWorkspaceRootPath(_ rawPath: String) {
+        codingWorkspaceRootPath = normalizeCodingPath(rawPath)
+        persistStateToDisk()
+    }
+
+    func rescanCodingWorkspace() {
+        let normalizedRoot = normalizeCodingPath(codingWorkspaceRootPath)
+        guard !normalizedRoot.isEmpty else {
+            appendOutput("Set a coding workspace root path before scanning.")
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: normalizedRoot)
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: rootURL.path, isDirectory: &isDir), isDir.boolValue else {
+            appendOutput("Coding workspace root is invalid: \(normalizedRoot)")
+            return
+        }
+
+        let skipDirectories: Set<String> = [
+            ".git", ".svn", ".hg", ".next", ".derived", ".build", "node_modules", "dist", "build", "DerivedData"
+        ]
+        let skipExtensions: Set<String> = [
+            "png", "jpg", "jpeg", "gif", "webp", "pdf", "zip", "gz", "xz", "7z", "tar",
+            "mp4", "mov", "mp3", "wav", "aiff", "ico", "icns", "ttf", "otf",
+            "o", "a", "dylib", "so", "class", "jar", "pyc", "sqlite", "db", "bin"
+        ]
+
+        var files: [String] = []
+        let keys: [URLResourceKey] = [.isDirectoryKey, .fileSizeKey]
+        if let enumerator = FileManager.default.enumerator(
+            at: rootURL,
+            includingPropertiesForKeys: keys,
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
+            while let nextURL = enumerator.nextObject() as? URL {
+                let name = nextURL.lastPathComponent
+                if skipDirectories.contains(name) {
+                    enumerator.skipDescendants()
+                    continue
+                }
+
+                let values = try? nextURL.resourceValues(forKeys: Set(keys))
+                if values?.isDirectory == true {
+                    continue
+                }
+
+                let ext = nextURL.pathExtension.lowercased()
+                if skipExtensions.contains(ext) {
+                    continue
+                }
+
+                files.append(nextURL.path)
+            }
+        }
+
+        files.sort()
+        codingWorkspaceRootPath = normalizedRoot
+        codingWorkspaceFiles = files
+
+        if let selected = codingSelectedFilePath,
+           !files.contains(selected)
+        {
+            codingSelectedFilePath = nil
+            codingEditorText = ""
+            codingEditorIsDirty = false
+        }
+
+        persistStateToDisk()
+        appendOutput("Coding workspace indexed: \(files.count) files.")
+        addCodingMessage(
+            role: .system,
+            content: "Workspace scan complete. Indexed \(files.count) files under \(normalizedRoot)."
+        )
+    }
+
+    func selectCodingFile(relativePath: String) {
+        let trimmed = relativePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let targetPath: String
+        if trimmed.hasPrefix("/") {
+            targetPath = normalizeCodingPath(trimmed)
+        } else {
+            targetPath = normalizeCodingPath((codingWorkspaceRootPath as NSString).appendingPathComponent(trimmed))
+        }
+        openCodingFile(targetPath)
+    }
+
+    func openCodingFile(_ absolutePath: String) {
+        let normalizedPath = normalizeCodingPath(absolutePath)
+        guard !normalizedPath.isEmpty else {
+            appendOutput("Select a valid file path.")
+            return
+        }
+
+        guard isPathInsideCodingWorkspace(normalizedPath) else {
+            appendOutput("Refusing to open file outside coding workspace root.")
+            return
+        }
+
+        let fileURL = URL(fileURLWithPath: normalizedPath)
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), !isDir.boolValue else {
+            appendOutput("Coding file not found: \(codingRelativePath(normalizedPath))")
+            return
+        }
+
+        do {
+            let data = try Data(contentsOf: fileURL)
+            if data.count > 2_500_000 {
+                appendOutput("File is too large for inline editor (>2.5 MB). Open a smaller file.")
+                return
+            }
+            guard isLikelyText(data) else {
+                appendOutput("File appears binary and cannot be edited in text mode.")
+                return
+            }
+            let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+            codingSelectedFilePath = normalizedPath
+            codingEditorText = text
+            codingEditorIsDirty = false
+            persistStateToDisk()
+            addCodingMessage(
+                role: .system,
+                content: "Opened \(codingRelativePath(normalizedPath)) (\(text.split(whereSeparator: \.isNewline).count) lines).",
+                relatedFilePath: normalizedPath
+            )
+        } catch {
+            appendOutput("Failed to open coding file: \(error.localizedDescription)")
+        }
+    }
+
+    func setCodingEditorText(_ text: String) {
+        codingEditorText = text
+        codingEditorIsDirty = true
+    }
+
+    func saveCodingFile() {
+        guard let filePath = codingSelectedFilePath else {
+            appendOutput("Open a coding file before saving.")
+            return
+        }
+        guard isPathInsideCodingWorkspace(filePath) else {
+            appendOutput("Refusing to save file outside coding workspace root.")
+            return
+        }
+        guard let data = codingEditorText.data(using: .utf8) else {
+            appendOutput("Failed to encode file as UTF-8.")
+            return
+        }
+
+        do {
+            try data.write(to: URL(fileURLWithPath: filePath), options: [.atomic])
+            codingEditorIsDirty = false
+            addCodingMessage(
+                role: .system,
+                content: "Saved \(codingRelativePath(filePath)) (\(codingEditorText.count) chars).",
+                relatedFilePath: filePath
+            )
+            addCodingMemoryRecord(
+                kind: .fileSnapshot,
+                summary: "Saved \(codingRelativePath(filePath))",
+                detail: String(codingEditorText.prefix(2400)),
+                relatedFilePath: filePath
+            )
+            persistStateToDisk()
+        } catch {
+            appendOutput("Failed to save file: \(error.localizedDescription)")
+        }
+    }
+
+    func submitCodingPrompt() {
+        let prompt = codingPromptDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else {
+            appendOutput("Write a local coding prompt before sending.")
+            return
+        }
+        guard !codingIsGeneratingReply else {
+            appendOutput("Local coding agent is still generating the previous response.")
+            return
+        }
+
+        let safetySignal = evaluateSuspiciousPattern(input: prompt, source: "coding_prompt")
+        if safetySignal.holdQueue {
+            addCodingMessage(
+                role: .system,
+                content: "Prompt blocked by safety guard. Atlas local coding mode only supports lawful, non-harmful work."
+            )
+            codingPromptDraft = ""
+            persistStateToDisk()
+            return
+        }
+
+        addCodingMessage(role: .user, content: prompt, relatedFilePath: codingSelectedFilePath)
+        addCodingMemoryRecord(
+            kind: .prompt,
+            summary: "Prompt: \(sanitizeWorkspaceMemoryValue(prompt, maxLength: 120))",
+            detail: prompt,
+            relatedFilePath: codingSelectedFilePath
+        )
+        codingPromptDraft = ""
+
+        if handleCodingSlashCommand(prompt) {
+            persistStateToDisk()
+            return
+        }
+
+        let selectedPath = codingSelectedFilePath
+        let fallbackReply = composeLocalCodingReply(for: prompt)
+        codingIsGeneratingReply = true
+        Task {
+            let modelPrompt = composeOllamaPrompt(for: prompt)
+            let modelReply = await requestLocalModelResponse(
+                prompt: modelPrompt,
+                timeoutSeconds: 24,
+                domain: .coding
+            )
+            if modelReply == nil {
+                appendOutput("Local model unavailable/failed; using deterministic coding planner.")
+            }
+
+            let reply = modelReply ?? fallbackReply
+            addCodingMessage(role: .assistant, content: reply, relatedFilePath: selectedPath)
+            addCodingMemoryRecord(
+                kind: .response,
+                summary: "Assistant response for latest prompt",
+                detail: reply,
+                relatedFilePath: selectedPath
+            )
+            codingIsGeneratingReply = false
+            persistStateToDisk()
+        }
+    }
+
+    func runCodingCommand(commandOverride: String? = nil) {
+        let command = (commandOverride ?? codingCommandDraft).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !command.isEmpty else {
+            appendOutput("Write a shell command before running.")
+            return
+        }
+
+        let rootPath = normalizeCodingPath(codingWorkspaceRootPath)
+        guard !rootPath.isEmpty else {
+            appendOutput("Set coding workspace root before running shell commands.")
+            return
+        }
+
+        guard !codingIsRunningCommand else {
+            appendOutput("A coding command is already running.")
+            return
+        }
+
+        codingIsRunningCommand = true
+        codingCommandDraft = command
+        addCodingMessage(role: .command, content: "$ \(command)")
+
+        Task {
+            let startedAt = Date()
+            let commandResult = await Self.executeShellCommand(command, workingDirectory: rootPath)
+            let elapsed = max(0.01, Date().timeIntervalSince(startedAt))
+            let output = commandResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let body = output.isEmpty ? "(no output)" : output
+            let summary = """
+            Exit \(commandResult.status) in \(String(format: "%.2fs", elapsed))
+            \(body)
+            """
+            codingCommandOutput = summary
+            codingIsRunningCommand = false
+            addCodingMessage(role: .command, content: summary)
+            addCodingMemoryRecord(
+                kind: .command,
+                summary: "Command: \(sanitizeWorkspaceMemoryValue(command, maxLength: 120))",
+                detail: summary,
+                relatedFilePath: codingSelectedFilePath
+            )
+            persistStateToDisk()
+            appendOutput("Local command completed: \(command)")
+        }
+    }
+
+    func clearCodingMemory() {
+        codingMessages = []
+        codingMemoryRecords = []
+        codingCommandOutput = ""
+        codingPromptDraft = ""
+        persistStateToDisk()
+        appendOutput("Coding workspace memory cleared.")
+    }
+
+    func rememberCurrentCodingFile() {
+        guard let filePath = codingSelectedFilePath else {
+            appendOutput("Open a coding file before remembering context.")
+            return
+        }
+        addCodingMemoryRecord(
+            kind: .fileSnapshot,
+            summary: "Manual memory checkpoint: \(codingRelativePath(filePath))",
+            detail: String(codingEditorText.prefix(2800)),
+            relatedFilePath: filePath
+        )
+        persistStateToDisk()
+        addCodingMessage(role: .system, content: "Stored a memory checkpoint for \(codingRelativePath(filePath)).")
+    }
+
+    func codingRelativePath(_ absolutePath: String) -> String {
+        let normalized = normalizeCodingPath(absolutePath)
+        let root = normalizeCodingPath(codingWorkspaceRootPath)
+        guard !root.isEmpty else { return normalized }
+        let rootWithSlash = root.hasSuffix("/") ? root : root + "/"
+        if normalized == root {
+            return "."
+        }
+        if normalized.hasPrefix(rootWithSlash) {
+            return String(normalized.dropFirst(rootWithSlash.count))
+        }
+        return normalized
+    }
+
+    func codingMemoryUsageEstimate() -> String {
+        let messageBytes = codingMessages.reduce(0) { $0 + $1.content.count }
+        let memoryBytes = codingMemoryRecords.reduce(0) { $0 + $1.summary.count + $1.detail.count }
+        let totalMB = Double(messageBytes + memoryBytes) / 1_048_576.0
+        return String(format: "%.2f MB local coding memory", totalMB)
     }
 
     func startPromptQueueWorker() {
@@ -888,7 +1368,9 @@ final class SessionStore: ObservableObject {
         }
         let notesBytes = notes.reduce(0) { $0 + $1.title.count + $1.content.count }
         let queueBytes = promptQueue.reduce(0) { $0 + $1.prompt.count + ($1.output?.summary.count ?? 0) }
-        let totalKB = max(1, (notesBytes + queueBytes) / 1024)
+        let codingBytes = codingMessages.reduce(0) { $0 + $1.content.count }
+            + codingMemoryRecords.reduce(0) { $0 + $1.summary.count + $1.detail.count }
+        let totalKB = max(1, (notesBytes + queueBytes + codingBytes) / 1024)
         return "~\(totalKB) KB local memory profile"
     }
 
@@ -1061,7 +1543,12 @@ final class SessionStore: ObservableObject {
                     content: sanitizeModelInput($0.content, maxLength: 400)
                 )
             }
-            let output = await localReasoning.reason(prompt: boundedPrompt, notes: boundedNotes)
+            let output: LocalReasoningOutput
+            if let modelOutput = await modelDrivenQueueOutput(prompt: boundedPrompt, notes: boundedNotes) {
+                output = modelOutput
+            } else {
+                output = await localReasoning.reason(prompt: boundedPrompt, notes: boundedNotes)
+            }
             checkpointTask.cancel()
             promptQueue[index].status = .done
             promptQueue[index].completedAt = Date()
@@ -1081,7 +1568,554 @@ final class SessionStore: ObservableObject {
 
         queueWorkerTask = nil
         rebuildInsightsAndExecutionPlan()
-        feedItems = localFeedFromExecutionPlan()
+        await refreshCommandModelBrief()
+        await refreshWorkspaceModelBrief()
+        await refreshFeed()
+    }
+
+    private struct LocalModelQueueResponse: Decodable {
+        let summary: String
+        let nextAction: String
+        let confidence: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case summary
+            case nextAction = "next_action"
+            case confidence
+        }
+    }
+
+    private struct LocalModelFeedItem: Decodable {
+        let title: String
+        let summary: String
+        let whyNow: String
+        let priority: String
+
+        enum CodingKeys: String, CodingKey {
+            case title
+            case summary
+            case whyNow = "why_now"
+            case priority
+        }
+    }
+
+    private struct LocalModelFeedEnvelope: Decodable {
+        let items: [LocalModelFeedItem]
+    }
+
+    private enum LocalInferenceReasoningDomain: Equatable {
+        case general
+        case briefing
+        case structuredJSON
+        case coding
+
+        var label: String {
+            switch self {
+            case .general:
+                return "general"
+            case .briefing:
+                return "briefing"
+            case .structuredJSON:
+                return "structured-json"
+            case .coding:
+                return "coding"
+            }
+        }
+
+        var styleInstruction: String {
+            switch self {
+            case .general:
+                return "Produce high-signal operational output with concrete, testable next steps."
+            case .briefing:
+                return "Produce one concise executive brief paragraph with clear leverage + risk signal."
+            case .structuredJSON:
+                return "Return ONLY valid JSON that matches the requested schema. No prose or markdown."
+            case .coding:
+                return "Produce precise implementation guidance, commands, and quick verification steps."
+            }
+        }
+
+        var includeGlobalContext: Bool {
+            switch self {
+            case .coding:
+                return false
+            default:
+                return true
+            }
+        }
+    }
+
+    private struct LocalInferenceReasoningProfile {
+        let analysisPasses: Int
+        let candidateTimeoutSeconds: Int
+        let synthesisTimeoutSeconds: Int
+        let candidateMaxTokens: Int
+        let synthesisMaxTokens: Int
+    }
+
+    private func modelDrivenQueueOutput(prompt: String, notes: [UserNote]) async -> LocalReasoningOutput? {
+        let notesSnapshot = notes
+            .prefix(16)
+            .map { "- \($0.title): \(sanitizeModelInput($0.content, maxLength: 180))" }
+            .joined(separator: "\n")
+
+        let instruction = """
+        You are Atlas local reasoning engine. Return ONLY valid JSON:
+        {"summary":"...","next_action":"...","confidence":0.0}
+        Keep summary <= 280 chars and next_action <= 180 chars.
+
+        Prompt:
+        \(prompt)
+
+        Notes:
+        \(notesSnapshot)
+        """
+
+        guard let raw = await requestLocalModelResponse(
+            prompt: instruction,
+            timeoutSeconds: 20,
+            domain: .structuredJSON
+        ),
+              let parsed: LocalModelQueueResponse = Self.decodeModelJSON(raw)
+        else {
+            return nil
+        }
+
+        let confidence = min(1.0, max(0.0, parsed.confidence ?? 0.62))
+        return LocalReasoningOutput(
+            model: "\(localInferenceModelName)-local",
+            summary: sanitizeWorkspaceMemoryValue(parsed.summary, maxLength: 420),
+            nextAction: sanitizeWorkspaceMemoryValue(parsed.nextAction, maxLength: 220),
+            confidence: confidence,
+            generatedAt: Date()
+        )
+    }
+
+    private func modelDrivenFeedItems() async -> [FeedItem]? {
+        let actions = executionActions
+            .prefix(8)
+            .map { "- [\($0.horizon)] \($0.title): \(sanitizeWorkspaceMemoryValue($0.details, maxLength: 140))" }
+            .joined(separator: "\n")
+        let workspaceSignals = workspacePlans
+            .prefix(6)
+            .map { "- \($0.title): \($0.nextActionNow)" }
+            .joined(separator: "\n")
+        let noteSignals = notes
+            .prefix(8)
+            .map { "- \($0.title): \(sanitizeWorkspaceMemoryValue($0.content, maxLength: 120))" }
+            .joined(separator: "\n")
+
+        let instruction = """
+        You are Atlas local execution planner.
+        Return ONLY JSON in this schema:
+        {"items":[{"title":"...","summary":"...","why_now":"...","priority":"High|Medium|Low"}]}
+        Provide 3 items max.
+        Each title <= 90 chars, summary <= 220 chars, why_now <= 180 chars.
+
+        Current priorities:
+        Daily: \(dailyPriority)
+        Mid-term: \(midTermGoal)
+        Long-term: \(longTermVision)
+        Blockers: \(checkInBlockers)
+        Mood/Energy: \(checkInMood) / \(checkInEnergy)
+
+        Execution actions:
+        \(actions)
+
+        Workspace signals:
+        \(workspaceSignals)
+
+        Notes:
+        \(noteSignals)
+        """
+
+        guard let raw = await requestLocalModelResponse(
+            prompt: instruction,
+            timeoutSeconds: 18,
+            domain: .structuredJSON
+        ) else {
+            return nil
+        }
+
+        let items: [LocalModelFeedItem]?
+        if let envelope: LocalModelFeedEnvelope = Self.decodeModelJSON(raw) {
+            items = envelope.items
+        } else {
+            let direct: [LocalModelFeedItem]? = Self.decodeModelJSON(raw)
+            items = direct
+        }
+
+        guard let parsed = items, !parsed.isEmpty else {
+            return nil
+        }
+
+        let mapped = parsed.prefix(3).enumerated().map { idx, item in
+            FeedItem(
+                id: "model-feed-\(idx)-\(UUID().uuidString)",
+                title: sanitizeWorkspaceMemoryValue(item.title, maxLength: 110),
+                summary: sanitizeWorkspaceMemoryValue(item.summary, maxLength: 260),
+                whyNow: sanitizeWorkspaceMemoryValue(item.whyNow, maxLength: 220),
+                priority: sanitizeWorkspaceMemoryValue(item.priority, maxLength: 24)
+            )
+        }
+        return mapped
+    }
+
+    private func refreshCommandModelBrief() async {
+        let prompt = """
+        Return one concise command-brief paragraph (< 500 chars) for this operator.
+        Focus on immediate execution leverage and risk control.
+
+        Daily: \(dailyPriority)
+        Mid-term: \(midTermGoal)
+        Long-term: \(longTermVision)
+        Blockers: \(checkInBlockers)
+        Mood/Energy: \(checkInMood) / \(checkInEnergy)
+        Actions: \(executionActions.prefix(6).map { "\($0.horizon): \($0.title)" }.joined(separator: " | "))
+        """
+
+        if let text = await requestLocalModelResponse(
+            prompt: prompt,
+            timeoutSeconds: 12,
+            domain: .briefing
+        ) {
+            commandModelBrief = sanitizeWorkspaceMemoryValue(text, maxLength: 520)
+        } else {
+            commandModelBrief = "Model inference unavailable. Focus on one immediate action, one weekly milestone, and one continuity guardrail."
+        }
+    }
+
+    private func refreshWorkspaceModelBrief() async {
+        let lane = activeWorkspaceLane
+        let sessionIDs = sessions(for: lane).prefix(4).map(\.title).joined(separator: " | ")
+        let prompt = """
+        Return one concise workspace brief (< 500 chars).
+        Focus lane: \(lane.title)
+        Active session names: \(sessionIDs)
+        Workspace plan: \(workspacePlans.first(where: { $0.lane == lane })?.objective ?? "No objective yet.")
+        Next action now: \(workspacePlans.first(where: { $0.lane == lane })?.nextActionNow ?? "No next action yet.")
+        """
+
+        if let text = await requestLocalModelResponse(
+            prompt: prompt,
+            timeoutSeconds: 12,
+            domain: .briefing
+        ) {
+            workspaceModelBrief = sanitizeWorkspaceMemoryValue(text, maxLength: 520)
+        } else {
+            workspaceModelBrief = "Model inference unavailable. Keep lane objective explicit, pick one next action, and log one memory signal."
+        }
+    }
+
+    private func localLLMRuntimeStatusLine() -> String {
+        guard localInferenceEnabled else {
+            return "Local LLM bridge disabled via UserDefaults key `atlas.local.llm.enabled`."
+        }
+        let profile = localReasoningProfile(for: .general, timeoutSeconds: 18)
+        if let endpoint = localInferenceEndpointURL {
+            let host = endpoint.host ?? "unknown-host"
+            return "Local LLM bridge enabled: \(host)\(endpoint.path) · model \(localInferenceModelName) · extra-high \(profile.analysisPasses)-pass reasoning active."
+        }
+        return "Local LLM bridge misconfigured. Check `atlas.local.llm.endpoint`. Direct local runtime fallback remains active."
+    }
+
+    private func localReasoningProfile(
+        for domain: LocalInferenceReasoningDomain,
+        timeoutSeconds: Int
+    ) -> LocalInferenceReasoningProfile {
+        let constrained = isResourceConstrained()
+        let analysisPasses = constrained ? 2 : 3
+        let candidateTimeout = max(8, timeoutSeconds + (constrained ? 2 : 5))
+        let synthesisTimeout = max(candidateTimeout, timeoutSeconds + (constrained ? 4 : 8))
+
+        let candidateTokens: Int
+        let synthesisTokens: Int
+        switch domain {
+        case .structuredJSON:
+            candidateTokens = constrained ? 700 : 1100
+            synthesisTokens = constrained ? 850 : 1300
+        case .briefing:
+            candidateTokens = constrained ? 760 : 1200
+            synthesisTokens = constrained ? 900 : 1450
+        case .coding:
+            candidateTokens = constrained ? 900 : 1500
+            synthesisTokens = constrained ? 1100 : 1800
+        case .general:
+            candidateTokens = constrained ? 820 : 1300
+            synthesisTokens = constrained ? 980 : 1600
+        }
+
+        return LocalInferenceReasoningProfile(
+            analysisPasses: analysisPasses,
+            candidateTimeoutSeconds: candidateTimeout,
+            synthesisTimeoutSeconds: synthesisTimeout,
+            candidateMaxTokens: candidateTokens,
+            synthesisMaxTokens: synthesisTokens
+        )
+    }
+
+    private func reasoningPassFocus(pass: Int, totalPasses: Int) -> String {
+        let catalog = [
+            "Map constraints and objective boundaries before proposing output.",
+            "Stress-test tradeoffs, edge cases, and likely failure points.",
+            "Prioritize execution order, safety checks, and measurable outcomes."
+        ]
+        guard totalPasses > 0 else { return catalog[0] }
+        let index = min(max(pass, 0), totalPasses - 1) % catalog.count
+        return catalog[index]
+    }
+
+    private func globalReasoningContextDigest(maxLength: Int = 4200) -> String {
+        let actionSlice = executionActions
+            .prefix(8)
+            .map { "- \($0.horizon): \($0.title) :: \(sanitizeWorkspaceMemoryValue($0.details, maxLength: 120))" }
+            .joined(separator: "\n")
+        let workspaceSlice = workspacePlans
+            .prefix(6)
+            .map { "- \($0.title): \($0.nextActionNow)" }
+            .joined(separator: "\n")
+        let researchSlice = researchStreams
+            .prefix(6)
+            .map { "- [\($0.domain)] \($0.title): \(sanitizeWorkspaceMemoryValue($0.executionRecommendation, maxLength: 100))" }
+            .joined(separator: "\n")
+        let noteSlice = notes
+            .prefix(8)
+            .map { "- \($0.title): \(sanitizeWorkspaceMemoryValue($0.content, maxLength: 120))" }
+            .joined(separator: "\n")
+        let memorySlice = workspaceMemoryRecords
+            .sorted { lhs, rhs in
+                let lhsScore = workspaceMemoryScore(lhs)
+                let rhsScore = workspaceMemoryScore(rhs)
+                if lhsScore == rhsScore {
+                    return lhs.updatedAtUTC > rhs.updatedAtUTC
+                }
+                return lhsScore > rhsScore
+            }
+            .prefix(10)
+            .map { "- \(workspaceSignalLabel(for: $0.key)): \(sanitizeWorkspaceMemoryValue($0.value, maxLength: 96))" }
+            .joined(separator: "\n")
+
+        let bundle = """
+        OPERATOR CONTEXT SNAPSHOT
+        Daily priority: \(dailyPriority)
+        Mid-term: \(midTermGoal)
+        Long-term: \(longTermVision)
+        Blockers: \(checkInBlockers)
+        Mood/Energy: \(checkInMood) / \(checkInEnergy)
+
+        EXECUTION ACTIONS
+        \(actionSlice)
+
+        WORKSPACE PLANS
+        \(workspaceSlice)
+
+        RESEARCH SIGNALS
+        \(researchSlice)
+
+        NOTES
+        \(noteSlice)
+
+        MEMORY SIGNALS
+        \(memorySlice)
+        """
+
+        return sanitizeModelInput(bundle, maxLength: maxLength)
+    }
+
+    private func composeDeepReasoningEnvelope(
+        taskPrompt: String,
+        domain: LocalInferenceReasoningDomain
+    ) -> String {
+        let contextBlock = domain.includeGlobalContext ? globalReasoningContextDigest() : ""
+        let contextSection = contextBlock.isEmpty ? "" : "\n\(contextBlock)\n"
+
+        return """
+        You are Atlas local inference core running in extra-high reasoning depth mode.
+        Think deeply and compare alternatives internally before responding.
+        Never reveal internal chain-of-thought.
+        \(domain.styleInstruction)
+        \(contextSection)
+        TASK
+        \(taskPrompt)
+        """
+    }
+
+    private func requestLocalModelResponse(
+        prompt: String,
+        timeoutSeconds: Int,
+        domain: LocalInferenceReasoningDomain = .general
+    ) async -> String? {
+        guard localInferenceEnabled else { return nil }
+        let profile = localReasoningProfile(for: domain, timeoutSeconds: timeoutSeconds)
+        let reasoningEnvelope = composeDeepReasoningEnvelope(taskPrompt: prompt, domain: domain)
+        var candidates: [String] = []
+
+        for pass in 0 ..< profile.analysisPasses {
+            let passPrompt = """
+            \(reasoningEnvelope)
+
+            PASS \(pass + 1)/\(profile.analysisPasses)
+            Focus: \(reasoningPassFocus(pass: pass, totalPasses: profile.analysisPasses))
+
+            Return final answer for this pass only.
+            """
+
+            let temperature = domain == .structuredJSON ? 0.12 : min(0.42, 0.18 + Double(pass) * 0.08)
+            if let candidate = await requestSingleLocalModelResponse(
+                prompt: passPrompt,
+                timeoutSeconds: profile.candidateTimeoutSeconds,
+                temperature: temperature,
+                maxTokens: profile.candidateMaxTokens
+            ) {
+                let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    candidates.append(trimmed)
+                }
+            }
+        }
+
+        guard !candidates.isEmpty else { return nil }
+        if candidates.count == 1 {
+            return candidates[0]
+        }
+
+        let draftBlock = candidates
+            .prefix(4)
+            .enumerated()
+            .map { "[Draft \($0.offset + 1)]\n\($0.element)" }
+            .joined(separator: "\n\n")
+
+        let synthesisPrompt = """
+        \(reasoningEnvelope)
+
+        CANDIDATE DRAFTS
+        \(draftBlock)
+
+        Synthesize the strongest final answer.
+        Keep strongest details, remove contradictions, and tighten execution precision.
+        \(domain == .structuredJSON ? "Return ONLY valid JSON." : "Return only the final answer text.")
+        """
+
+        let synthesisTemperature = domain == .structuredJSON ? 0.08 : 0.16
+        if let synthesis = await requestSingleLocalModelResponse(
+            prompt: synthesisPrompt,
+            timeoutSeconds: profile.synthesisTimeoutSeconds,
+            temperature: synthesisTemperature,
+            maxTokens: profile.synthesisMaxTokens
+        ) {
+            let trimmed = synthesis.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        return bestReasoningCandidate(from: candidates, domain: domain)
+    }
+
+    private func bestReasoningCandidate(
+        from candidates: [String],
+        domain: LocalInferenceReasoningDomain
+    ) -> String {
+        if domain == .structuredJSON {
+            if let jsonCandidate = candidates.first(where: {
+                let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
+                    return true
+                }
+                return !Self.extractJSONCandidates(from: trimmed).isEmpty
+            }) {
+                return jsonCandidate
+            }
+        }
+        return candidates.max(by: { $0.count < $1.count }) ?? candidates[0]
+    }
+
+    private func requestSingleLocalModelResponse(
+        prompt: String,
+        timeoutSeconds: Int,
+        temperature: Double,
+        maxTokens: Int
+    ) async -> String? {
+        if let endpoint = localInferenceEndpointURL,
+           let localEndpointOutput = await Self.runOpenAICompatiblePrompt(
+               endpoint: endpoint,
+               model: localInferenceModelName,
+               prompt: prompt,
+               timeoutSeconds: timeoutSeconds,
+               temperature: temperature,
+               maxTokens: maxTokens,
+               systemPrompt: "You are Atlas local reasoning engine. Operate at extra-high depth and return only final answers."
+           )
+        {
+            return localEndpointOutput
+        }
+
+        return await Self.runOllamaPrompt(
+            model: localInferenceModelName,
+            prompt: prompt,
+            timeoutSeconds: timeoutSeconds
+        )
+    }
+
+    nonisolated private static func decodeModelJSON<T: Decodable>(_ raw: String) -> T? {
+        let decoder = JSONDecoder()
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var candidates: [String] = [trimmed]
+        candidates.append(contentsOf: Self.extractJSONCandidates(from: trimmed))
+
+        for candidate in candidates {
+            guard let data = candidate.data(using: .utf8) else { continue }
+            if let decoded = try? decoder.decode(T.self, from: data) {
+                return decoded
+            }
+        }
+        return nil
+    }
+
+    nonisolated private static func extractJSONCandidates(from text: String) -> [String] {
+        let fencePattern = "```"
+        var candidates: [String] = []
+
+        if let firstFence = text.range(of: fencePattern),
+           let secondFence = text.range(of: fencePattern, range: firstFence.upperBound..<text.endIndex)
+        {
+            var fenced = String(text[firstFence.upperBound..<secondFence.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if fenced.lowercased().hasPrefix("json") {
+                let prefix = fenced.index(fenced.startIndex, offsetBy: min(4, fenced.count))
+                fenced = fenced[prefix...].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if !fenced.isEmpty {
+                candidates.append(String(fenced))
+            }
+        }
+
+        if let object = extractBalancedSegment(text, open: "{", close: "}") {
+            candidates.append(object)
+        }
+        if let array = extractBalancedSegment(text, open: "[", close: "]") {
+            candidates.append(array)
+        }
+        return candidates
+    }
+
+    nonisolated private static func extractBalancedSegment(_ text: String, open: Character, close: Character) -> String? {
+        var start: String.Index?
+        var depth = 0
+        for idx in text.indices {
+            let ch = text[idx]
+            if ch == open {
+                if start == nil {
+                    start = idx
+                }
+                depth += 1
+            } else if ch == close, start != nil {
+                depth -= 1
+                if depth == 0, let start {
+                    return String(text[start...idx])
+                }
+            }
+        }
+        return nil
     }
 
     private func checkpointRunningQueueItem(id: String, note: String) {
@@ -1119,6 +2153,503 @@ final class SessionStore: ObservableObject {
             return true
         }
         return lowPower
+    }
+
+    nonisolated private static func executeShellCommand(_ command: String, workingDirectory: String) async -> (status: Int32, output: String) {
+        await Task.detached(priority: .userInitiated) {
+            let fm = FileManager.default
+            let outputURL = fm.temporaryDirectory
+                .appendingPathComponent("atlas-coding-\(UUID().uuidString)")
+                .appendingPathExtension("log")
+            fm.createFile(atPath: outputURL.path, contents: nil)
+            guard let outputHandle = try? FileHandle(forWritingTo: outputURL) else {
+                return (1, "Failed to create output capture file.")
+            }
+            defer {
+                try? outputHandle.close()
+                try? fm.removeItem(at: outputURL)
+            }
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            process.arguments = ["-lc", command]
+            process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
+            process.standardOutput = outputHandle
+            process.standardError = outputHandle
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+                outputHandle.synchronizeFile()
+                let data = (try? Data(contentsOf: outputURL)) ?? Data()
+                let decoded = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+                let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+                return (process.terminationStatus, Self.trimForDisplay(trimmed, maxChars: 24_000))
+            } catch {
+                return (1, "Failed to run command: \(error.localizedDescription)")
+            }
+        }.value
+    }
+
+    nonisolated private static func trimForDisplay(_ value: String, maxChars: Int) -> String {
+        guard value.count > maxChars else { return value }
+        let start = value.index(value.endIndex, offsetBy: -maxChars)
+        return "...truncated...\n" + value[start...]
+    }
+
+    private func normalizeCodingPath(_ rawPath: String) -> String {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        let expanded = (trimmed as NSString).expandingTildeInPath
+        return URL(fileURLWithPath: expanded).standardizedFileURL.path
+    }
+
+    private func isPathInsideCodingWorkspace(_ candidatePath: String) -> Bool {
+        let root = normalizeCodingPath(codingWorkspaceRootPath)
+        guard !root.isEmpty else { return false }
+        let normalized = normalizeCodingPath(candidatePath)
+        let rootWithSlash = root.hasSuffix("/") ? root : root + "/"
+        return normalized == root || normalized.hasPrefix(rootWithSlash)
+    }
+
+    private func isLikelyText(_ data: Data) -> Bool {
+        guard !data.isEmpty else { return true }
+        let sample = data.prefix(2048)
+        return !sample.contains(0)
+    }
+
+    private func addCodingMessage(role: CodingMessageRole, content: String, relatedFilePath: String? = nil) {
+        let normalizedPath = relatedFilePath.map(normalizeCodingPath)
+        codingMessages.append(
+            CodingWorkspaceMessage(
+                id: UUID().uuidString,
+                role: role,
+                content: sanitizeWorkspaceMemoryValue(content, maxLength: 12_000),
+                createdAtUTC: Date(),
+                relatedFilePath: normalizedPath
+            )
+        )
+    }
+
+    private func addCodingMemoryRecord(
+        kind: CodingMemoryKind,
+        summary: String,
+        detail: String,
+        relatedFilePath: String? = nil
+    ) {
+        let cleanSummary = sanitizeWorkspaceMemoryValue(summary, maxLength: 220)
+        let cleanDetail = sanitizeWorkspaceMemoryValue(detail, maxLength: 8_000)
+        guard !cleanSummary.isEmpty || !cleanDetail.isEmpty else { return }
+        codingMemoryRecords.append(
+            CodingMemoryRecord(
+                id: UUID().uuidString,
+                kind: kind,
+                summary: cleanSummary,
+                detail: cleanDetail,
+                relatedFilePath: relatedFilePath.map(normalizeCodingPath),
+                createdAtUTC: Date()
+            )
+        )
+    }
+
+    private func handleCodingSlashCommand(_ prompt: String) -> Bool {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("/") else { return false }
+
+        let parts = trimmed.split(maxSplits: 1, whereSeparator: \.isWhitespace)
+        guard let commandPart = parts.first else { return false }
+        let slash = commandPart.lowercased()
+        let argument = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines) : ""
+
+        switch slash {
+        case "/help":
+            addCodingMessage(
+                role: .assistant,
+                content: "Local commands: /scan, /open <path>, /save, /run <shell>, /grep <pattern>, /remember"
+            )
+            return true
+
+        case "/scan":
+            rescanCodingWorkspace()
+            addCodingMessage(role: .assistant, content: "Workspace rescan started.")
+            return true
+
+        case "/open":
+            guard !argument.isEmpty else {
+                addCodingMessage(role: .assistant, content: "Usage: /open <relative-or-absolute-path>")
+                return true
+            }
+            selectCodingFile(relativePath: argument)
+            if let selected = codingSelectedFilePath {
+                addCodingMessage(role: .assistant, content: "Opened \(codingRelativePath(selected)).", relatedFilePath: selected)
+            }
+            return true
+
+        case "/save":
+            saveCodingFile()
+            addCodingMessage(role: .assistant, content: "Save requested for current file.")
+            return true
+
+        case "/run":
+            guard !argument.isEmpty else {
+                addCodingMessage(role: .assistant, content: "Usage: /run <command>")
+                return true
+            }
+            runCodingCommand(commandOverride: argument)
+            return true
+
+        case "/grep":
+            guard !argument.isEmpty else {
+                addCodingMessage(role: .assistant, content: "Usage: /grep <pattern>")
+                return true
+            }
+            let matches = grepCodingWorkspace(argument, limit: 20)
+            if matches.isEmpty {
+                addCodingMessage(role: .assistant, content: "No matches for \"\(argument)\" in indexed files.")
+            } else {
+                addCodingMessage(
+                    role: .assistant,
+                    content: "Matches for \"\(argument)\":\n" + matches.joined(separator: "\n")
+                )
+            }
+            return true
+
+        case "/remember":
+            rememberCurrentCodingFile()
+            return true
+
+        default:
+            addCodingMessage(role: .assistant, content: "Unknown slash command. Use /help.")
+            return true
+        }
+    }
+
+    private func composeLocalCodingReply(for prompt: String) -> String {
+        let tokens = prompt
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber && $0 != "_" && $0 != "." }
+            .map(String.init)
+            .filter { $0.count >= 2 }
+        let uniqueTokens = Array(Set(tokens))
+
+        let rankedFiles = codingWorkspaceFiles
+            .map { path -> (path: String, score: Int) in
+                let lower = codingRelativePath(path).lowercased()
+                let score = uniqueTokens.reduce(0) { partial, token in
+                    partial + (lower.contains(token) ? 1 : 0)
+                }
+                return (path, score)
+            }
+            .filter { $0.score > 0 }
+            .sorted { lhs, rhs in
+                if lhs.score == rhs.score {
+                    return lhs.path < rhs.path
+                }
+                return lhs.score > rhs.score
+            }
+            .prefix(6)
+            .map(\.path)
+
+        let memoryMatches = rankedCodingMemoryMatches(tokens: uniqueTokens, limit: 4)
+
+        let suggestedCommands = codingCommandSuggestions()
+        var lines: [String] = []
+        lines.append("Local coding mode active: no cloud calls, all context stays on-device.")
+
+        if let selected = codingSelectedFilePath {
+            let lineCount = codingEditorText.split(whereSeparator: \.isNewline).count
+            lines.append("Current file: \(codingRelativePath(selected)) (\(lineCount) lines).")
+        } else {
+            lines.append("No file open yet. Use /open <path> after /scan.")
+        }
+
+        if !rankedFiles.isEmpty {
+            lines.append("Likely relevant files:")
+            for file in rankedFiles {
+                lines.append("- \(codingRelativePath(file))")
+            }
+        }
+
+        if !memoryMatches.isEmpty {
+            lines.append("Recovered memory context:")
+            for memory in memoryMatches {
+                lines.append("- \(memory.summary)")
+            }
+        }
+
+        lines.append("Suggested next commands:")
+        for suggestion in suggestedCommands {
+            lines.append("- \(suggestion)")
+        }
+
+        lines.append("Slash commands: /help, /scan, /open, /save, /run, /grep, /remember.")
+        return lines.joined(separator: "\n")
+    }
+
+    private func composeOllamaPrompt(for prompt: String) -> String {
+        let activeFile = codingSelectedFilePath.map(codingRelativePath) ?? "none"
+        let fileSnapshot = String(codingEditorText.prefix(9_000))
+        let memorySnapshot = codingMemoryRecords
+            .suffix(8)
+            .map { "- [\($0.kind.rawValue)] \($0.summary)" }
+            .joined(separator: "\n")
+        let fileIndexSnapshot = codingWorkspaceFiles
+            .prefix(60)
+            .map(codingRelativePath)
+            .joined(separator: "\n")
+
+        return """
+        You are Atlas local coding assistant running entirely on-device.
+        Prioritize precision, concise actionable steps, and concrete commands.
+        If unsure, say what information is missing and suggest the fastest verification command.
+        Never suggest cloud dependencies unless explicitly asked.
+
+        WORKSPACE ROOT:
+        \(codingWorkspaceRootPath)
+
+        ACTIVE FILE:
+        \(activeFile)
+
+        ACTIVE FILE SNAPSHOT (may be truncated):
+        \(fileSnapshot)
+
+        RECENT MEMORY:
+        \(memorySnapshot)
+
+        INDEXED FILES (sample):
+        \(fileIndexSnapshot)
+
+        USER REQUEST:
+        \(prompt)
+        """
+    }
+
+    nonisolated private static func runOllamaPrompt(model: String, prompt: String, timeoutSeconds: Int) async -> String? {
+        await Task.detached(priority: .userInitiated) {
+            let fm = FileManager.default
+            let token = UUID().uuidString
+            let outURL = fm.temporaryDirectory.appendingPathComponent("atlas-ollama-\(token)").appendingPathExtension("out")
+            let errURL = fm.temporaryDirectory.appendingPathComponent("atlas-ollama-\(token)").appendingPathExtension("err")
+            fm.createFile(atPath: outURL.path, contents: nil)
+            fm.createFile(atPath: errURL.path, contents: nil)
+
+            guard let outHandle = try? FileHandle(forWritingTo: outURL),
+                  let errHandle = try? FileHandle(forWritingTo: errURL)
+            else {
+                return nil
+            }
+
+            defer {
+                try? outHandle.close()
+                try? errHandle.close()
+                try? fm.removeItem(at: outURL)
+                try? fm.removeItem(at: errURL)
+            }
+
+            let inputPipe = Pipe()
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = ["ollama", "run", model]
+            process.standardInput = inputPipe
+            process.standardOutput = outHandle
+            process.standardError = errHandle
+
+            do {
+                try process.run()
+                if let data = (prompt + "\n").data(using: .utf8) {
+                    inputPipe.fileHandleForWriting.write(data)
+                }
+                try? inputPipe.fileHandleForWriting.close()
+
+                let timeoutAt = Date().addingTimeInterval(TimeInterval(max(2, timeoutSeconds)))
+                while process.isRunning {
+                    if Date() >= timeoutAt {
+                        process.terminate()
+                        return nil
+                    }
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                }
+                outHandle.synchronizeFile()
+                errHandle.synchronizeFile()
+
+                guard process.terminationStatus == 0 else {
+                    return nil
+                }
+
+                let outData = (try? Data(contentsOf: outURL)) ?? Data()
+                let output = String(data: outData, encoding: .utf8) ?? String(decoding: outData, as: UTF8.self)
+                let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                return Self.trimForDisplay(trimmed, maxChars: 18_000)
+            } catch {
+                return nil
+            }
+        }.value
+    }
+
+    private struct OpenAIChatMessage: Codable {
+        let role: String
+        let content: String
+    }
+
+    private struct OpenAIChatRequest: Encodable {
+        let model: String
+        let messages: [OpenAIChatMessage]
+        let temperature: Double
+        let maxTokens: Int
+        let stream: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case model
+            case messages
+            case temperature
+            case maxTokens = "max_tokens"
+            case stream
+        }
+    }
+
+    private struct OpenAIChatChoice: Decodable {
+        struct Message: Decodable {
+            let role: String?
+            let content: String?
+        }
+
+        let message: Message?
+        let text: String?
+    }
+
+    private struct OpenAIChatResponse: Decodable {
+        let choices: [OpenAIChatChoice]
+    }
+
+    nonisolated private static func runOpenAICompatiblePrompt(
+        endpoint: URL,
+        model: String,
+        prompt: String,
+        timeoutSeconds: Int,
+        temperature: Double,
+        maxTokens: Int,
+        systemPrompt: String
+    ) async -> String? {
+        await Task.detached(priority: .userInitiated) {
+            var request = URLRequest(url: endpoint)
+            request.httpMethod = "POST"
+            request.timeoutInterval = TimeInterval(max(4, timeoutSeconds))
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+
+            let payload = OpenAIChatRequest(
+                model: model,
+                messages: [
+                    OpenAIChatMessage(role: "system", content: systemPrompt),
+                    OpenAIChatMessage(role: "user", content: prompt)
+                ],
+                temperature: min(0.95, max(0.0, temperature)),
+                maxTokens: max(220, maxTokens),
+                stream: false
+            )
+            guard let body = try? JSONEncoder().encode(payload) else { return nil }
+            request.httpBody = body
+
+            let config = URLSessionConfiguration.ephemeral
+            config.waitsForConnectivity = false
+            config.timeoutIntervalForRequest = request.timeoutInterval
+            config.timeoutIntervalForResource = request.timeoutInterval + 6
+            let session = URLSession(configuration: config)
+            defer { session.invalidateAndCancel() }
+
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse,
+                      (200 ... 299).contains(http.statusCode),
+                      let decoded = try? JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+                else {
+                    return nil
+                }
+
+                let content = decoded.choices.first?.message?.content?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ?? decoded.choices.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ?? ""
+                guard !content.isEmpty else { return nil }
+                return Self.trimForDisplay(content, maxChars: 18_000)
+            } catch {
+                return nil
+            }
+        }.value
+    }
+
+    private func rankedCodingMemoryMatches(tokens: [String], limit: Int) -> [CodingMemoryRecord] {
+        guard !tokens.isEmpty else {
+            return Array(codingMemoryRecords.suffix(limit).reversed())
+        }
+
+        let now = Date()
+        return codingMemoryRecords
+            .map { record -> (record: CodingMemoryRecord, score: Double) in
+                let haystack = "\(record.summary) \(record.detail)".lowercased()
+                let overlap = tokens.reduce(0) { partial, token in
+                    partial + (haystack.contains(token) ? 1 : 0)
+                }
+                let ageHours = max(1.0, now.timeIntervalSince(record.createdAtUTC) / 3600.0)
+                let recencyBoost = 24.0 / ageHours
+                return (record, Double(overlap) * 3.0 + recencyBoost)
+            }
+            .filter { $0.score > 0.5 }
+            .sorted { lhs, rhs in
+                if lhs.score == rhs.score {
+                    return lhs.record.createdAtUTC > rhs.record.createdAtUTC
+                }
+                return lhs.score > rhs.score
+            }
+            .prefix(limit)
+            .map(\.record)
+    }
+
+    private func codingCommandSuggestions() -> [String] {
+        let roots = Set(codingWorkspaceFiles.map { URL(fileURLWithPath: $0).lastPathComponent.lowercased() })
+        if roots.contains("package.swift") {
+            return ["swift test", "swift build", "git status"]
+        }
+        if roots.contains("package.json") {
+            return ["npm test", "npm run build", "git status"]
+        }
+        if roots.contains("cargo.toml") {
+            return ["cargo test", "cargo check", "git status"]
+        }
+        if roots.contains("pyproject.toml") || roots.contains("requirements.txt") {
+            return ["pytest", "python -m pip list", "git status"]
+        }
+        return ["git status", "ls -la", "pwd"]
+    }
+
+    private func grepCodingWorkspace(_ pattern: String, limit: Int) -> [String] {
+        let query = pattern.lowercased()
+        guard !query.isEmpty else { return [] }
+
+        var hits: [String] = []
+        for filePath in codingWorkspaceFiles {
+            if hits.count >= limit { break }
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)),
+                  data.count <= 500_000,
+                  isLikelyText(data)
+            else {
+                continue
+            }
+
+            let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            for (lineIndex, line) in lines.enumerated() {
+                if line.lowercased().contains(query) {
+                    let snippet = sanitizeWorkspaceMemoryValue(String(line), maxLength: 180)
+                    hits.append("\(codingRelativePath(filePath)):\(lineIndex + 1): \(snippet)")
+                    if hits.count >= limit {
+                        break
+                    }
+                }
+            }
+        }
+        return hits
     }
 
     private func rebuildInsightsAndExecutionPlan() {
@@ -2309,6 +3840,17 @@ final class SessionStore: ObservableObject {
     private func sanitizeWorkspaceMemoryValue(_ value: String, maxLength: Int) -> String {
         let redacted = SensitiveDataRedactor.redact(value.trimmingCharacters(in: .whitespacesAndNewlines))
         return String(redacted.prefix(maxLength))
+    }
+
+    private func workspaceStudioKey(from value: String) -> String {
+        let normalized = String(
+            value.lowercased().map { ch in
+                (ch.isLetter || ch.isNumber) ? ch : "_"
+            }
+        )
+        let collapsed = normalized.replacingOccurrences(of: "_+", with: "_", options: .regularExpression)
+        let trimmed = collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        return trimmed.isEmpty ? "module" : String(trimmed.prefix(48))
     }
 
     private func inferWorkspaceLane(from text: String) -> WorkspaceLane? {
@@ -4258,6 +5800,8 @@ final class SessionStore: ObservableObject {
         let persistedSurveyAnswers = memoryCollectionEnabled ? surveyAnswers : [:]
         let persistedLearningPackage = memoryCollectionEnabled ? learningPackage : nil
         let persistedWorkspaceMemoryRecords = memoryCollectionEnabled ? workspaceMemoryRecords : []
+        let persistedCodingMessages = memoryCollectionEnabled ? codingMessages : []
+        let persistedCodingMemoryRecords = memoryCollectionEnabled ? codingMemoryRecords : []
         let persistedWorkspaceSessions = workspaceSessions
         let persistedLearningVersion = memoryCollectionEnabled
             ? learningVersion
@@ -4299,6 +5843,15 @@ final class SessionStore: ObservableObject {
             workspaceSessions: persistedWorkspaceSessions,
             activeWorkspaceLane: activeWorkspaceLane.rawValue,
             activeWorkspaceSessionByLane: persistedActiveSessionMap,
+            codingWorkspaceRootPath: codingWorkspaceRootPath,
+            codingWorkspaceFiles: codingWorkspaceFiles,
+            codingSelectedFilePath: codingSelectedFilePath,
+            codingEditorText: codingEditorText,
+            codingEditorIsDirty: codingEditorIsDirty,
+            codingMessages: persistedCodingMessages,
+            codingMemoryRecords: persistedCodingMemoryRecords,
+            codingCommandDraft: codingCommandDraft,
+            codingCommandOutput: codingCommandOutput,
             surveyAdditionalPassesCompleted: surveyAdditionalPassesCompleted,
             surveyExpansionQuestionCounter: surveyExpansionQuestionCounter,
             surveyExpansionActive: surveyExpansionActive,
@@ -4423,6 +5976,15 @@ final class SessionStore: ObservableObject {
                 partial[lane] = next.value
             }
         }
+        codingWorkspaceRootPath = normalizeCodingPath(state.codingWorkspaceRootPath ?? "")
+        codingWorkspaceFiles = state.codingWorkspaceFiles ?? []
+        codingSelectedFilePath = state.codingSelectedFilePath.map(normalizeCodingPath)
+        codingEditorText = state.codingEditorText ?? ""
+        codingEditorIsDirty = state.codingEditorIsDirty ?? false
+        codingMessages = state.codingMessages ?? []
+        codingMemoryRecords = state.codingMemoryRecords ?? []
+        codingCommandDraft = state.codingCommandDraft ?? "git status"
+        codingCommandOutput = state.codingCommandOutput ?? ""
         surveyAdditionalPassesCompleted = state.surveyAdditionalPassesCompleted ?? 0
         surveyExpansionQuestionCounter = state.surveyExpansionQuestionCounter ?? 0
         surveyExpansionActive = state.surveyExpansionActive ?? false
@@ -4476,6 +6038,15 @@ private struct PersistedState: Codable {
     var workspaceSessions: [WorkspaceNotebookSession]?
     var activeWorkspaceLane: String?
     var activeWorkspaceSessionByLane: [String: String]?
+    var codingWorkspaceRootPath: String?
+    var codingWorkspaceFiles: [String]?
+    var codingSelectedFilePath: String?
+    var codingEditorText: String?
+    var codingEditorIsDirty: Bool?
+    var codingMessages: [CodingWorkspaceMessage]?
+    var codingMemoryRecords: [CodingMemoryRecord]?
+    var codingCommandDraft: String?
+    var codingCommandOutput: String?
     var surveyAdditionalPassesCompleted: Int?
     var surveyExpansionQuestionCounter: Int?
     var surveyExpansionActive: Bool?

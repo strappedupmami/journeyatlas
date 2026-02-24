@@ -83,15 +83,14 @@
   const API_BASE = getApiBase();
 
   function buildPostAuthDestination() {
-    const destination = mode === "signin" ? "tool-chat.html" : "tool-survey.html";
-    return destination + "?api_base=" + encodeURIComponent(API_BASE);
+    return "homepage.html";
   }
 
   if (surveyLink) {
-    surveyLink.href = "tool-survey.html?api_base=" + encodeURIComponent(API_BASE);
+    surveyLink.href = "homepage.html";
   }
   if (studioLink) {
-    studioLink.href = "tool-chat.html?api_base=" + encodeURIComponent(API_BASE);
+    studioLink.href = "pricing.html#plans";
   }
 
   function toBase64Url(data) {

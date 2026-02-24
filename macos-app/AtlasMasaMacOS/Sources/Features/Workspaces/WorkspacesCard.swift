@@ -69,6 +69,81 @@ struct WorkspacesCard: View {
             }
 
             AtlasPanel(
+                heading: workspaceStudio.heading,
+                caption: workspaceStudio.caption
+            ) {
+                let studio = workspaceStudio
+
+                Text(studio.positioning)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textSecondary)
+
+                HStack(spacing: 10) {
+                    AtlasPill(title: "CONF \(studio.confidencePercent)%")
+                    AtlasPill(title: "\(studio.signalCount) lane signals")
+                    AtlasPill(title: "\(studio.notebookCount) notebooks")
+                    AtlasPill(title: "Queue \(activeQueueDepth)")
+                }
+
+                Text("Model lane brief")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textPrimary)
+                Text(session.workspaceModelBrief)
+                    .foregroundStyle(AtlasTheme.textSecondary)
+
+                if let plan = session.workspacePlans.first(where: { $0.lane == session.activeWorkspaceLane }) {
+                    Text("Lane objective: \(plan.objective)")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AtlasTheme.textSecondary)
+                    Text("Current target: \(plan.nextActionNow)")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AtlasTheme.textPrimary)
+                }
+
+                ForEach(studio.modules) { module in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(module.title, systemImage: module.symbolName)
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AtlasTheme.textPrimary)
+                        Text(module.purpose)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(AtlasTheme.textSecondary)
+                        Text("Deliverable: \(module.deliverable)")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AtlasTheme.accentWarm)
+
+                        Button("Run \(module.title)") {
+                            session.launchWorkspaceStudioModule(
+                                moduleTitle: module.title,
+                                moduleInstruction: module.instruction
+                            )
+                        }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.black.opacity(0.2))
+                    )
+                }
+
+                HStack(spacing: 10) {
+                    Button("Queue lane executive brief") {
+                        session.launchWorkspaceStudioModule(
+                            moduleTitle: "Executive Lane Brief",
+                            moduleInstruction: studio.executiveBriefInstruction
+                        )
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+
+                    Button("New lane notebook") {
+                        session.createWorkspaceSession(for: session.activeWorkspaceLane)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+
+            AtlasPanel(
                 heading: "Workspace orchestration",
                 caption: "Built from your survey, memory, check-ins, and research-ranked execution streams"
             ) {
@@ -336,6 +411,211 @@ struct WorkspacesCard: View {
             squads: squads
         )
     }
+
+    private var activeQueueDepth: Int {
+        session.promptQueue.filter { $0.status == .queued || $0.status == .running }.count
+    }
+
+    private var workspaceStudio: WorkspaceStudioSnapshot {
+        let lane = session.activeWorkspaceLane
+        let lanePlan = session.workspacePlans.first(where: { $0.lane == lane })
+        let signalCount = session.workspaceMemoryRecords.filter { $0.lane == lane || $0.lane == nil }.count
+        let notebookCount = session.sessions(for: lane).count
+        let confidencePercent = Int(((lanePlan?.confidence ?? 0.58) * 100).rounded())
+
+        switch lane {
+        case .emergencyCommand:
+            return WorkspaceStudioSnapshot(
+                heading: "Emergency Command Studio",
+                caption: "Incident-grade controls for triage, escalation, and continuity",
+                positioning: "Operate with disciplined incident command: stabilize first, route communication, then recover service continuity.",
+                confidencePercent: confidencePercent,
+                signalCount: signalCount,
+                notebookCount: notebookCount,
+                executiveBriefInstruction: "Create an emergency command brief for the next 24 hours with triage priorities, escalation thresholds, continuity actions, and a handoff summary.",
+                modules: [
+                    WorkspaceStudioModule(
+                        symbolName: "cross.case.fill",
+                        title: "Incident Triage Board",
+                        purpose: "Convert active signals into severity tiers and first response actions.",
+                        deliverable: "Severity board with owners, immediate actions, and containment goals.",
+                        instruction: "Build an incident triage board from active workspace signals. Include severity levels, first 30-minute actions, owners, and escalation thresholds."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "person.3.sequence.fill",
+                        title: "Escalation Chain Mapper",
+                        purpose: "Define who gets informed, when, and through which channel under pressure.",
+                        deliverable: "Escalation chain by trigger, role, and communication channel.",
+                        instruction: "Map an escalation chain for this situation. Provide trigger conditions, role assignments, communication channels, and fallback routing if a role is unavailable."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "waveform.path.ecg",
+                        title: "Continuity Recovery Plan",
+                        purpose: "Protect mission-critical operations while services degrade or fail.",
+                        deliverable: "24-hour continuity protocol with restoration checkpoints.",
+                        instruction: "Design a 24-hour continuity and recovery protocol with critical services, fallback paths, timeline checkpoints, and recovery validation steps."
+                    )
+                ]
+            )
+
+        case .wealthOperations:
+            return WorkspaceStudioSnapshot(
+                heading: "Wealth Operations Studio",
+                caption: "Cashflow, pricing, and compounding controls for predictable growth",
+                positioning: "Treat wealth as an operating system: drive direct revenue, defend margin, and compound gains through disciplined review loops.",
+                confidencePercent: confidencePercent,
+                signalCount: signalCount,
+                notebookCount: notebookCount,
+                executiveBriefInstruction: "Create a one-week wealth operations brief with direct revenue actions, pricing tests, risk controls, and daily performance metrics.",
+                modules: [
+                    WorkspaceStudioModule(
+                        symbolName: "dollarsign.circle.fill",
+                        title: "Revenue Sprint Planner",
+                        purpose: "Turn high-level goals into direct money actions for the next 7 days.",
+                        deliverable: "Day-by-day revenue sprint with measurable outputs.",
+                        instruction: "Create a 7-day revenue sprint plan with one direct money action per day, expected output, and a daily review metric."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "chart.line.uptrend.xyaxis",
+                        title: "Pricing and Offer Lab",
+                        purpose: "Improve offer clarity, price points, and close probability.",
+                        deliverable: "Pricing test matrix with hypotheses and next experiment.",
+                        instruction: "Design a pricing and offer test matrix with 3 experiments, hypothesis for each, expected conversion effect, and decision rules."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "shield.lefthalf.filled",
+                        title: "Cashflow Defense Grid",
+                        purpose: "Protect runway and reduce downside when volatility hits.",
+                        deliverable: "Cashflow defense checklist with trigger-based actions.",
+                        instruction: "Build a cashflow defense grid with spend controls, reserve rules, downside triggers, and fallback decisions for the next 30 days."
+                    )
+                ]
+            )
+
+        case .mobilityOps:
+            return WorkspaceStudioSnapshot(
+                heading: "Mobility Operations Studio",
+                caption: "Route reliability, legal safety, and vehicle continuity controls",
+                positioning: "Run mobility like mission-critical infrastructure: route safely, pre-wire backups, and eliminate avoidable downtime.",
+                confidencePercent: confidencePercent,
+                signalCount: signalCount,
+                notebookCount: notebookCount,
+                executiveBriefInstruction: "Create a mobility operations brief with legal route planning, fatigue safeguards, service backups, and continuity checkpoints.",
+                modules: [
+                    WorkspaceStudioModule(
+                        symbolName: "map.fill",
+                        title: "Route and Compliance Planner",
+                        purpose: "Choose resilient routes with legal and overnight constraints baked in.",
+                        deliverable: "Primary and backup routes with legal-safe checkpoints.",
+                        instruction: "Generate a route and compliance plan with primary/backup routes, legal constraints, stop strategy, and decision triggers for rerouting."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "car.side.fill",
+                        title: "Vehicle Continuity Checklist",
+                        purpose: "Reduce field failures with preflight and maintenance rhythm.",
+                        deliverable: "Preflight and service checklist linked to route intensity.",
+                        instruction: "Create a vehicle continuity checklist with preflight checks, maintenance cadence, parts/supplies list, and escalation path for failures."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "exclamationmark.triangle.fill",
+                        title: "Fatigue and Safety Gate",
+                        purpose: "Protect operator judgment quality during long operational days.",
+                        deliverable: "Fatigue thresholds with stop/continue rules and fallback options.",
+                        instruction: "Build a fatigue and safety gate protocol with thresholds, stop-or-continue decision rules, recovery windows, and fallback actions."
+                    )
+                ]
+            )
+
+        case .deepWork:
+            return WorkspaceStudioSnapshot(
+                heading: "Cognitive Performance Studio",
+                caption: "Deep work, cognition, and recovery systems for elite output",
+                positioning: "Protect thinking quality with biological stability, focus architecture, and reflection loops that improve decisions over time.",
+                confidencePercent: confidencePercent,
+                signalCount: signalCount,
+                notebookCount: notebookCount,
+                executiveBriefInstruction: "Create a cognitive performance brief for today with deep-work blocks, cognitive load controls, recovery windows, and decision-quality checks.",
+                modules: [
+                    WorkspaceStudioModule(
+                        symbolName: "brain.head.profile",
+                        title: "Focus Block Composer",
+                        purpose: "Structure high-value work blocks around current energy and blockers.",
+                        deliverable: "Time-block plan with one protected deep-work sprint.",
+                        instruction: "Compose a focus block schedule for today using my current energy and blockers. Include one protected deep-work sprint and pre/post block rituals."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "timer",
+                        title: "Cognitive Load Audit",
+                        purpose: "Identify overload sources and remove friction before execution.",
+                        deliverable: "Load audit with removal actions and attention safeguards.",
+                        instruction: "Run a cognitive load audit. Identify the top overload sources, what to remove/defer, and attention safeguards to maintain decision quality."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "book.closed.fill",
+                        title: "Decision Reflection Loop",
+                        purpose: "Capture lessons from recent decisions to improve future execution.",
+                        deliverable: "Reflection template with one improvement experiment.",
+                        instruction: "Generate a decision reflection loop for today with prompts, one key lesson, and one experiment to improve tomorrow's execution quality."
+                    )
+                ]
+            )
+
+        case .innovation:
+            return WorkspaceStudioSnapshot(
+                heading: "Innovation Systems Studio",
+                caption: "Hypothesis, prototyping, and validation controls for fast safe shipping",
+                positioning: "Ship innovation as a system: explicit hypotheses, constrained prototypes, and rapid validation with reliability gates.",
+                confidencePercent: confidencePercent,
+                signalCount: signalCount,
+                notebookCount: notebookCount,
+                executiveBriefInstruction: "Create an innovation systems brief with hypothesis prioritization, bounded prototyping, validation milestones, and reliability gates.",
+                modules: [
+                    WorkspaceStudioModule(
+                        symbolName: "atom",
+                        title: "Hypothesis Stack Builder",
+                        purpose: "Rank what to test first based on leverage and evidence strength.",
+                        deliverable: "Ranked hypothesis stack with confidence and test scope.",
+                        instruction: "Build a ranked hypothesis stack for current innovation goals. Include confidence, impact potential, and smallest safe test for each hypothesis."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "shippingbox.fill",
+                        title: "Prototype Gate Runner",
+                        purpose: "Move from concept to bounded prototype without uncontrolled risk.",
+                        deliverable: "Prototype plan with scope, constraints, and safety gates.",
+                        instruction: "Design a prototype gate plan from concept to first prototype. Include scope boundaries, reliability gates, and criteria to proceed or pause."
+                    ),
+                    WorkspaceStudioModule(
+                        symbolName: "checklist.checked",
+                        title: "Validation and Launch Matrix",
+                        purpose: "Convert prototype outputs into launch-quality evidence.",
+                        deliverable: "Validation matrix with metrics, thresholds, and launch decision.",
+                        instruction: "Generate a validation and launch matrix with key metrics, pass/fail thresholds, field validation steps, and launch decision criteria."
+                    )
+                ]
+            )
+        }
+    }
+}
+
+private struct WorkspaceStudioSnapshot {
+    let heading: String
+    let caption: String
+    let positioning: String
+    let confidencePercent: Int
+    let signalCount: Int
+    let notebookCount: Int
+    let executiveBriefInstruction: String
+    let modules: [WorkspaceStudioModule]
+}
+
+private struct WorkspaceStudioModule: Identifiable {
+    let symbolName: String
+    let title: String
+    let purpose: String
+    let deliverable: String
+    let instruction: String
+
+    var id: String { title }
 }
 
 private struct CollaborationArchetype {

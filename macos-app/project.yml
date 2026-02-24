@@ -14,16 +14,23 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: AtlasMasaMacOS/Sources
+      - path: AtlasMasaMacOS/AtlasMasaMacOS.icns
+        buildPhase: resources
     info:
       path: AtlasMasaMacOS/Info.plist
       properties:
         CFBundleDisplayName: Atlas/אטלס Desktop
+        CFBundleIconFile: AtlasMasaMacOS
         LSApplicationCategoryType: public.app-category.business
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: AtlasMasaMacOS/AtlasMasaMacOS.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
         PRODUCT_BUNDLE_IDENTIFIER: com.atlasmasa.macos
         DEVELOPMENT_TEAM: BW93SGS88H
   AtlasMasaMacOSTests:

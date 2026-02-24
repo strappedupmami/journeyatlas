@@ -4,8 +4,8 @@ struct RootDashboardView: View {
     private enum Tab: Hashable {
         case concierge
         case execution
+        case code
         case workspaces
-        case mobility
         case more
     }
 
@@ -21,13 +21,13 @@ struct RootDashboardView: View {
                 .tag(Tab.execution)
                 .tabItem { Label("Execution", systemImage: "dollarsign.circle") }
 
+            CodingWorkspaceCard()
+                .tag(Tab.code)
+                .tabItem { Label("Code", systemImage: "chevron.left.forwardslash.chevron.right") }
+
             WorkspacesCard()
                 .tag(Tab.workspaces)
                 .tabItem { Label("Workspaces", systemImage: "wrench.and.screwdriver") }
-
-            MobilityOpsCard()
-                .tag(Tab.mobility)
-                .tabItem { Label("Mobility", systemImage: "car.side.fill") }
 
             MoreMenuCard()
                 .tag(Tab.more)
@@ -44,7 +44,7 @@ private struct MoreMenuCard: View {
         NavigationStack {
             AtlasScreen(
                 title: "More",
-                subtitle: "Account, memory, guide, and billing controls"
+                subtitle: "Account, mobility, guide, and billing controls"
             ) {
                 AtlasPanel(
                     heading: "Profile photo",
@@ -93,6 +93,13 @@ private struct MoreMenuCard: View {
                         NotesCard()
                     } label: {
                         MoreRow(icon: "brain.head.profile", title: "Memory", subtitle: "Long-term personalization signals")
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        MobilityOpsCard()
+                    } label: {
+                        MoreRow(icon: "car.side.fill", title: "Mobility", subtitle: "Van rental and planning alignment")
                     }
                     .buttonStyle(.plain)
 

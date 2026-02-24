@@ -21,8 +21,10 @@
 		6EEBF9E6195B6B0BBFCC8D65 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AEDA4DBA73A4A08C4AE4749 /* APIClient.swift */; };
 		76F04D481CF68BE58AF18CD3 /* PromptQueueCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C62F7ACC25BA48AF08C43F09 /* PromptQueueCard.swift */; };
 		8283E8F4FF3031E795FD5A9D /* ProactiveFeedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465052A26DDD04F7EDBFECDE /* ProactiveFeedCard.swift */; };
+		8E949F72E420073EE03B3827 /* AIGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606AF14FB62334E10CEE744A /* AIGuideCard.swift */; };
 		9D10A98F11702E4D31217BC6 /* AdaptiveSurveyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA8F9C3658DF251A9FACC77 /* AdaptiveSurveyCard.swift */; };
 		A5F3805AD134EB9422571662 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8631F1FF407506DC227EDA6C /* SessionStore.swift */; };
+		A6AAA3C7D9CFE1A584DCCEAA /* AtlasMasaMacOS.icns in Resources */ = {isa = PBXBuildFile; fileRef = DE1C978ED3573F17EBCE6F6D /* AtlasMasaMacOS.icns */; };
 		D1A738641AB896B8672BD6F5 /* SubscriptionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC34004A8E67F5BCAC9DE5D /* SubscriptionCard.swift */; };
 		D6F1B592D61E9572BD59F9D9 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66AE552C360A6F968678AF5F /* AppEnvironment.swift */; };
 		EE30675B53D82B07E851A14D /* JobMarketRadar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D5FA2B3895F9BA19A3F6034 /* JobMarketRadar.swift */; };
@@ -51,6 +53,7 @@
 		465052A26DDD04F7EDBFECDE /* ProactiveFeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveFeedCard.swift; sourceTree = "<group>"; };
 		4B12A51870BD19ABD4449574 /* AtlasResearchPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasResearchPack.swift; sourceTree = "<group>"; };
 		53C22511E6096A3D8FED9BDD /* AtlasTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasTheme.swift; sourceTree = "<group>"; };
+		606AF14FB62334E10CEE744A /* AIGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIGuideCard.swift; sourceTree = "<group>"; };
 		66AE552C360A6F968678AF5F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		701AC8F4232AEDB3C55A73FF /* CommandCenterCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandCenterCard.swift; sourceTree = "<group>"; };
 		8631F1FF407506DC227EDA6C /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
@@ -62,6 +65,7 @@
 		C62F7ACC25BA48AF08C43F09 /* PromptQueueCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptQueueCard.swift; sourceTree = "<group>"; };
 		D34CF08BA1DF4E4687C867B6 /* AtlasResearchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasResearchEngine.swift; sourceTree = "<group>"; };
 		DBA5C0BAC13AFA7A9431BA67 /* WorkspacesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacesCard.swift; sourceTree = "<group>"; };
+		DE1C978ED3573F17EBCE6F6D /* AtlasMasaMacOS.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AtlasMasaMacOS.icns; sourceTree = "<group>"; };
 		DFA8F9C3658DF251A9FACC77 /* AdaptiveSurveyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSurveyCard.swift; sourceTree = "<group>"; };
 		F68D9804EF1A702B79D9C77C /* AtlasMasaMacOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasMasaMacOSApp.swift; sourceTree = "<group>"; };
 		F9E9B68F4A4CF5BC665C3ED4 /* AppleSignInCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCard.swift; sourceTree = "<group>"; };
@@ -86,9 +90,18 @@
 			path = Billing;
 			sourceTree = "<group>";
 		};
+		40449DE8410791415CDBF829 /* Guide */ = {
+			isa = PBXGroup;
+			children = (
+				606AF14FB62334E10CEE744A /* AIGuideCard.swift */,
+			);
+			path = Guide;
+			sourceTree = "<group>";
+		};
 		57F17461D3DC7A35FDFE41F9 = {
 			isa = PBXGroup;
 			children = (
+				65408E1669DFAD555A80798F /* AtlasMasaMacOS */,
 				765C75AD7A39A1DBD53EF450 /* Sources */,
 				F7CD35E9BD0AB85C37A1CDC9 /* Tests */,
 				37D1F2723B1288C0B26AFDC9 /* Products */,
@@ -102,6 +115,7 @@
 				3F2E2F8825099193FE6F0500 /* Billing */,
 				B4B851635477CE9D478302B3 /* Command */,
 				6B938DED3BFCA85950EAB891 /* Feed */,
+				40449DE8410791415CDBF829 /* Guide */,
 				9A3954E44AE963D90B721FBD /* Mobility */,
 				886C3BBCB3731BB35F827DD2 /* Notes */,
 				925C6F4969075F91557509FE /* Queue */,
@@ -110,6 +124,14 @@
 				EC726A7300EBCE8678192187 /* Workspaces */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		65408E1669DFAD555A80798F /* AtlasMasaMacOS */ = {
+			isa = PBXGroup;
+			children = (
+				DE1C978ED3573F17EBCE6F6D /* AtlasMasaMacOS.icns */,
+			);
+			path = AtlasMasaMacOS;
 			sourceTree = "<group>";
 		};
 		6B938DED3BFCA85950EAB891 /* Feed */ = {
@@ -237,6 +259,7 @@
 			buildConfigurationList = 19518170FC9C0BC2E740C963 /* Build configuration list for PBXNativeTarget "AtlasMasaMacOS" */;
 			buildPhases = (
 				D52903C00F77B1AAC5A69FCC /* Sources */,
+				2B90D78E9166FC1ADD4CBB4E /* Resources */,
 			);
 			buildRules = (
 			);
@@ -301,6 +324,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		2B90D78E9166FC1ADD4CBB4E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A6AAA3C7D9CFE1A584DCCEAA /* AtlasMasaMacOS.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		311410CCFC6BB57102FF8643 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -314,6 +348,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8E949F72E420073EE03B3827 /* AIGuideCard.swift in Sources */,
 				6EEBF9E6195B6B0BBFCC8D65 /* APIClient.swift in Sources */,
 				9D10A98F11702E4D31217BC6 /* AdaptiveSurveyCard.swift in Sources */,
 				D6F1B592D61E9572BD59F9D9 /* AppEnvironment.swift in Sources */,
@@ -352,7 +387,7 @@
 		05A391D495EA923D7D85695C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
 				CODE_SIGN_ENTITLEMENTS = AtlasMasaMacOS/AtlasMasaMacOS.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = BW93SGS88H;
@@ -451,7 +486,7 @@
 		CD5A63BC5209B8783EAC5A04 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
 				CODE_SIGN_ENTITLEMENTS = AtlasMasaMacOS/AtlasMasaMacOS.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = BW93SGS88H;

@@ -23,6 +23,9 @@ android {
         buildConfigField("int", "LOCAL_QUEUE_MAX_BATCH_BASE", "8")
         buildConfigField("int", "LOCAL_QUEUE_MAX_RUNTIME_MS_BASE", "8000")
         buildConfigField("boolean", "ENABLE_HIGH_PERF_BURST", "true")
+        buildConfigField("boolean", "LOCAL_LLM_ENABLED", "true")
+        buildConfigField("String", "LOCAL_LLM_ENDPOINT", "\"http://127.0.0.1:8080/v1/chat/completions\"")
+        buildConfigField("String", "LOCAL_LLM_MODEL", "\"atlas-local-3b\"")
     }
 
     flavorDimensions += "audience"

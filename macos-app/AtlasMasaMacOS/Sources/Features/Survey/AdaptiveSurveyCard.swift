@@ -35,6 +35,14 @@ struct AdaptiveSurveyCard: View {
                 .disabled(session.isAdditionalSurveyPassActive)
             }
 
+            AtlasPanel(heading: "Why Atlas asks these questions", caption: "Training and personalization alignment") {
+                Text("The survey trains your personal operating profile: economic blockers, brain-performance conditions, execution habits, and mobility/work constraints. Atlas uses this to generate professional-grade, personalized action streams instead of generic advice.")
+                    .foregroundStyle(AtlasTheme.textSecondary)
+                Text("You can retake additional passes at any time; Atlas will add new depth without repeating answered questions.")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AtlasTheme.accentWarm)
+            }
+
             AtlasPanel(heading: "Current branch", caption: "Every answer changes what comes next") {
                 if let survey = session.survey {
                     if let question = survey.question {

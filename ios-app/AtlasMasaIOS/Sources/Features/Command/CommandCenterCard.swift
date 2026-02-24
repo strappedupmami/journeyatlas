@@ -63,6 +63,14 @@ struct CommandCenterCard: View {
             }
 
             AtlasPanel(
+                heading: "Model Inference Brief",
+                caption: "Always-on local model synthesis for command decisions"
+            ) {
+                Text(session.commandModelBrief)
+                    .foregroundStyle(AtlasTheme.textSecondary)
+            }
+
+            AtlasPanel(
                 heading: "Daily execution check-in",
                 caption: "Set your core horizon signals so the orchestration loop can prioritize correctly"
             ) {

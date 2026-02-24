@@ -11,6 +11,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly DispatcherQueue _dispatcher;
     private readonly AppStateStore _stateStore;
     private readonly LocalReasoningEngine _reasoning;
+    private readonly OnDeviceLlmClient _llmClient;
     private readonly SystemPerformanceProfile _performance;
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private readonly HashSet<string> _activeQueueIds = [];
@@ -152,6 +153,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         _dispatcher = dispatcherQueue;
         _stateStore = new AppStateStore();
         _reasoning = new LocalReasoningEngine();
+        _llmClient = new OnDeviceLlmClient();
         _performance = SystemPerformanceProfile.Detect();
         _surveyQuestions = BuildSurveyQuestions();
 
@@ -186,6 +188,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         HydrateFromEnvelope(loaded);
         AddSystemOutput("Atlas Windows local core booted.");
         AddSystemOutput(PerformanceSummary);
+        AddSystemOutput(_llmClient.StatusLine);
         AddSystemOutput("Prompt queue is resumable and survives app restart.");
         RefreshSurveyCursor();
         await RefreshExecutionAsync();
@@ -515,8 +518,27 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         {
             var prompt = queueRecord.Prompt;
             var notesContext = Notes.Take(4).ToList();
+            LocalReasoningOutput? llmOutput = null;
+            if (_llmClient.Enabled)
+            {
+                await _dispatcher.EnqueueAsync(() =>
+                {
+                    var record = Queue.FirstOrDefault(q => q.Id == queueId);
+                    if (record is null)
+                    {
+                        return;
+                    }
+                    record.Progress = Math.Max(record.Progress, 0.38);
+                    record.CheckpointNote = "Local LLM inference";
+                });
+                llmOutput = await _llmClient.TryReasonAsync(
+                    prompt,
+                    notesContext,
+                    Session,
+                    cancellationToken);
+            }
 
-            var output = await _reasoning.ReasonAsync(
+            var output = llmOutput ?? await _reasoning.ReasonAsync(
                 prompt,
                 notesContext,
                 _performance,
@@ -534,6 +556,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                     });
                 },
                 cancellationToken);
+            var inferenceSource = llmOutput is null ? "windows_local_model" : "windows_local_llm";
 
             await _dispatcher.EnqueueAsync(() =>
             {
@@ -545,7 +568,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 record.Status = PromptQueueStatus.Done;
                 record.Progress = 1.0;
                 record.CompletedAt = DateTimeOffset.UtcNow;
-                record.CheckpointNote = "Completed";
+                record.CheckpointNote = llmOutput is null ? "Completed via deterministic fallback" : "Completed via local LLM";
                 record.OutputSummary = output.Summary;
                 record.NextAction = output.NextAction;
                 record.Confidence = output.Confidence;
@@ -556,13 +579,17 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                     Memory.Insert(0, new MemoryRecord
                     {
                         Type = "queue_output",
-                        Source = "windows_local_model",
+                        Source = inferenceSource,
                         Weight = output.Confidence,
                         Recency = DateTimeOffset.UtcNow,
                         Tags = ["queue", "reasoning"],
                         Value = $"{output.Summary} | {output.NextAction}"
                     });
                     TrimMemory();
+                }
+                if (llmOutput is null && _llmClient.Enabled)
+                {
+                    AddSystemOutput("Local LLM unavailable for this prompt. Deterministic fallback was used.");
                 }
                 AddSystemOutput($"Queue complete: {record.Prompt[..Math.Min(record.Prompt.Length, 72)]}");
             });

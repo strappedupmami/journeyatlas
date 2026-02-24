@@ -34,6 +34,25 @@ Production-target Windows app for Atlas local compute + local storage workflows.
 2. Select `x64` for most modern PCs, or `ARM64` for ARM laptops.
 3. Press `F5`.
 
+## Local LLM bridge (optional, local-first)
+Prompt queue reasoning can use a local OpenAI-compatible endpoint first, then fall back to deterministic local reasoning.
+
+Environment variables:
+- `ATLAS_LOCAL_LLM_ENABLED` (`true` by default)
+- `ATLAS_LOCAL_LLM_ENDPOINT` (default: `http://127.0.0.1:8080/v1/chat/completions`)
+- `ATLAS_LOCAL_LLM_MODEL` (default: `atlas-local-3b`)
+
+Shared runtime launcher:
+
+```bash
+cd /Users/avrohom/Downloads/journeyatlas
+ATLAS_LLM_HF_REPO=unsloth/Qwen2.5-3B-Instruct-GGUF:q4_k_m \
+ATLAS_LLM_MODEL_ALIAS=atlas-local-3b \
+./scripts/start-local-llm-runtime.sh
+```
+
+See `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md` for cross-platform rollout details.
+
 ## Distribution tracks requested
 - `Yosef + Benny` Windows track:
   - publish `x64` `Release`

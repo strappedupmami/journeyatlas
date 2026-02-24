@@ -371,6 +371,42 @@ struct PromptQueueItem: Codable, Identifiable, Hashable {
     var output: LocalReasoningOutput?
 }
 
+enum CodingMessageRole: String, Codable, CaseIterable, Identifiable {
+    case user
+    case assistant
+    case system
+    case command
+
+    var id: String { rawValue }
+}
+
+enum CodingMemoryKind: String, Codable, CaseIterable, Identifiable {
+    case prompt
+    case response
+    case command
+    case fileSnapshot
+    case system
+
+    var id: String { rawValue }
+}
+
+struct CodingWorkspaceMessage: Codable, Identifiable, Hashable {
+    let id: String
+    let role: CodingMessageRole
+    let content: String
+    let createdAtUTC: Date
+    let relatedFilePath: String?
+}
+
+struct CodingMemoryRecord: Codable, Identifiable, Hashable {
+    let id: String
+    let kind: CodingMemoryKind
+    let summary: String
+    let detail: String
+    let relatedFilePath: String?
+    let createdAtUTC: Date
+}
+
 enum AccountTier: String, Codable, CaseIterable, Identifiable {
     case localTrial = "local_trial"
     case cloudPro = "cloud_pro"

@@ -30,6 +30,11 @@ class AtlasRepository private constructor(
     private val dao = AtlasDatabase.get(context).dao()
     private val crypto = DeviceCrypto("persistence_fields")
     private val localReasoningEngine = LocalReasoningEngine()
+    private val onDeviceLlmClient = OnDeviceLlmClient(
+        endpoint = BuildConfig.LOCAL_LLM_ENDPOINT,
+        model = BuildConfig.LOCAL_LLM_MODEL,
+        enabled = BuildConfig.LOCAL_LLM_ENABLED,
+    )
     private val availableCores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
     private val highPerfDevice = availableCores >= 8
 
@@ -60,6 +65,8 @@ class AtlasRepository private constructor(
         val next = current.copy(systemOutput = (current.systemOutput + line).takeLast(80))
         sessionPrefs.saveState(next)
     }
+
+    fun localLlmStatusLine(): String = onDeviceLlmClient.statusLine()
 
     suspend fun refreshHealth() {
         val state = sessionPrefs.observeState().first()
@@ -225,13 +232,22 @@ class AtlasRepository private constructor(
 
         return@withContext runCatching {
             val notes = dao.listRecentNotes(4).map { decryptNoteEntity(it) }
-            val result = localReasoningEngine.reason(decryptedPrompt, notes)
+            val priorSummaries = dao.observeQueue().first()
+                .mapNotNull { decryptOptionalField(it.outputSummary) }
+                .takeLast(8)
+            val llmResult = onDeviceLlmClient.queueReason(
+                prompt = decryptedPrompt,
+                notes = notes,
+                priorSummaries = priorSummaries,
+            )
+            val result = llmResult ?: localReasoningEngine.reason(decryptedPrompt, notes)
+            val inferenceSource = if (llmResult != null) "android_local_llm" else "android_local_model"
             dao.upsertQueueItem(
                 queued.copy(
                     status = PromptQueueStatus.DONE,
                     progress = 1.0,
                     completedAtEpochMs = System.currentTimeMillis(),
-                    checkpointNote = encryptField("Completed"),
+                    checkpointNote = encryptField(if (llmResult != null) "Completed via local LLM" else "Completed via deterministic fallback"),
                     outputSummary = encryptField(result.summary),
                     nextAction = encryptField(result.nextAction),
                     confidence = result.confidence,
@@ -242,7 +258,7 @@ class AtlasRepository private constructor(
                 MemoryEntity(
                     id = UUID.randomUUID().toString(),
                     type = "queue_output",
-                    source = "android_local_model",
+                    source = inferenceSource,
                     weight = result.confidence,
                     recency = System.currentTimeMillis(),
                     tagsCsv = "queue,reasoning",

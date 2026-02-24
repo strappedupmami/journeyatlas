@@ -64,6 +64,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             repository.refreshHealth()
+            repository.addSystemOutput(repository.localLlmStatusLine())
             refreshFeed()
             PromptQueueWorker.enqueueImmediate(getApplication())
             PromptQueueWorker.ensurePeriodic(getApplication())

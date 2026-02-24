@@ -2,6 +2,11 @@ import SwiftUI
 
 struct AppleSignInCard: View {
     @EnvironmentObject private var session: SessionStore
+    @State private var inferenceProviderID = "openai_compatible"
+    @State private var inferenceModel = ""
+    @State private var inferenceEndpoint = ""
+    @State private var inferenceAPIKeyDraft = ""
+    @State private var inferenceSnapshot: SessionStore.InferenceSettingsSnapshot?
 
     var body: some View {
         AtlasScreen(
@@ -96,6 +101,65 @@ struct AppleSignInCard: View {
             }
 
             AtlasPanel(
+                heading: "Model runtime",
+                caption: "Configure local OpenAI-compatible endpoints or Gemini cloud reasoning"
+            ) {
+                Picker("Model provider", selection: $inferenceProviderID) {
+                    ForEach(session.inferenceProviderOptions()) { option in
+                        Text(option.title).tag(option.id)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if let option = session.inferenceProviderOptions().first(where: { $0.id == inferenceProviderID }) {
+                    Text(option.subtitle)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(AtlasTheme.textSecondary)
+                }
+
+                TextField("Model name (for example gemini-2.0-flash)", text: $inferenceModel)
+                    .atlasFieldStyle()
+
+                if inferenceProviderID == "openai_compatible" {
+                    TextField("Endpoint URL", text: $inferenceEndpoint)
+                        .atlasFieldStyle()
+                }
+
+                SecureField("API key (leave blank to keep current key)", text: $inferenceAPIKeyDraft)
+                    .atlasFieldStyle()
+
+                if let snapshot = inferenceSnapshot, snapshot.apiKeyStored {
+                    Text("Stored API key: \(snapshot.apiKeyHint ?? "saved in Keychain")")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(AtlasTheme.accentWarm)
+                }
+
+                HStack(spacing: 10) {
+                    Button("Save runtime config") {
+                        session.saveInferenceSettings(
+                            providerID: inferenceProviderID,
+                            model: inferenceModel,
+                            endpoint: inferenceEndpoint,
+                            newAPIKey: inferenceAPIKeyDraft
+                        )
+                        inferenceAPIKeyDraft = ""
+                        loadInferenceSnapshot()
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Clear API key") {
+                        session.clearInferenceAPIKey()
+                        loadInferenceSnapshot()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+
+                Text(inferenceSnapshot?.statusLine ?? "Inference runtime status unavailable.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textSecondary)
+            }
+
+            AtlasPanel(
                 heading: "How account state drives personalization",
                 caption: "Why this is the entry gate for long-term memory and execution plans"
             ) {
@@ -105,6 +169,9 @@ struct AppleSignInCard: View {
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(AtlasTheme.accentWarm)
             }
+        }
+        .onAppear {
+            loadInferenceSnapshot()
         }
     }
 
@@ -116,6 +183,14 @@ struct AppleSignInCard: View {
                 .foregroundStyle(AtlasTheme.textPrimary)
             Spacer()
         }
+    }
+
+    private func loadInferenceSnapshot() {
+        let snapshot = session.inferenceSettingsSnapshot()
+        inferenceSnapshot = snapshot
+        inferenceProviderID = snapshot.providerID
+        inferenceModel = snapshot.model
+        inferenceEndpoint = snapshot.endpoint
     }
 }
 

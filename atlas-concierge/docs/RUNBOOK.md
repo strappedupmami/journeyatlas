@@ -191,6 +191,16 @@ Session memory uses TTL (24h default) and supports purge via agent method.
    - Set webhook to `https://api.atlasmasa.com/v1/billing/stripe_webhook`.
    - Configure `ATLAS_STRIPE_SECRET_KEY` + `ATLAS_STRIPE_WEBHOOK_SECRET`.
    - In Stripe dashboard, verify domain for Apple Pay.
-4. OpenAI premium runtime:
-   - Set `ATLAS_OPENAI_API_KEY`.
-   - Keep `ATLAS_OPENAI_MODEL=gpt-5.2` and `ATLAS_OPENAI_REASONING_EFFORT=high` (or adjust to available production model).
+4. Cloud AI runtime (OpenAI + Google DeepMind Gemini):
+   - OpenAI:
+     - `ATLAS_OPENAI_API_KEY`
+     - `ATLAS_OPENAI_MODEL` (default: `gpt-5.2`)
+     - `ATLAS_OPENAI_REASONING_EFFORT` (default: `high`)
+   - Gemini (Google DeepMind):
+     - `ATLAS_GEMINI_API_KEY` (aliases also accepted: `ATLAS_GOOGLE_DEEPMIND_API_KEY`, `ATLAS_GOOGLE_AI_API_KEY`)
+     - `ATLAS_GEMINI_MODEL` (default: `gemini-2.0-flash`)
+     - `ATLAS_GEMINI_TEMPERATURE` (default: `0.18`)
+     - `ATLAS_GEMINI_MAX_OUTPUT_TOKENS` (default: `2048`)
+   - Provider routing:
+     - `ATLAS_AI_PROVIDER_PREFERENCE=auto|openai|gemini` (alias: `ATLAS_PREMIUM_AI_PROVIDER`)
+     - `auto` uses configured providers with fallback if the first provider fails.
