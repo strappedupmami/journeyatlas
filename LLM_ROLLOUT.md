@@ -1,56 +1,77 @@
-# LLM Rollout (Local-First Across All Apps)
+# LLM Rollout Source Of Truth (Cross-Chat Fast Read)
 
-## Goal
-Ship high-quality AI output now with a pretrained local LLM, while building an original Atlas model in parallel over time.
+Last updated: 2026-02-26
 
-## Runtime Contract
-All apps are wired to call an OpenAI-compatible local endpoint first, then fall back to deterministic local reasoning.
+## Mission
+Ship real frontier-quality AI in Atlas apps for underserved users with low-friction access, local resilience, and no template-generated fake output.
 
-- Endpoint expected: `http://127.0.0.1:8080/v1/chat/completions`
-- Default model alias: `atlas-local-3b`
-- Security rule: plain `http` is accepted only for `localhost` or `127.0.0.1` (otherwise use `https`).
+## Non-Negotiables
+- No non-AI templated/mock responses in user-facing generation paths.
+- Every response must use current prompt + prior memory + survey/user context when available.
+- Podcast mode is audio-first and must not silently degrade into text scripts.
+- If internet is unavailable, queue waits and shows reconnect status (no cancel/fail loop by default).
 
-## Start Local Runtime
-Use the shared launcher:
+## Production Routing Policy
+### Text/chat reasoning (all apps)
+- Primary provider/model: Gemini `gemini-3-flash-preview`.
+- Fallback only on failure: OpenAI `gpt-5.2`.
+- Fallback is failover, not dual synthesis, unless explicitly designed for a specific feature.
 
-```bash
-cd /Users/avrohom/Downloads/journeyatlas
-ATLAS_LLM_HF_REPO=unsloth/Qwen2.5-3B-Instruct-GGUF:q4_k_m \
-ATLAS_LLM_MODEL_ALIAS=atlas-local-3b \
-./scripts/start-local-llm-runtime.sh
-```
+### Podcast pipeline (2-model)
+- Stage A (script/planning): Gemini `gemini-3-flash-preview` (fallback `gpt-5.2`).
+- Stage B (audio render): Gemini `gemini-2.5-pro-preview-tts`.
+- Podcast output contract: audio artifact + metadata, no text-only fake podcast fallback.
 
-Or point to a local GGUF file:
+## Official Gemini API Compliance (Must Follow)
+### Gemini 3 guide rules
+- Endpoint pattern: `POST /v1beta/models/{model}:generateContent`.
+- Use `generationConfig.thinkingConfig.thinkingLevel` for Gemini 3 behavior control.
+- Do not send `thinkingLevel` and legacy `thinkingBudget` together in one request (400 error).
+- Gemini 3 is preview; pin model IDs explicitly and monitor release notes.
 
-```bash
-ATLAS_LLM_MODEL_PATH=/absolute/path/to/model.gguf \
-ATLAS_LLM_MODEL_ALIAS=atlas-local-3b \
-./scripts/start-local-llm-runtime.sh
-```
+### Thought signature rule (Gemini 3/2.5 thinking models)
+- When function calling returns `thoughtSignature`, pass it back exactly in subsequent turn history.
+- Missing required signatures during Gemini 3 function-calling turns can produce 4xx validation errors.
 
-## Platform Config
-### iOS + macOS
-`UserDefaults` keys:
-- `atlas.local.llm.enabled` (`true` default)
-- `atlas.local.llm.endpoint` (`http://127.0.0.1:8080/v1/chat/completions` default)
-- `atlas.local.llm.model` (`atlas-local-3b` default)
+### Gemini 2.5 Pro TTS rules
+- Model: `gemini-2.5-pro-preview-tts`.
+- Inputs: text only. Outputs: audio only.
+- Set `generationConfig.responseModalities` to `["AUDIO"]`.
+- Set `generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName` (or multi-speaker config).
+- Audio bytes come from `candidates[0].content.parts[0].inlineData.data` (base64).
+- Multi-speaker supported up to 2 speakers.
+- Capability limits: no function calling, no structured outputs, no thinking, no URL context for TTS model.
 
-### Android
-`BuildConfig` fields in `app/build.gradle.kts`:
-- `LOCAL_LLM_ENABLED`
-- `LOCAL_LLM_ENDPOINT`
-- `LOCAL_LLM_MODEL`
+## Memory And Personalization Contract
+- Both Stage A and Stage B prompts must include:
+  - user prompt/request
+  - survey signals
+  - relevant memory and notes
+  - workspace/concierge context
+- Quiz, command, and execution outputs must inherit learned lessons and memory signals.
 
-### Windows
-Environment variables:
-- `ATLAS_LOCAL_LLM_ENABLED` (`true` default)
-- `ATLAS_LOCAL_LLM_ENDPOINT` (`http://127.0.0.1:8080/v1/chat/completions` default)
-- `ATLAS_LOCAL_LLM_MODEL` (`atlas-local-3b` default)
+## UX Contract (iOS + Android)
+- Concierge and Workspaces are chat-first, modern, minimal interfaces.
+- Queueing is inside chat flow, not a separate standalone queue window.
+- While generation is in-flight and user sends another prompt, offer exactly:
+  - `Steer`
+  - `Queue`
+- Keep extra explanatory text out of core screens; move secondary detail behind compact controls/menus.
 
-## Prompt Behavior Requirement
-Local LLM prompt building must always include:
-- user prompt
-- short memory snapshot (notes/history/session context)
-- explicit JSON output schema
+## Reliability Contract
+- Queue processor is durable and restart-safe.
+- On connectivity loss: show waiting/reconnect state and resume automatically when network returns.
+- Provider/model errors must be explicit and actionable in logs and UI.
 
-This keeps output unique, grounded, and actionable while preserving deterministic fallback safety.
+## Official References
+- Gemini 3 Developer Guide: https://ai.google.dev/gemini-api/docs/gemini-3
+- Gemini Thinking: https://ai.google.dev/gemini-api/docs/thinking
+- Gemini Thought Signatures: https://ai.google.dev/gemini-api/docs/thought-signatures
+- Gemini TTS Guide: https://ai.google.dev/gemini-api/docs/speech-generation
+- Gemini 2.5 Pro TTS model page: https://ai.google.dev/gemini-api/docs/models/gemini-2.5-pro-preview-tts
+- Gemini models catalog: https://ai.google.dev/gemini-api/docs/models
+
+## New Chat Bootstrap
+Use this starter line in new chats:
+
+`Read /Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md first, then /Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md and /Users/avrohom/Downloads/journeyatlas/CHAT_CONTINUITY.md, then continue implementation under those contracts.`

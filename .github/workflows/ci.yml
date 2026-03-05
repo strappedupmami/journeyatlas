@@ -38,6 +38,9 @@ jobs:
       - name: Verify dependency bot PR scope
         run: ./scripts/verify-dependency-pr-scope.sh
 
+      - name: Verify product copy quality
+        run: ./scripts/verify-product-copy-quality.sh
+
   rust-ci:
     name: rust-ci
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false

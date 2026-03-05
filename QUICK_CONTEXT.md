@@ -38,6 +38,14 @@ We will:
 - Use real product feedback to decide where fine-tuning is worth the cost.
 - Respect compute/data/time limits and prioritize practical gains.
 
+## Critical Podcast Pipeline (Must Persist Across Chats)
+- Atlas podcast generation is a strict 2-model pipeline:
+  - Stage 1 (script/planning): `gemini-3-flash-preview` primary, `gpt-5.2` fallback.
+  - Stage 2 (audio rendering): `gemini-2.5-pro-preview-tts`.
+- Stage 1 must use prompt + memory + survey/profile context.
+- Stage 2 must output real audio bytes (no text-only mock podcast output).
+- If TTS stage fails, surface explicit failure state; do not silently replace with templated text.
+
 ## Engineering Rules for Future Sessions
 - Prioritize end-to-end shipping over abstract planning.
 - Keep local mode fast and stable on weaker devices.
@@ -47,5 +55,16 @@ We will:
 ## Re-Use Prompt for New Chats
 Use this at the start of a new chat:
 
-"Read `/Users/avrohom/Downloads/journeyatlas/QUICK_CONTEXT.md` and continue from that context."
+"Read `/Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`, `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md`, `/Users/avrohom/Downloads/journeyatlas/QUICK_CONTEXT.md`, and `/Users/avrohom/Downloads/journeyatlas/CHAT_CONTINUITY.md` first, then continue implementation under those contracts."
 
+## Continuity Rule
+- `CHAT_CONTINUITY.md` is the always-updated cross-chat session log.
+- At the end of each meaningful session, update it with:
+  - date,
+  - decisions made,
+  - files changed,
+  - build/test commands run,
+  - exact pass/fail outcomes,
+  - concrete failure blockers + environment caveats,
+  - open blockers,
+  - immediate next actions.

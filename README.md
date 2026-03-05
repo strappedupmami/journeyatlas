@@ -33,10 +33,17 @@ Hebrew-first RTL website built with Next.js + TypeScript.
 
 ## Quality checks
 ```bash
+# website
 npm run lint
 npm run typecheck
 npm run build
+
+# full repo quality gate
+./scripts/quality-gate.sh
 ```
+
+## Operations
+- Slow load incident monitoring runbook: `docs/engineering/SLOW_LOAD_MONITORING.md`
 
 ## Staging indexing policy
 - Default is `NEXT_PUBLIC_SITE_INDEXABLE=false`
