@@ -137,12 +137,18 @@ Set these in Railway service variables for the API service:
 - `ATLAS_STRIPE_SUCCESS_URL=https://atlasmasa.com/concierge-local.html?billing=success`
 - `ATLAS_STRIPE_CANCEL_URL=https://atlasmasa.com/concierge-local.html?billing=cancel`
 - `ATLAS_STRIPE_RETURN_URL=https://atlasmasa.com/concierge-local.html?billing=portal`
-- `ATLAS_SUBSCRIPTION_BYPASS_EMAILS=ceo@atlasmasa.com`
+- `ATLAS_SUBSCRIPTION_BYPASS_EMAILS=ceo@atlasmasa.com,avrohomsk@gmail.com,b8kttqqd7c@privaterelay.appleid.com`
 
 ### AI runtime
 - `ATLAS_OPENAI_API_KEY=<openai key>`
 - `ATLAS_OPENAI_MODEL=gpt-5.2`
 - `ATLAS_OPENAI_REASONING_EFFORT=high`
+- `ATLAS_GEMINI_API_KEY=<gemini key>` (or `ATLAS_GOOGLE_DEEPMIND_API_KEY`)
+- `ATLAS_GEMINI_MODEL=gemini-3-flash-preview`
+- `ATLAS_GEMINI_TEMPERATURE=1.0` (Gemini 3 recommendation)
+- `ATLAS_GEMINI_MAX_OUTPUT_TOKENS=2048`
+- `ATLAS_GEMINI_THINKING_LEVEL=medium` (optional: `low|medium|high`)
+- `ATLAS_AI_PROVIDER_PREFERENCE=auto`
 
 ## Dashboard actions you must complete
 

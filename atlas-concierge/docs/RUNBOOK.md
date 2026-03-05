@@ -59,6 +59,47 @@ curl -X POST http://localhost:8080/v1/plan_trip \
   -d '{"style":"beach","days":3,"locale":"he","constraints":[]}'
 ```
 
+Execution checklist task controls:
+
+```bash
+curl -X POST http://localhost:8080/v1/execution/task/toggle \
+  -H "content-type: application/json" \
+  -H "x-api-key: dev-atlas-key" \
+  -d '{"task_id":"next_action_now","completed":true,"collapsed":true}'
+```
+
+```bash
+curl -X POST http://localhost:8080/v1/execution/task/respond \
+  -H "content-type: application/json" \
+  -H "x-api-key: dev-atlas-key" \
+  -d '{"task_id":"next_action_now","completed_parts":"sent first outreach batch","incomplete_parts":"follow-ups pending","note":"need shorter message template","completed":false}'
+```
+
+Shopify profit-share report (agentic-attributed cut):
+
+```bash
+curl -X POST http://localhost:8080/v1/business/shopify/profit_share/report \
+  -H "content-type: application/json" \
+  -H "x-api-key: dev-atlas-key" \
+  -b cookies.txt \
+  -d '{
+    "shopify_profit_cents": 1250000,
+    "baseline_profit_cents": 800000,
+    "agentic_attribution_ratio": 0.85,
+    "app_take_rate_bps": 2000,
+    "currency": "USD",
+    "source": "agentic_growth_manager"
+  }'
+```
+
+Shopify profit-share summary:
+
+```bash
+curl "http://localhost:8080/v1/business/shopify/profit_share/summary?currency=USD" \
+  -b cookies.txt \
+  -H "x-api-key: dev-atlas-key"
+```
+
 Legacy local cookie login example (debug only):
 
 ```bash
@@ -191,16 +232,21 @@ Session memory uses TTL (24h default) and supports purge via agent method.
    - Set webhook to `https://api.atlasmasa.com/v1/billing/stripe_webhook`.
    - Configure `ATLAS_STRIPE_SECRET_KEY` + `ATLAS_STRIPE_WEBHOOK_SECRET`.
    - In Stripe dashboard, verify domain for Apple Pay.
-4. Cloud AI runtime (OpenAI + Google DeepMind Gemini):
+4. Shopify agentic profit share:
+   - Set `ATLAS_SHOPIFY_PROFIT_SHARE_BPS` (basis points, e.g. `2000` = 20%).
+   - Report Shopify outcomes through `POST /v1/business/shopify/profit_share/report`.
+   - Review totals through `GET /v1/business/shopify/profit_share/summary`.
+5. Cloud AI runtime (OpenAI + Google DeepMind Gemini):
    - OpenAI:
      - `ATLAS_OPENAI_API_KEY`
      - `ATLAS_OPENAI_MODEL` (default: `gpt-5.2`)
      - `ATLAS_OPENAI_REASONING_EFFORT` (default: `high`)
    - Gemini (Google DeepMind):
      - `ATLAS_GEMINI_API_KEY` (aliases also accepted: `ATLAS_GOOGLE_DEEPMIND_API_KEY`, `ATLAS_GOOGLE_AI_API_KEY`)
-     - `ATLAS_GEMINI_MODEL` (default: `gemini-2.0-flash`)
-     - `ATLAS_GEMINI_TEMPERATURE` (default: `0.18`)
+     - `ATLAS_GEMINI_MODEL` (default: `gemini-3-flash-preview`)
+     - `ATLAS_GEMINI_TEMPERATURE` (default: `1.0` for Gemini 3 models, `0.18` for earlier models)
      - `ATLAS_GEMINI_MAX_OUTPUT_TOKENS` (default: `2048`)
+     - `ATLAS_GEMINI_THINKING_LEVEL` (optional: `low|medium|high`)
    - Provider routing:
      - `ATLAS_AI_PROVIDER_PREFERENCE=auto|openai|gemini` (alias: `ATLAS_PREMIUM_AI_PROVIDER`)
      - `auto` uses configured providers with fallback if the first provider fails.

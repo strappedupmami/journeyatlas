@@ -64,8 +64,16 @@ const MAX_SHORTCUTS_URL_LEN: usize = 1_900;
 const MAX_FEEDBACK_MESSAGE_LEN: usize = 2_000;
 const MAX_FEEDBACK_TAGS: usize = 20;
 const MAX_FEEDBACK_TAG_LEN: usize = 40;
+const MAX_SHOPIFY_SOURCE_LEN: usize = 80;
+const MAX_SHOPIFY_NOTES_LEN: usize = 1_600;
+const MAX_SHOPIFY_REPORTS_PER_USER: usize = 10_000;
+const MAX_SHOPIFY_SUMMARY_LIMIT: usize = 200;
+const MAX_SHOPIFY_PROFIT_CENTS_ABS: i64 = 100_000_000_000_000;
+const DEFAULT_SHOPIFY_PROFIT_SHARE_BPS: u32 = 2_000;
 const DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS: u64 = 300;
-const DEFAULT_SUBSCRIPTION_BYPASS_EMAILS: &str = "ceo@atlasmasa.com";
+const DEFAULT_SUBSCRIPTION_BYPASS_EMAILS: &str =
+    "ceo@atlasmasa.com,avrohomsk@gmail.com,b8kttqqd7c@privaterelay.appleid.com";
+const FREE_USAGE_TRIAL_DAYS: i64 = 0;
 
 #[derive(Clone)]
 #[allow(private_interfaces)]
@@ -86,6 +94,8 @@ pub struct ApiState {
     pub user_memories: Arc<RwLock<HashMap<String, Vec<MemoryRecord>>>>,
     pub execution_checkins: Arc<RwLock<HashMap<String, Vec<ExecutionCheckinRecord>>>>,
     pub execution_controls: Arc<RwLock<HashMap<String, ExecutionControlsRecord>>>,
+    pub execution_task_states:
+        Arc<RwLock<HashMap<String, HashMap<String, ExecutionTaskStateRecord>>>>,
     pub oauth_states: Arc<RwLock<HashMap<String, OAuthStateRecord>>>,
     pub google_oauth: Option<GoogleOAuthConfig>,
     pub apple_oauth: Option<AppleOAuthConfig>,
@@ -97,6 +107,8 @@ pub struct ApiState {
     pub passkey_registrations: Arc<RwLock<HashMap<String, PasskeyRegistrationStateRecord>>>,
     pub passkey_authentications: Arc<RwLock<HashMap<String, PasskeyAuthenticationStateRecord>>>,
     pub passkeys_by_user: Arc<RwLock<HashMap<String, Vec<PasskeyRecord>>>>,
+    pub shopify_profit_share_reports: Arc<RwLock<HashMap<String, Vec<ShopifyProfitShareRecord>>>>,
+    pub shopify_default_profit_share_bps: u32,
     pub allowed_origins: Arc<Vec<String>>,
     pub company_status: CompanyStatusRecord,
     pub session_ttl: Duration,
@@ -144,6 +156,7 @@ struct HealthCapabilities {
 struct OpenAiRuntimeConfig {
     api_key: String,
     model: String,
+    coding_backend_model: String,
     default_reasoning_effort: String,
 }
 
@@ -151,8 +164,10 @@ struct OpenAiRuntimeConfig {
 struct GeminiRuntimeConfig {
     api_key: String,
     model: String,
+    frontend_design_model: String,
     temperature: f32,
     max_output_tokens: u32,
+    thinking_level: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -173,6 +188,38 @@ impl CloudAiBackend {
         match self {
             Self::OpenAi => "openai_responses",
             Self::Gemini => "google_gemini",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CodeAgentRoute {
+    FrontendDesign,
+    BackendOps,
+}
+
+impl CodeAgentRoute {
+    fn from_raw(raw: &str) -> Option<Self> {
+        match raw.trim().to_lowercase().as_str() {
+            "frontend_design" | "frontend" | "design_frontend" => Some(Self::FrontendDesign),
+            "backend_ops" | "backend_operations" | "backend" | "troubleshooting" => {
+                Some(Self::BackendOps)
+            }
+            _ => None,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::FrontendDesign => "frontend_design",
+            Self::BackendOps => "backend_ops",
+        }
+    }
+
+    fn preferred_backends(self) -> [CloudAiBackend; 2] {
+        match self {
+            Self::FrontendDesign => [CloudAiBackend::Gemini, CloudAiBackend::OpenAi],
+            Self::BackendOps => [CloudAiBackend::OpenAi, CloudAiBackend::Gemini],
         }
     }
 }
@@ -269,6 +316,7 @@ struct ChatRequest {
     response_depth: Option<String>,
     response_tone: Option<String>,
     include_proactive: Option<bool>,
+    code_agent_route: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -353,6 +401,7 @@ struct ProactiveFeedItem {
     why_now: String,
     priority: String,
     actions: Vec<atlas_core::SuggestedAction>,
+    checklist_state: Option<ExecutionTaskChecklistState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -425,6 +474,57 @@ struct ExecutionTaskCandidate {
     confidence: f32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ExecutionTaskResponseRecord {
+    response_id: String,
+    task_id: String,
+    completed_parts: Option<String>,
+    incomplete_parts: Option<String>,
+    note: Option<String>,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ExecutionTaskStateRecord {
+    task_id: String,
+    completed: bool,
+    collapsed: bool,
+    completion_count: u32,
+    updated_at: String,
+    latest_response: Option<ExecutionTaskResponseRecord>,
+    responses: Vec<ExecutionTaskResponseRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ExecutionTaskChecklistState {
+    completed: bool,
+    collapsed: bool,
+    completion_count: u32,
+    updated_at: String,
+    latest_response: Option<ExecutionTaskResponseRecord>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ExecutionTaskToggleRequest {
+    user_id: Option<String>,
+    task_id: String,
+    completed: bool,
+    collapsed: Option<bool>,
+    locale: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ExecutionTaskResponseSubmitRequest {
+    user_id: Option<String>,
+    task_id: String,
+    completed_parts: Option<String>,
+    incomplete_parts: Option<String>,
+    note: Option<String>,
+    completed: Option<bool>,
+    collapsed: Option<bool>,
+    locale: Option<String>,
+}
+
 struct ExecutionFeedContext<'a> {
     company_status: &'a CompanyStatusRecord,
     user: &'a UserRecord,
@@ -434,6 +534,7 @@ struct ExecutionFeedContext<'a> {
     controls: &'a ExecutionControlsRecord,
     memories: &'a [MemoryRetrievedItem],
     latest_checkin: Option<&'a ExecutionCheckinRecord>,
+    task_states: &'a HashMap<String, ExecutionTaskStateRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -557,6 +658,71 @@ struct BillingStatusRecord {
     updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ShopifyProfitShareRecord {
+    report_id: String,
+    user_id: String,
+    currency: String,
+    period_start_utc: Option<String>,
+    period_end_utc: Option<String>,
+    source: String,
+    notes: Option<String>,
+    shopify_profit_cents: i64,
+    baseline_profit_cents: i64,
+    uplift_profit_cents: i64,
+    agentic_attribution_ratio: f64,
+    agentic_attributed_profit_cents: i64,
+    app_take_rate_bps: u32,
+    app_cut_cents: i64,
+    merchant_kept_cents: i64,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ShopifyProfitShareUpsertRequest {
+    user_id: Option<String>,
+    currency: Option<String>,
+    period_start_utc: Option<String>,
+    period_end_utc: Option<String>,
+    source: Option<String>,
+    notes: Option<String>,
+    shopify_profit_cents: i64,
+    baseline_profit_cents: Option<i64>,
+    agentic_attribution_ratio: Option<f64>,
+    agentic_attributed_profit_cents: Option<i64>,
+    app_take_rate_bps: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ShopifyProfitShareSummaryQuery {
+    user_id: Option<String>,
+    currency: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ShopifyProfitShareSummaryResponse {
+    currency: String,
+    default_app_take_rate_bps: u32,
+    report_count: usize,
+    total_shopify_profit_cents: i64,
+    total_agentic_attributed_profit_cents: i64,
+    total_app_cut_cents: i64,
+    total_merchant_kept_cents: i64,
+    latest_report_at: Option<String>,
+    reports: Vec<ShopifyProfitShareRecord>,
+}
+
+#[derive(Debug, Clone)]
+struct ShopifyProfitShareComputation {
+    baseline_profit_cents: i64,
+    uplift_profit_cents: i64,
+    agentic_attribution_ratio: f64,
+    agentic_attributed_profit_cents: i64,
+    app_cut_cents: i64,
+    merchant_kept_cents: i64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct SubscriptionAccessRecord {
     bypass: bool,
@@ -564,6 +730,12 @@ struct SubscriptionAccessRecord {
     tier: String,
     cloud_compute_enabled: bool,
     cloud_storage_enabled: bool,
+    pricing_model: String,
+    free_trial_days_total: i64,
+    free_trial_days_remaining: i64,
+    free_trial_active: bool,
+    free_trial_ends_at: String,
+    usage_billing_active: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -772,7 +944,9 @@ struct PersistedState {
     user_memories: HashMap<String, Vec<MemoryRecord>>,
     execution_checkins: HashMap<String, Vec<ExecutionCheckinRecord>>,
     execution_controls: HashMap<String, ExecutionControlsRecord>,
+    execution_task_states: HashMap<String, HashMap<String, ExecutionTaskStateRecord>>,
     passkeys_by_user: HashMap<String, Vec<PasskeyRecord>>,
+    shopify_profit_share_reports: HashMap<String, Vec<ShopifyProfitShareRecord>>,
 }
 
 pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
@@ -860,6 +1034,11 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
     let ai_provider_preference = build_cloud_ai_provider_preference();
     let billing_runtime = build_billing_runtime_config();
     let webauthn_runtime = build_webauthn_runtime();
+    let shopify_default_profit_share_bps = env::var("ATLAS_SHOPIFY_PROFIT_SHARE_BPS")
+        .ok()
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .map(|value| value.min(10_000))
+        .unwrap_or(DEFAULT_SHOPIFY_PROFIT_SHARE_BPS);
 
     let state = ApiState {
         agent,
@@ -882,6 +1061,7 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         user_memories: Arc::new(RwLock::new(persisted_state.user_memories)),
         execution_checkins: Arc::new(RwLock::new(persisted_state.execution_checkins)),
         execution_controls: Arc::new(RwLock::new(persisted_state.execution_controls)),
+        execution_task_states: Arc::new(RwLock::new(persisted_state.execution_task_states)),
         oauth_states: Arc::new(RwLock::new(HashMap::new())),
         google_oauth,
         apple_oauth,
@@ -893,6 +1073,10 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         passkey_registrations: Arc::new(RwLock::new(HashMap::new())),
         passkey_authentications: Arc::new(RwLock::new(HashMap::new())),
         passkeys_by_user: Arc::new(RwLock::new(persisted_state.passkeys_by_user)),
+        shopify_profit_share_reports: Arc::new(RwLock::new(
+            persisted_state.shopify_profit_share_reports,
+        )),
+        shopify_default_profit_share_bps,
         allowed_origins: Arc::new(allowed_origins),
         company_status: default_company_status(),
         session_ttl,
@@ -952,6 +1136,14 @@ pub fn build_router(state: ApiState) -> Router {
         )
         .route("/v1/billing/stripe_webhook", post(billing_stripe_webhook))
         .route(
+            "/v1/business/shopify/profit_share/report",
+            post(shopify_profit_share_report),
+        )
+        .route(
+            "/v1/business/shopify/profit_share/summary",
+            get(shopify_profit_share_summary),
+        )
+        .route(
             "/v1/studio/preferences",
             get(studio_preferences_get).post(studio_preferences_upsert),
         )
@@ -960,6 +1152,8 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/v1/feed/proactive", get(feed_proactive))
         .route("/v1/execution/checkin", post(execution_checkin_submit))
         .route("/v1/execution/refresh", post(execution_refresh))
+        .route("/v1/execution/task/toggle", post(execution_task_toggle))
+        .route("/v1/execution/task/respond", post(execution_task_respond))
         .route(
             "/v1/execution/controls",
             get(execution_controls_get).post(execution_controls_upsert),
@@ -2229,6 +2423,10 @@ async fn chat(
     }
     let request_user_id = request.user_id.clone();
     let include_proactive = request.include_proactive.unwrap_or(true);
+    let code_agent_route = request
+        .code_agent_route
+        .as_deref()
+        .and_then(CodeAgentRoute::from_raw);
     if let Some(user_id) = session_user
         .as_ref()
         .map(|user| user.user_id.clone())
@@ -2298,6 +2496,7 @@ async fn chat(
                     .cloned()
                     .unwrap_or_default();
                 let execution_controls = get_execution_controls(&state, &user.user_id);
+                let execution_task_states = get_execution_task_states(&state, &user.user_id);
                 let latest_checkin = latest_execution_checkin(&state, &user.user_id);
                 let memory_context = retrieve_user_memory_context(
                     &state,
@@ -2362,6 +2561,7 @@ async fn chat(
                                     controls: &execution_controls,
                                     memories: memory_context.as_slice(),
                                     latest_checkin: latest_checkin.as_ref(),
+                                    task_states: &execution_task_states,
                                 }
                             )),
                         );
@@ -2423,10 +2623,8 @@ async fn chat(
             if let Some(payload_obj) = response.json_payload.as_object_mut() {
                 let reason = if cloud_compute_enabled {
                     "enabled"
-                } else if subscription_access.is_some() {
-                    "subscription_required_for_cloud_compute"
                 } else {
-                    "sign_in_required_for_cloud_compute"
+                    "prepaid_credits_required"
                 };
                 payload_obj.insert(
                     "cloud_compute".to_string(),
@@ -2437,6 +2635,7 @@ async fn chat(
                             .as_ref()
                             .map(|item| item.cloud_storage_enabled)
                             .unwrap_or(false),
+                        "memory_persistence": "account_persistent",
                     }),
                 );
                 if let Some(subscription) = subscription_access.as_ref() {
@@ -2444,7 +2643,7 @@ async fn chat(
                 }
             }
 
-            let configured_cloud_backends = configured_cloud_ai_backends(&state);
+            let configured_cloud_backends = configured_cloud_ai_backends(&state, code_agent_route);
 
             if !configured_cloud_backends.is_empty() && cloud_compute_enabled {
                 let survey_state = premium_user
@@ -2485,6 +2684,7 @@ async fn chat(
                                 &notes,
                                 memory_context.as_slice(),
                                 response.reply_text.as_str(),
+                                code_agent_route,
                             )
                             .await
                         }
@@ -2497,6 +2697,7 @@ async fn chat(
                                 &notes,
                                 memory_context.as_slice(),
                                 response.reply_text.as_str(),
+                                code_agent_route,
                             )
                             .await
                         }
@@ -2518,9 +2719,16 @@ async fn chat(
                         payload_obj.insert(
                             "ai_model".to_string(),
                             serde_json::json!(
-                                cloud_ai_model_name(&state, backend).unwrap_or_default()
+                                cloud_ai_model_name_for_route(&state, backend, code_agent_route)
+                                    .unwrap_or_default()
                             ),
                         );
+                        if let Some(route) = code_agent_route {
+                            payload_obj.insert(
+                                "code_agent_route".to_string(),
+                                serde_json::json!(route.as_str()),
+                            );
+                        }
                     }
                 }
             } else if !configured_cloud_backends.is_empty() {
@@ -2710,28 +2918,40 @@ async fn subscription_access_for_user(
     state: &ApiState,
     user: &UserRecord,
 ) -> SubscriptionAccessRecord {
+    let now = chrono::Utc::now();
+    let trial_ends_at = now;
+    let free_trial_active = false;
+    let free_trial_days_remaining = 0;
+
     let bypass = is_subscription_bypass_email(user.email.as_str());
-    let active_subscription = if bypass {
+    let has_paid_subscription = if bypass {
         true
     } else {
         user_has_active_subscription(state, user.user_id.as_str())
             .await
             .unwrap_or(false)
     };
+
     let tier = if bypass {
         "owner_bypass"
-    } else if active_subscription {
-        "subscriber"
+    } else if has_paid_subscription {
+        "billing_enabled"
     } else {
-        "standard"
+        "paywall_locked"
     };
 
     SubscriptionAccessRecord {
         bypass,
-        active: active_subscription,
+        active: bypass || has_paid_subscription,
         tier: tier.to_string(),
-        cloud_compute_enabled: bypass || active_subscription,
-        cloud_storage_enabled: bypass || active_subscription,
+        cloud_compute_enabled: bypass || has_paid_subscription,
+        cloud_storage_enabled: true,
+        pricing_model: "payment_method_required_no_debt".to_string(),
+        free_trial_days_total: FREE_USAGE_TRIAL_DAYS,
+        free_trial_days_remaining,
+        free_trial_active,
+        free_trial_ends_at: trial_ends_at.to_rfc3339(),
+        usage_billing_active: bypass || has_paid_subscription,
     }
 }
 
@@ -3609,6 +3829,200 @@ async fn billing_stripe_webhook(
     StatusCode::OK.into_response()
 }
 
+async fn shopify_profit_share_report(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<ShopifyProfitShareUpsertRequest>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, input.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let period_start = match parse_optional_utc_timestamp(input.period_start_utc.as_deref()) {
+        Ok(value) => value,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "invalid_period_start_utc",
+                    "message": message
+                })),
+            )
+                .into_response();
+        }
+    };
+    let period_end = match parse_optional_utc_timestamp(input.period_end_utc.as_deref()) {
+        Ok(value) => value,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "invalid_period_end_utc",
+                    "message": message
+                })),
+            )
+                .into_response();
+        }
+    };
+    if let (Some(start), Some(end)) = (period_start, period_end) {
+        if end < start {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "invalid_period_range",
+                    "message": "period_end_utc must be greater than or equal to period_start_utc"
+                })),
+            )
+                .into_response();
+        }
+    }
+
+    let shopify_profit_cents = sanitize_money_cents(input.shopify_profit_cents);
+    let baseline_profit_cents = sanitize_money_cents(input.baseline_profit_cents.unwrap_or(0));
+    let agentic_attribution_ratio = sanitize_ratio(input.agentic_attribution_ratio);
+    let app_take_rate_bps = input
+        .app_take_rate_bps
+        .unwrap_or(state.shopify_default_profit_share_bps)
+        .min(10_000);
+    let computation = compute_shopify_profit_share(
+        shopify_profit_cents,
+        baseline_profit_cents,
+        agentic_attribution_ratio,
+        input.agentic_attributed_profit_cents,
+        app_take_rate_bps,
+    );
+
+    let currency = sanitize_currency_code(input.currency.as_deref());
+    let source = input
+        .source
+        .as_deref()
+        .map(|value| sanitize_limited_text(value, MAX_SHOPIFY_SOURCE_LEN))
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "agentic_shopify_manager".to_string());
+    let notes = input
+        .notes
+        .as_deref()
+        .map(|value| sanitize_limited_text(value, MAX_SHOPIFY_NOTES_LEN))
+        .filter(|value| !value.trim().is_empty());
+
+    let report = ShopifyProfitShareRecord {
+        report_id: uuid::Uuid::new_v4().to_string(),
+        user_id: user_id.clone(),
+        currency: currency.clone(),
+        period_start_utc: period_start.map(|value| value.to_rfc3339()),
+        period_end_utc: period_end.map(|value| value.to_rfc3339()),
+        source,
+        notes,
+        shopify_profit_cents,
+        baseline_profit_cents: computation.baseline_profit_cents,
+        uplift_profit_cents: computation.uplift_profit_cents,
+        agentic_attribution_ratio: computation.agentic_attribution_ratio,
+        agentic_attributed_profit_cents: computation.agentic_attributed_profit_cents,
+        app_take_rate_bps,
+        app_cut_cents: computation.app_cut_cents,
+        merchant_kept_cents: computation.merchant_kept_cents,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+
+    {
+        let mut reports_by_user = state.shopify_profit_share_reports.write();
+        let reports = reports_by_user.entry(user_id.clone()).or_default();
+        reports.push(report.clone());
+        if reports.len() > MAX_SHOPIFY_REPORTS_PER_USER {
+            let overflow = reports.len() - MAX_SHOPIFY_REPORTS_PER_USER;
+            reports.drain(0..overflow);
+        }
+    }
+    let _ = persist_shopify_profit_share_reports_if_configured(&state, user_id.as_str()).await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "report": report,
+            "message": "Shopify profit share report recorded"
+        })),
+    )
+        .into_response()
+}
+
+async fn shopify_profit_share_summary(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Query(query): Query<ShopifyProfitShareSummaryQuery>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, query.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let currency = sanitize_currency_code(query.currency.as_deref());
+    let limit = query
+        .limit
+        .unwrap_or(30)
+        .clamp(1, MAX_SHOPIFY_SUMMARY_LIMIT);
+    let mut filtered = state
+        .shopify_profit_share_reports
+        .read()
+        .get(&user_id)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|report| report.currency == currency)
+        .collect::<Vec<_>>();
+    filtered.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+    let totals = filtered.iter().fold(
+        (0_i64, 0_i64, 0_i64, 0_i64),
+        |(total_profit, total_agentic, total_app_cut, total_kept), report| {
+            (
+                total_profit.saturating_add(report.shopify_profit_cents),
+                total_agentic.saturating_add(report.agentic_attributed_profit_cents),
+                total_app_cut.saturating_add(report.app_cut_cents),
+                total_kept.saturating_add(report.merchant_kept_cents),
+            )
+        },
+    );
+    let latest_report_at = filtered.first().map(|report| report.created_at.clone());
+    let report_count = filtered.len();
+    let reports = filtered.into_iter().take(limit).collect::<Vec<_>>();
+
+    (
+        StatusCode::OK,
+        Json(ShopifyProfitShareSummaryResponse {
+            currency,
+            default_app_take_rate_bps: state.shopify_default_profit_share_bps,
+            report_count,
+            total_shopify_profit_cents: totals.0,
+            total_agentic_attributed_profit_cents: totals.1,
+            total_app_cut_cents: totals.2,
+            total_merchant_kept_cents: totals.3,
+            latest_report_at,
+            reports,
+        }),
+    )
+        .into_response()
+}
+
 async fn studio_preferences_get(
     State(state): State<ApiState>,
     headers: HeaderMap,
@@ -4022,6 +4436,274 @@ async fn execution_refresh(
     let request_locale = resolve_request_locale(&state, &user_id, input.locale.as_deref());
     let response = build_proactive_feed_response(&state, user_id.as_str(), request_locale.as_str());
     (StatusCode::OK, Json(response)).into_response()
+}
+
+async fn execution_task_toggle(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<ExecutionTaskToggleRequest>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, input.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+    let task_id = sanitize_limited_text(input.task_id.trim(), 120);
+    if task_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "invalid_task_id",
+                "message": "task_id is required"
+            })),
+        )
+            .into_response();
+    }
+
+    let now = chrono::Utc::now();
+    let updated = {
+        let mut map = state.execution_task_states.write();
+        let user_states = map.entry(user_id.clone()).or_default();
+        let mut record =
+            user_states
+                .get(task_id.as_str())
+                .cloned()
+                .unwrap_or(ExecutionTaskStateRecord {
+                    task_id: task_id.clone(),
+                    completed: false,
+                    collapsed: false,
+                    completion_count: 0,
+                    updated_at: now.to_rfc3339(),
+                    latest_response: None,
+                    responses: Vec::new(),
+                });
+        if !record.completed && input.completed {
+            record.completion_count = record.completion_count.saturating_add(1);
+        }
+        record.completed = input.completed;
+        record.collapsed = input.collapsed.unwrap_or(input.completed);
+        record.updated_at = now.to_rfc3339();
+        user_states.insert(task_id.clone(), record.clone());
+        record
+    };
+    let _ = persist_execution_task_states_if_configured(&state, user_id.as_str()).await;
+
+    let _ = ingest_memory_event_for_user(
+        &state,
+        user_id.as_str(),
+        MemoryIngestEvent {
+            memory_type: "task".to_string(),
+            stability: "transient".to_string(),
+            source: "task_feedback".to_string(),
+            text: format!(
+                "Task {} marked {}",
+                task_id,
+                if updated.completed {
+                    "completed"
+                } else {
+                    "incomplete"
+                }
+            ),
+            weight: 0.78,
+            tags: vec![
+                "execution_task".to_string(),
+                if updated.completed {
+                    "completed".to_string()
+                } else {
+                    "reopened".to_string()
+                },
+            ],
+            happened_at: Some(now),
+            expires_at: Some(now + chrono::Duration::days(14)),
+        },
+    )
+    .await;
+
+    let request_locale = resolve_request_locale(&state, &user_id, input.locale.as_deref());
+    let feed = build_proactive_feed_response(&state, user_id.as_str(), request_locale.as_str());
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "task_state": updated,
+            "feed": feed
+        })),
+    )
+        .into_response()
+}
+
+async fn execution_task_respond(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<ExecutionTaskResponseSubmitRequest>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, input.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+    let task_id = sanitize_limited_text(input.task_id.trim(), 120);
+    if task_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "invalid_task_id",
+                "message": "task_id is required"
+            })),
+        )
+            .into_response();
+    }
+    let completed_parts = input
+        .completed_parts
+        .as_ref()
+        .map(|value| sanitize_limited_text(value.trim(), MAX_MEMORY_TEXT_LEN))
+        .filter(|value| !value.is_empty());
+    let incomplete_parts = input
+        .incomplete_parts
+        .as_ref()
+        .map(|value| sanitize_limited_text(value.trim(), MAX_MEMORY_TEXT_LEN))
+        .filter(|value| !value.is_empty());
+    let note = input
+        .note
+        .as_ref()
+        .map(|value| sanitize_limited_text(value.trim(), MAX_MEMORY_TEXT_LEN))
+        .filter(|value| !value.is_empty());
+
+    if completed_parts.is_none()
+        && incomplete_parts.is_none()
+        && note.is_none()
+        && input.completed.is_none()
+        && input.collapsed.is_none()
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "empty_response",
+                "message": "provide completed_parts, incomplete_parts, note, or task state changes"
+            })),
+        )
+            .into_response();
+    }
+
+    let now = chrono::Utc::now();
+    let response_record =
+        if completed_parts.is_some() || incomplete_parts.is_some() || note.is_some() {
+            Some(ExecutionTaskResponseRecord {
+                response_id: uuid::Uuid::new_v4().to_string(),
+                task_id: task_id.clone(),
+                completed_parts: completed_parts.clone(),
+                incomplete_parts: incomplete_parts.clone(),
+                note: note.clone(),
+                created_at: now.to_rfc3339(),
+            })
+        } else {
+            None
+        };
+
+    let updated = {
+        let mut map = state.execution_task_states.write();
+        let user_states = map.entry(user_id.clone()).or_default();
+        let mut record =
+            user_states
+                .get(task_id.as_str())
+                .cloned()
+                .unwrap_or(ExecutionTaskStateRecord {
+                    task_id: task_id.clone(),
+                    completed: false,
+                    collapsed: false,
+                    completion_count: 0,
+                    updated_at: now.to_rfc3339(),
+                    latest_response: None,
+                    responses: Vec::new(),
+                });
+
+        if let Some(response) = response_record.clone() {
+            record.latest_response = Some(response.clone());
+            record.responses.insert(0, response);
+            record.responses.truncate(24);
+        }
+
+        let inferred_completed =
+            completed_parts.is_some() && incomplete_parts.is_none() && input.completed.is_none();
+        let next_completed = input.completed.unwrap_or(if inferred_completed {
+            true
+        } else {
+            record.completed
+        });
+        if !record.completed && next_completed {
+            record.completion_count = record.completion_count.saturating_add(1);
+        }
+        record.completed = next_completed;
+        record.collapsed = input.collapsed.unwrap_or(next_completed);
+        record.updated_at = now.to_rfc3339();
+        user_states.insert(task_id.clone(), record.clone());
+        record
+    };
+    let _ = persist_execution_task_states_if_configured(&state, user_id.as_str()).await;
+
+    if response_record.is_some() {
+        let _ = ingest_memory_event_for_user(
+            &state,
+            user_id.as_str(),
+            MemoryIngestEvent {
+                memory_type: "task".to_string(),
+                stability: "transient".to_string(),
+                source: "task_feedback".to_string(),
+                text: format!(
+                    "Task feedback for {} | done: {} | not done: {} | note: {}",
+                    task_id,
+                    completed_parts
+                        .clone()
+                        .unwrap_or_else(|| "none".to_string()),
+                    incomplete_parts
+                        .clone()
+                        .unwrap_or_else(|| "none".to_string()),
+                    note.clone().unwrap_or_else(|| "none".to_string())
+                ),
+                weight: 0.9,
+                tags: vec![
+                    "execution_task".to_string(),
+                    "task_feedback".to_string(),
+                    if updated.completed {
+                        "completed".to_string()
+                    } else {
+                        "in_progress".to_string()
+                    },
+                ],
+                happened_at: Some(now),
+                expires_at: Some(now + chrono::Duration::days(30)),
+            },
+        )
+        .await;
+    }
+
+    let request_locale = resolve_request_locale(&state, &user_id, input.locale.as_deref());
+    let feed = build_proactive_feed_response(&state, user_id.as_str(), request_locale.as_str());
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "task_state": updated,
+            "feed": feed
+        })),
+    )
+        .into_response()
 }
 
 async fn execution_controls_get(
@@ -4811,10 +5493,7 @@ async fn api_key_middleware(
         return next.run(request).await;
     }
 
-    // Browser requests can skip x-api-key only when:
-    // 1) origin is first-party allowlisted, and
-    // 2) a valid session cookie already resolves to a user.
-    // This blocks spoofed anonymous Origin headers from bypassing service-key checks.
+    // Browser/app requests can skip x-api-key only for first-party allowlisted origins.
     if !request_origin_is_allowed(&state, request.headers()) {
         return (
             StatusCode::UNAUTHORIZED,
@@ -4844,17 +5523,22 @@ async fn api_key_middleware(
         let compute_ok = !needs_cloud_compute || subscription.cloud_compute_enabled;
         if !storage_ok || !compute_ok {
             let reason = if needs_cloud_storage && needs_cloud_compute {
-                "cloud_storage_and_compute_require_subscription"
+                "prepaid_credits_required"
             } else if needs_cloud_storage {
                 "cloud_storage_requires_subscription"
             } else {
-                "cloud_compute_requires_subscription"
+                "prepaid_credits_required"
+            };
+            let message = if needs_cloud_compute {
+                "Prepaid credits are required before using this AI command feature."
+            } else {
+                "Add a payment method before using this cloud feature."
             };
             return (
                 StatusCode::PAYMENT_REQUIRED,
                 Json(serde_json::json!({
                     "error": reason,
-                    "message": "This cloud feature is available on the paid subscription plan.",
+                    "message": message,
                     "subscription": subscription
                 })),
             )
@@ -5020,6 +5704,82 @@ fn resolve_request_locale(state: &ApiState, user_id: &str, requested: Option<&st
             sanitize_enum_value(user.locale.as_str(), &["he", "en", "ar", "ru", "fr"], "en")
         })
         .unwrap_or_else(|| "en".to_string())
+}
+
+fn sanitize_money_cents(value: i64) -> i64 {
+    value.clamp(-MAX_SHOPIFY_PROFIT_CENTS_ABS, MAX_SHOPIFY_PROFIT_CENTS_ABS)
+}
+
+fn sanitize_ratio(value: Option<f64>) -> f64 {
+    value
+        .filter(|candidate| candidate.is_finite())
+        .map(|candidate| candidate.clamp(0.0, 1.0))
+        .unwrap_or(1.0)
+}
+
+fn sanitize_currency_code(value: Option<&str>) -> String {
+    let normalized = value
+        .unwrap_or("USD")
+        .trim()
+        .to_ascii_uppercase()
+        .chars()
+        .filter(|char| char.is_ascii_alphabetic())
+        .collect::<String>();
+    if normalized.len() == 3 {
+        normalized
+    } else {
+        "USD".to_string()
+    }
+}
+
+fn parse_optional_utc_timestamp(
+    value: Option<&str>,
+) -> std::result::Result<Option<chrono::DateTime<chrono::Utc>>, &'static str> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let parsed = chrono::DateTime::parse_from_rfc3339(trimmed)
+        .map_err(|_| "timestamp must be RFC3339 format (example: 2026-03-03T10:30:00Z)")?;
+    Ok(Some(parsed.with_timezone(&chrono::Utc)))
+}
+
+fn compute_shopify_profit_share(
+    shopify_profit_cents: i64,
+    baseline_profit_cents: i64,
+    agentic_attribution_ratio: f64,
+    explicit_agentic_attributed_profit_cents: Option<i64>,
+    app_take_rate_bps: u32,
+) -> ShopifyProfitShareComputation {
+    let normalized_profit = sanitize_money_cents(shopify_profit_cents);
+    let normalized_baseline = sanitize_money_cents(baseline_profit_cents);
+    let ratio = sanitize_ratio(Some(agentic_attribution_ratio));
+    let uplift_profit_cents = (normalized_profit - normalized_baseline).max(0);
+    let max_attributable_profit = normalized_profit.max(0);
+
+    let agentic_attributed_profit_cents = explicit_agentic_attributed_profit_cents
+        .map(sanitize_money_cents)
+        .map(|value| value.max(0))
+        .unwrap_or_else(|| ((uplift_profit_cents as f64) * ratio).round() as i64)
+        .clamp(0, max_attributable_profit);
+    let effective_bps = app_take_rate_bps.min(10_000);
+    let app_cut_cents = (((agentic_attributed_profit_cents as i128) * (effective_bps as i128))
+        + 5_000_i128)
+        / 10_000_i128;
+    let app_cut_cents = app_cut_cents.clamp(i64::MIN as i128, i64::MAX as i128) as i64;
+    let merchant_kept_cents = normalized_profit.saturating_sub(app_cut_cents);
+
+    ShopifyProfitShareComputation {
+        baseline_profit_cents: normalized_baseline,
+        uplift_profit_cents,
+        agentic_attribution_ratio: ratio,
+        agentic_attributed_profit_cents,
+        app_cut_cents,
+        merchant_kept_cents,
+    }
 }
 
 fn survey_elapsed_minutes(state: &SurveyStateRecord) -> Option<u32> {
@@ -5316,6 +6076,7 @@ fn build_proactive_feed_response(
         .cloned()
         .unwrap_or_default();
     let controls = get_execution_controls(state, user_id);
+    let task_states = get_execution_task_states(state, user_id);
     let latest_checkin = latest_execution_checkin(state, user_id);
     let memories = retrieve_user_memory_context(state, user_id, "", 20);
     let elapsed_minutes = survey_state
@@ -5351,6 +6112,7 @@ fn build_proactive_feed_response(
             controls: &controls,
             memories: memories.as_slice(),
             latest_checkin: latest_checkin.as_ref(),
+            task_states: &task_states,
         })
     } else {
         Vec::new()
@@ -5384,6 +6146,18 @@ fn get_execution_controls(state: &ApiState, user_id: &str) -> ExecutionControlsR
         .get(user_id)
         .cloned()
         .unwrap_or_else(|| default_execution_controls(user_id))
+}
+
+fn get_execution_task_states(
+    state: &ApiState,
+    user_id: &str,
+) -> HashMap<String, ExecutionTaskStateRecord> {
+    state
+        .execution_task_states
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn latest_execution_checkin(state: &ApiState, user_id: &str) -> Option<ExecutionCheckinRecord> {
@@ -5585,7 +6359,15 @@ fn extract_memory_tasks(
     for memory in memories.iter().take(12) {
         if !matches!(
             memory.source.as_str(),
-            "chat" | "survey" | "feedback" | "note" | "note_rewrite" | "manual"
+            "chat"
+                | "survey"
+                | "feedback"
+                | "note"
+                | "note_rewrite"
+                | "manual"
+                | "workspace"
+                | "workspace_chat"
+                | "task_feedback"
         ) {
             continue;
         }
@@ -5827,6 +6609,71 @@ fn prioritize_execution_tasks(tasks: Vec<ExecutionTaskCandidate>) -> Vec<Executi
     ranked
 }
 
+fn task_checklist_state_for_item(
+    task_states: &HashMap<String, ExecutionTaskStateRecord>,
+    item_id: &str,
+) -> Option<ExecutionTaskChecklistState> {
+    let record = task_states.get(item_id)?;
+    Some(ExecutionTaskChecklistState {
+        completed: record.completed,
+        collapsed: record.collapsed,
+        completion_count: record.completion_count,
+        updated_at: record.updated_at.clone(),
+        latest_response: record.latest_response.clone(),
+    })
+}
+
+fn response_adjustment_line(
+    locale: &str,
+    latest_response: Option<&ExecutionTaskResponseRecord>,
+) -> Option<String> {
+    let response = latest_response?;
+    let done = response
+        .completed_parts
+        .as_deref()
+        .map(|value| sanitize_limited_text(value, 120))
+        .filter(|value| !value.is_empty());
+    let pending = response
+        .incomplete_parts
+        .as_deref()
+        .map(|value| sanitize_limited_text(value, 120))
+        .filter(|value| !value.is_empty());
+    let note = response
+        .note
+        .as_deref()
+        .map(|value| sanitize_limited_text(value, 120))
+        .filter(|value| !value.is_empty());
+    if done.is_none() && pending.is_none() && note.is_none() {
+        return None;
+    }
+
+    if locale == "he" {
+        let mut parts = Vec::new();
+        if let Some(value) = done {
+            parts.push(format!("בוצע: {}", value));
+        }
+        if let Some(value) = pending {
+            parts.push(format!("לא בוצע עדיין: {}", value));
+        }
+        if let Some(value) = note {
+            parts.push(format!("הערה: {}", value));
+        }
+        Some(format!("עדכון ביצוע: {}", parts.join(" | ")))
+    } else {
+        let mut parts = Vec::new();
+        if let Some(value) = done {
+            parts.push(format!("Done: {}", value));
+        }
+        if let Some(value) = pending {
+            parts.push(format!("Not done yet: {}", value));
+        }
+        if let Some(value) = note {
+            parts.push(format!("Note: {}", value));
+        }
+        Some(format!("Execution update: {}", parts.join(" | ")))
+    }
+}
+
 fn build_orchestrated_proactive_feed(context: &ExecutionFeedContext<'_>) -> Vec<ProactiveFeedItem> {
     let reminder_app = context
         .prefs
@@ -5898,6 +6745,13 @@ fn build_orchestrated_proactive_feed(context: &ExecutionFeedContext<'_>) -> Vec<
                 }),
             });
         }
+        let checklist_state = task_checklist_state_for_item(context.task_states, "next_action_now");
+        let adjustment_line = response_adjustment_line(
+            context.user.locale.as_str(),
+            checklist_state
+                .as_ref()
+                .and_then(|state| state.latest_response.as_ref()),
+        );
         items.push(ProactiveFeedItem {
             id: "next_action_now".to_string(),
             title: if context.user.locale == "he" {
@@ -5905,7 +6759,11 @@ fn build_orchestrated_proactive_feed(context: &ExecutionFeedContext<'_>) -> Vec<
             } else {
                 "Next action now".to_string()
             },
-            summary: format!("{} — {}", top.title, top.detail),
+            summary: if let Some(adjustment_line) = adjustment_line.clone() {
+                format!("{} — {}\n{}", top.title, top.detail, adjustment_line)
+            } else {
+                format!("{} — {}", top.title, top.detail)
+            },
             why_now: if context.user.locale == "he" {
                 format!("מקור: {} | אופק: {}", top.source, top.horizon)
             } else {
@@ -5913,6 +6771,7 @@ fn build_orchestrated_proactive_feed(context: &ExecutionFeedContext<'_>) -> Vec<
             },
             priority: "critical".to_string(),
             actions,
+            checklist_state,
         });
     }
 
@@ -5975,10 +6834,22 @@ fn build_orchestrated_proactive_feed(context: &ExecutionFeedContext<'_>) -> Vec<
                 payload: serde_json::json!({}),
             });
         }
+        let checklist_state =
+            task_checklist_state_for_item(context.task_states, task.task_id.as_str());
+        let adjustment_line = response_adjustment_line(
+            context.user.locale.as_str(),
+            checklist_state
+                .as_ref()
+                .and_then(|state| state.latest_response.as_ref()),
+        );
         items.push(ProactiveFeedItem {
             id: task.task_id.clone(),
             title: task.title.clone(),
-            summary: task.detail.clone(),
+            summary: if let Some(adjustment_line) = adjustment_line {
+                format!("{}\n{}", task.detail, adjustment_line)
+            } else {
+                task.detail.clone()
+            },
             why_now: if context.user.locale == "he" {
                 format!("אופק {} | סדר עדיפויות מחושב", task.horizon)
             } else {
@@ -5990,10 +6861,13 @@ fn build_orchestrated_proactive_feed(context: &ExecutionFeedContext<'_>) -> Vec<
                 "normal".to_string()
             },
             actions,
+            checklist_state,
         });
     }
 
     if context.controls.include_company_awareness {
+        let checklist_state =
+            task_checklist_state_for_item(context.task_states, "company_planning_awareness");
         items.push(ProactiveFeedItem {
             id: "company_planning_awareness".to_string(),
             title: if context.user.locale == "he" {
@@ -6025,6 +6899,7 @@ fn build_orchestrated_proactive_feed(context: &ExecutionFeedContext<'_>) -> Vec<
                 },
                 payload: serde_json::json!({}),
             }],
+            checklist_state,
         });
     }
 
@@ -7047,12 +7922,15 @@ fn build_apple_oauth_config() -> Option<AppleOAuthConfig> {
 fn build_openai_runtime_config() -> Option<OpenAiRuntimeConfig> {
     let api_key = env::var("ATLAS_OPENAI_API_KEY").ok()?;
     let model = env::var("ATLAS_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.2".to_string());
+    let coding_backend_model =
+        env::var("ATLAS_OPENAI_CODING_MODEL").unwrap_or_else(|_| "gpt-5.3-codex".to_string());
     let default_reasoning_effort =
         env::var("ATLAS_OPENAI_REASONING_EFFORT").unwrap_or_else(|_| "high".to_string());
 
     Some(OpenAiRuntimeConfig {
         api_key,
         model,
+        coding_backend_model,
         default_reasoning_effort,
     })
 }
@@ -7065,23 +7943,37 @@ fn build_gemini_runtime_config() -> Option<GeminiRuntimeConfig> {
     let model = env::var("ATLAS_GEMINI_MODEL")
         .ok()
         .or_else(|| env::var("ATLAS_GOOGLE_DEEPMIND_MODEL").ok())
-        .unwrap_or_else(|| "gemini-2.0-flash".to_string());
+        .unwrap_or_else(|| "gemini-3-flash-preview".to_string());
+    let frontend_design_model =
+        env::var("ATLAS_GEMINI_FRONTEND_MODEL").unwrap_or_else(|_| "gemini-3.1-pro".to_string());
+    let normalized_model = model.trim().trim_start_matches("models/").to_lowercase();
+    let default_temperature = if normalized_model.starts_with("gemini-3") {
+        1.0
+    } else {
+        0.18
+    };
     let temperature = env::var("ATLAS_GEMINI_TEMPERATURE")
         .ok()
         .and_then(|value| value.trim().parse::<f32>().ok())
-        .map(|value| value.clamp(0.0, 1.0))
-        .unwrap_or(0.18);
+        .map(|value| value.clamp(0.0, 2.0))
+        .unwrap_or(default_temperature);
     let max_output_tokens = env::var("ATLAS_GEMINI_MAX_OUTPUT_TOKENS")
         .ok()
         .and_then(|value| value.trim().parse::<u32>().ok())
-        .map(|value| value.clamp(256, 8_192))
+        .map(|value| value.clamp(256, 65_536))
         .unwrap_or(2_048);
+    let thinking_level = env::var("ATLAS_GEMINI_THINKING_LEVEL")
+        .ok()
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| matches!(value.as_str(), "low" | "medium" | "high"));
 
     Some(GeminiRuntimeConfig {
         api_key,
         model,
+        frontend_design_model,
         temperature,
         max_output_tokens,
+        thinking_level,
     })
 }
 
@@ -7089,7 +7981,7 @@ fn build_cloud_ai_provider_preference() -> CloudAiProviderPreference {
     let raw = env::var("ATLAS_AI_PROVIDER_PREFERENCE")
         .ok()
         .or_else(|| env::var("ATLAS_PREMIUM_AI_PROVIDER").ok())
-        .unwrap_or_else(|| "auto".to_string());
+        .unwrap_or_else(|| "gemini_first".to_string());
     match raw.trim().to_lowercase().as_str() {
         "openai" | "openai_first" => CloudAiProviderPreference::OpenAiFirst,
         "gemini" | "gemini_first" | "google" | "google_deepmind" => {
@@ -7099,19 +7991,30 @@ fn build_cloud_ai_provider_preference() -> CloudAiProviderPreference {
     }
 }
 
-fn configured_cloud_ai_backends(state: &ApiState) -> Vec<CloudAiBackend> {
+fn configured_cloud_ai_backends(
+    state: &ApiState,
+    code_agent_route: Option<CodeAgentRoute>,
+) -> Vec<CloudAiBackend> {
     let openai_ready = state.openai_runtime.is_some();
     let gemini_ready = state.gemini_runtime.is_some();
     let mut backends = Vec::with_capacity(2);
 
-    let preferred_order = match state.ai_provider_preference {
-        CloudAiProviderPreference::OpenAiFirst => [CloudAiBackend::OpenAi, CloudAiBackend::Gemini],
-        CloudAiProviderPreference::GeminiFirst => [CloudAiBackend::Gemini, CloudAiBackend::OpenAi],
-        CloudAiProviderPreference::Auto => {
-            if gemini_ready && !openai_ready {
-                [CloudAiBackend::Gemini, CloudAiBackend::OpenAi]
-            } else {
+    let preferred_order = if let Some(route) = code_agent_route {
+        route.preferred_backends()
+    } else {
+        match state.ai_provider_preference {
+            CloudAiProviderPreference::OpenAiFirst => {
                 [CloudAiBackend::OpenAi, CloudAiBackend::Gemini]
+            }
+            CloudAiProviderPreference::GeminiFirst => {
+                [CloudAiBackend::Gemini, CloudAiBackend::OpenAi]
+            }
+            CloudAiProviderPreference::Auto => {
+                if gemini_ready && !openai_ready {
+                    [CloudAiBackend::Gemini, CloudAiBackend::OpenAi]
+                } else {
+                    [CloudAiBackend::OpenAi, CloudAiBackend::Gemini]
+                }
             }
         }
     };
@@ -7127,10 +8030,20 @@ fn configured_cloud_ai_backends(state: &ApiState) -> Vec<CloudAiBackend> {
     backends
 }
 
-fn cloud_ai_model_name(state: &ApiState, backend: CloudAiBackend) -> Option<String> {
+fn cloud_ai_model_name_for_route(
+    state: &ApiState,
+    backend: CloudAiBackend,
+    code_agent_route: Option<CodeAgentRoute>,
+) -> Option<String> {
     match backend {
-        CloudAiBackend::OpenAi => state.openai_runtime.as_ref().map(|cfg| cfg.model.clone()),
-        CloudAiBackend::Gemini => state.gemini_runtime.as_ref().map(|cfg| cfg.model.clone()),
+        CloudAiBackend::OpenAi => state.openai_runtime.as_ref().map(|cfg| match code_agent_route {
+            Some(CodeAgentRoute::BackendOps) => cfg.coding_backend_model.clone(),
+            _ => cfg.model.clone(),
+        }),
+        CloudAiBackend::Gemini => state.gemini_runtime.as_ref().map(|cfg| match code_agent_route {
+            Some(CodeAgentRoute::FrontendDesign) => cfg.frontend_design_model.clone(),
+            _ => cfg.model.clone(),
+        }),
     }
 }
 
@@ -7333,6 +8246,8 @@ fn cloud_requirements_for_endpoint(path: &str) -> (bool, bool) {
             | "/v1/feed/proactive"
             | "/v1/execution/checkin"
             | "/v1/execution/refresh"
+            | "/v1/execution/task/toggle"
+            | "/v1/execution/task/respond"
             | "/v1/execution/controls"
             | "/v1/feedback/submit"
             | "/v1/actions/reminder"
@@ -7488,6 +8403,19 @@ async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {
 
     sqlx::query(
         r#"
+        CREATE TABLE IF NOT EXISTS execution_task_states (
+          user_id TEXT NOT NULL,
+          task_id TEXT NOT NULL,
+          data_json TEXT NOT NULL,
+          PRIMARY KEY (user_id, task_id)
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS passkeys (
           passkey_id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
@@ -7507,6 +8435,18 @@ async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {
           status TEXT NOT NULL,
           current_period_end TEXT,
           updated_at TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS shopify_profit_share_reports (
+          report_id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          data_json TEXT NOT NULL
         );
         "#,
     )
@@ -7653,6 +8593,20 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
         }
     }
 
+    let task_states = sqlx::query("SELECT user_id, task_id, data_json FROM execution_task_states")
+        .fetch_all(pool)
+        .await?;
+    for row in task_states {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<ExecutionTaskStateRecord>(&json) {
+            state
+                .execution_task_states
+                .entry(row.get("user_id"))
+                .or_default()
+                .insert(row.get("task_id"), value);
+        }
+    }
+
     let passkeys = sqlx::query("SELECT user_id, data_json FROM passkeys")
         .fetch_all(pool)
         .await?;
@@ -7661,6 +8615,21 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
         if let Ok(value) = serde_json::from_str::<PasskeyRecord>(&json) {
             state
                 .passkeys_by_user
+                .entry(row.get("user_id"))
+                .or_default()
+                .push(value);
+        }
+    }
+
+    let shopify_reports =
+        sqlx::query("SELECT user_id, data_json FROM shopify_profit_share_reports")
+            .fetch_all(pool)
+            .await?;
+    for row in shopify_reports {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<ShopifyProfitShareRecord>(&json) {
+            state
+                .shopify_profit_share_reports
                 .entry(row.get("user_id"))
                 .or_default()
                 .push(value);
@@ -7884,6 +8853,37 @@ async fn persist_execution_controls_if_configured(state: &ApiState, user_id: &st
     Ok(())
 }
 
+async fn persist_execution_task_states_if_configured(
+    state: &ApiState,
+    user_id: &str,
+) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    sqlx::query("DELETE FROM execution_task_states WHERE user_id = ?1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    let task_states = state
+        .execution_task_states
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default();
+    for (task_id, task_state) in task_states {
+        let json = serde_json::to_string(&task_state)?;
+        sqlx::query(
+            "INSERT INTO execution_task_states (user_id, task_id, data_json) VALUES (?1, ?2, ?3)",
+        )
+        .bind(user_id)
+        .bind(task_id)
+        .bind(json)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
 async fn persist_memories_if_configured(state: &ApiState, user_id: &str) -> Result<()> {
     let Some(pool) = state.db_pool.as_ref() else {
         return Ok(());
@@ -7934,6 +8934,37 @@ async fn persist_passkeys_if_configured(state: &ApiState, user_id: &str) -> Resu
             .bind(json)
             .execute(pool)
             .await?;
+    }
+    Ok(())
+}
+
+async fn persist_shopify_profit_share_reports_if_configured(
+    state: &ApiState,
+    user_id: &str,
+) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    sqlx::query("DELETE FROM shopify_profit_share_reports WHERE user_id = ?1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    let records = state
+        .shopify_profit_share_reports
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default();
+    for record in records {
+        let json = serde_json::to_string(&record)?;
+        sqlx::query(
+            "INSERT INTO shopify_profit_share_reports (report_id, user_id, data_json) VALUES (?1, ?2, ?3)",
+        )
+        .bind(record.report_id.as_str())
+        .bind(user_id)
+        .bind(json)
+        .execute(pool)
+        .await?;
     }
     Ok(())
 }
@@ -8156,6 +9187,7 @@ async fn generate_premium_openai_reply(
     notes: &[UserNoteRecord],
     memory_context: &[MemoryRetrievedItem],
     fallback_reply: &str,
+    code_agent_route: Option<CodeAgentRoute>,
 ) -> Result<String> {
     let runtime = state
         .openai_runtime
@@ -8200,9 +9232,14 @@ async fn generate_premium_openai_reply(
         })
         .collect::<Vec<_>>();
 
+    let model = match code_agent_route {
+        Some(CodeAgentRoute::BackendOps) => runtime.coding_backend_model.as_str(),
+        _ => runtime.model.as_str(),
+    };
+
     let system_prompt = "You are Atlas Masa Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum.";
     let payload = serde_json::json!({
-        "model": runtime.model,
+        "model": model,
         "reasoning": {
             "effort": runtime.default_reasoning_effort
         },
@@ -8324,11 +9361,16 @@ async fn generate_premium_gemini_reply(
     notes: &[UserNoteRecord],
     memory_context: &[MemoryRetrievedItem],
     fallback_reply: &str,
+    code_agent_route: Option<CodeAgentRoute>,
 ) -> Result<String> {
     let runtime = state
         .gemini_runtime
         .as_ref()
         .context("Gemini runtime is not configured")?;
+    let model = match code_agent_route {
+        Some(CodeAgentRoute::FrontendDesign) => runtime.frontend_design_model.as_str(),
+        _ => runtime.model.as_str(),
+    };
 
     let user_context = user.map(|value| {
         serde_json::json!({
@@ -8381,6 +9423,15 @@ async fn generate_premium_gemini_reply(
         context_json
     );
 
+    let mut generation_config = serde_json::json!({
+        "temperature": runtime.temperature,
+        "maxOutputTokens": runtime.max_output_tokens
+    });
+    if let Some(level) = runtime.thinking_level.as_deref() {
+        generation_config["thinkingConfig"] = serde_json::json!({
+            "thinkingLevel": level
+        });
+    }
     let payload = serde_json::json!({
         "contents": [
             {
@@ -8390,13 +9441,10 @@ async fn generate_premium_gemini_reply(
                 ]
             }
         ],
-        "generationConfig": {
-            "temperature": runtime.temperature,
-            "maxOutputTokens": runtime.max_output_tokens
-        }
+        "generationConfig": generation_config
     });
 
-    let endpoint = build_gemini_generate_content_url(runtime.model.as_str())?;
+    let endpoint = build_gemini_generate_content_url(model)?;
     let response = state
         .http_client
         .post(endpoint)
@@ -8434,6 +9482,15 @@ async fn rewrite_note_with_gemini(
         note.title,
         note.content
     );
+    let mut generation_config = serde_json::json!({
+        "temperature": runtime.temperature,
+        "maxOutputTokens": runtime.max_output_tokens
+    });
+    if let Some(level) = runtime.thinking_level.as_deref() {
+        generation_config["thinkingConfig"] = serde_json::json!({
+            "thinkingLevel": level
+        });
+    }
     let payload = serde_json::json!({
         "contents": [
             {
@@ -8443,10 +9500,7 @@ async fn rewrite_note_with_gemini(
                 ]
             }
         ],
-        "generationConfig": {
-            "temperature": runtime.temperature,
-            "maxOutputTokens": runtime.max_output_tokens
-        }
+        "generationConfig": generation_config
     });
 
     let endpoint = build_gemini_generate_content_url(runtime.model.as_str())?;
@@ -8478,7 +9532,7 @@ async fn rewrite_note_with_cloud_ai(
     note: &UserNoteRecord,
     instruction: &str,
 ) -> Result<String> {
-    let backends = configured_cloud_ai_backends(state);
+    let backends = configured_cloud_ai_backends(state, None);
     if backends.is_empty() {
         anyhow::bail!("No cloud AI runtime is configured");
     }
@@ -8764,8 +9818,9 @@ async fn security_headers_middleware(
 mod tests {
     use super::{
         build_clear_cookie, build_session_cookie, build_test_stripe_signature,
-        cloud_requirements_for_endpoint, ingest_memory_records_if_opted_in, is_public_endpoint,
-        next_survey_question, prioritize_execution_tasks, request_origin_from_headers,
+        cloud_requirements_for_endpoint, compute_shopify_profit_share,
+        ingest_memory_records_if_opted_in, is_public_endpoint, next_survey_question,
+        prioritize_execution_tasks, request_origin_from_headers,
         retrieve_memory_context_from_records, schedule_minutes_offset, survey_total_questions,
         verify_stripe_webhook_signature, ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
         DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
@@ -9016,6 +10071,23 @@ mod tests {
     }
 
     #[test]
+    fn shopify_profit_share_computes_cut_from_agentic_uplift() {
+        let computed = compute_shopify_profit_share(1_250_000, 800_000, 0.8, None, 2_000);
+        assert_eq!(computed.uplift_profit_cents, 450_000);
+        assert_eq!(computed.agentic_attributed_profit_cents, 360_000);
+        assert_eq!(computed.app_cut_cents, 72_000);
+        assert_eq!(computed.merchant_kept_cents, 1_178_000);
+    }
+
+    #[test]
+    fn shopify_profit_share_clamps_explicit_attribution_to_available_profit() {
+        let computed = compute_shopify_profit_share(100_000, 0, 1.0, Some(200_000), 10_000);
+        assert_eq!(computed.agentic_attributed_profit_cents, 100_000);
+        assert_eq!(computed.app_cut_cents, 100_000);
+        assert_eq!(computed.merchant_kept_cents, 0);
+    }
+
+    #[test]
     fn request_origin_parses_origin_header_first() {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -9057,6 +10129,14 @@ mod tests {
             cloud_requirements_for_endpoint("/v1/auth/me"),
             (false, false)
         );
+    }
+
+    #[test]
+    fn guest_session_endpoints_are_disabled() {
+        // Non-public endpoints require signed-in session when x-api-key is absent.
+        assert!(!is_public_endpoint("/v1/chat"));
+        assert!(!is_public_endpoint("/v1/notes"));
+        assert!(!is_public_endpoint("/v1/feed/proactive"));
     }
 
     #[test]

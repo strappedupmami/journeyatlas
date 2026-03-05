@@ -40,10 +40,17 @@ Use `atlas-concierge/.env.example` as source of truth. In production, set at lea
 - `ATLAS_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300`
 - `ATLAS_STRIPE_MONTHLY_PRICE_ID`
 - `ATLAS_OPENAI_API_KEY`
+- `ATLAS_GEMINI_API_KEY` (or `ATLAS_GOOGLE_DEEPMIND_API_KEY`)
+- `ATLAS_GEMINI_MODEL=gemini-3-flash-preview`
+- `ATLAS_GEMINI_TEMPERATURE=1.0` (recommended for Gemini 3 defaults)
+- `ATLAS_GEMINI_MAX_OUTPUT_TOKENS=2048`
+- `ATLAS_GEMINI_THINKING_LEVEL=medium` (optional; `low|medium|high`)
+- `ATLAS_AI_PROVIDER_PREFERENCE=auto` (`openai` or `gemini` optional)
 
 Notes:
 - `ATLAS_API_KEY` is still required for server-to-server clients.
 - First-party browser traffic from `ATLAS_ALLOWED_ORIGINS` is accepted without exposing this key in frontend source.
+- Keep Gemini/OpenAI keys server-side only (never in iOS/macOS/Android/Windows binaries or website JS).
 
 ## 3) Google OAuth console setup
 In Google Cloud Console:
@@ -101,7 +108,12 @@ In Stripe:
   - `ATLAS_OPENAI_REASONING_EFFORT=high`
 - If model availability differs in your account, adjust env var without code changes.
 
-## 7) Security baseline verification
+## 7) Gemini runtime verification
+- Confirm `ATLAS_GEMINI_MODEL` is set to a valid Gemini model ID (for Gemini 3, use preview IDs such as `gemini-3-flash-preview`).
+- If using Gemini 3, keep `ATLAS_GEMINI_TEMPERATURE` near `1.0` unless you intentionally need stricter determinism.
+- If you need controllable reasoning depth, set `ATLAS_GEMINI_THINKING_LEVEL` to `low`, `medium`, or `high`.
+
+## 8) Security baseline verification
 - Confirm all auth cookies are `HttpOnly`, `Secure`, `SameSite`, and domain-scoped to `atlasmasa.com`.
 - Confirm CORS only allows your production domains.
 - Confirm CSRF origin checks are enforced for cookie-authenticated write requests.
@@ -111,7 +123,7 @@ In Stripe:
   - `POST /v1/auth/social_login` returns `410 legacy_auth_retired`
 - Confirm branch protections and code security settings are enabled (see `/Users/avrohom/Downloads/journeyatlas/docs/security/repository-hardening.md`).
 
-## 8) Explicit owner actions required (cannot be automated by code edits)
+## 9) Explicit owner actions required (cannot be automated by code edits)
 - In Google Cloud, create/own the OAuth app and provide:
   - `ATLAS_GOOGLE_CLIENT_ID`
   - `ATLAS_GOOGLE_CLIENT_SECRET`
