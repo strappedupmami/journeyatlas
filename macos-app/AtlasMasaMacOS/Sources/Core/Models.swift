@@ -36,6 +36,38 @@ struct OAuthStartResponse: Codable {
     }
 }
 
+struct ChatRequestPayload: Encodable {
+    let sessionID: String?
+    let text: String
+    let locale: String?
+    let userID: String?
+    let preferredFormat: String?
+    let responseDepth: String?
+    let responseTone: String?
+    let includeProactive: Bool?
+    let codeAgentRoute: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+        case text
+        case locale
+        case userID = "user_id"
+        case preferredFormat = "preferred_format"
+        case responseDepth = "response_depth"
+        case responseTone = "response_tone"
+        case includeProactive = "include_proactive"
+        case codeAgentRoute = "code_agent_route"
+    }
+}
+
+struct ConciergeChatResponse: Codable {
+    let replyText: String
+
+    enum CodingKeys: String, CodingKey {
+        case replyText = "reply_text"
+    }
+}
+
 struct SurveyChoice: Codable, Identifiable, Hashable {
     var id: String { value }
     let value: String
@@ -88,6 +120,7 @@ struct FeedItem: Codable, Identifiable {
     let summary: String
     let whyNow: String
     let priority: String
+    let checklistState: FeedItemChecklistState?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -95,6 +128,63 @@ struct FeedItem: Codable, Identifiable {
         case summary
         case whyNow = "why_now"
         case priority
+        case checklistState = "checklist_state"
+    }
+}
+
+struct NatureSignalTile: Codable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let metric: String
+    let trend: String
+    let severity: String
+    let sourceLabel: String
+    let sourceURL: String
+    let updatedAtUTC: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case metric
+        case trend
+        case severity
+        case sourceLabel = "source_label"
+        case sourceURL = "source_url"
+        case updatedAtUTC = "updated_at_utc"
+    }
+}
+
+struct FeedItemChecklistState: Codable {
+    let completed: Bool
+    let collapsed: Bool
+    let completionCount: Int
+    let updatedAt: String
+    let latestResponse: FeedItemTaskResponse?
+
+    enum CodingKeys: String, CodingKey {
+        case completed
+        case collapsed
+        case completionCount = "completion_count"
+        case updatedAt = "updated_at"
+        case latestResponse = "latest_response"
+    }
+}
+
+struct FeedItemTaskResponse: Codable {
+    let responseID: String
+    let taskID: String
+    let completedParts: String?
+    let incompleteParts: String?
+    let note: String?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case responseID = "response_id"
+        case taskID = "task_id"
+        case completedParts = "completed_parts"
+        case incompleteParts = "incomplete_parts"
+        case note
+        case createdAt = "created_at"
     }
 }
 
@@ -168,8 +258,37 @@ struct AuthSessionUser: Codable {
     }
 }
 
+struct SubscriptionAccess: Codable {
+    let bypass: Bool?
+    let active: Bool?
+    let tier: String?
+    let cloudComputeEnabled: Bool?
+    let cloudStorageEnabled: Bool?
+    let pricingModel: String?
+    let freeTrialDaysTotal: Int?
+    let freeTrialDaysRemaining: Int?
+    let freeTrialActive: Bool?
+    let freeTrialEndsAt: String?
+    let usageBillingActive: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case bypass
+        case active
+        case tier
+        case cloudComputeEnabled = "cloud_compute_enabled"
+        case cloudStorageEnabled = "cloud_storage_enabled"
+        case pricingModel = "pricing_model"
+        case freeTrialDaysTotal = "free_trial_days_total"
+        case freeTrialDaysRemaining = "free_trial_days_remaining"
+        case freeTrialActive = "free_trial_active"
+        case freeTrialEndsAt = "free_trial_ends_at"
+        case usageBillingActive = "usage_billing_active"
+    }
+}
+
 struct AuthMeResponse: Codable {
     let user: AuthSessionUser
+    let subscription: SubscriptionAccess?
 }
 
 struct ExecutionCheckinPayload: Encodable {
@@ -232,6 +351,45 @@ struct ExecutionCheckinResponse: Codable {
     let feed: ProactiveFeedResponse
 }
 
+struct ExecutionTaskTogglePayload: Encodable {
+    let userID: String?
+    let taskID: String
+    let completed: Bool
+    let collapsed: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case taskID = "task_id"
+        case completed
+        case collapsed
+    }
+}
+
+struct ExecutionTaskRespondPayload: Encodable {
+    let userID: String?
+    let taskID: String
+    let completedParts: String?
+    let incompleteParts: String?
+    let note: String?
+    let completed: Bool?
+    let collapsed: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case taskID = "task_id"
+        case completedParts = "completed_parts"
+        case incompleteParts = "incomplete_parts"
+        case note
+        case completed
+        case collapsed
+    }
+}
+
+struct ExecutionTaskMutationResponse: Codable {
+    let ok: Bool
+    let feed: ProactiveFeedResponse
+}
+
 enum PromptQueueStatus: String, Codable, CaseIterable {
     case queued
     case running
@@ -250,6 +408,9 @@ struct LocalReasoningOutput: Codable, Hashable {
 struct PromptQueueItem: Codable, Identifiable, Hashable {
     let id: String
     var prompt: String
+    var workspaceLane: WorkspaceLane? = nil
+    var workspaceSessionID: String? = nil
+    var retryCount: Int? = nil
     var status: PromptQueueStatus
     var createdAt: Date
     var startedAt: Date? = nil
@@ -306,18 +467,18 @@ enum AccountTier: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .localTrial:
-            return "Free Trial · 2 Months"
+            return "On-device Core"
         case .cloudPro:
-            return "Pro · ₪20/month"
+            return "Cloud Add-on"
         }
     }
 
     var subtitle: String {
         switch self {
         case .localTrial:
-            return "Full access for 60 days. After trial, continue with Pro."
+            return "AI processing and memory remain local on this device."
         case .cloudPro:
-            return "Cloud reasoning and sync for ₪20 per month."
+            return "Optional prepaid credits unlock Gemini/GPT cloud processing."
         }
     }
 }
@@ -442,7 +603,7 @@ enum WorkspaceLane: String, Codable, CaseIterable, Identifiable {
         case .wealthOperations:
             return "Wealth Operations Workspace"
         case .mobilityOps:
-            return "Mobility Operations Workspace"
+            return "Travel Operations Workspace"
         case .deepWork:
             return "Cognitive Performance Workspace"
         case .innovation:
@@ -457,6 +618,7 @@ enum WorkspaceMemorySource: String, Codable, CaseIterable, Identifiable {
     case checkin
     case execution
     case system
+    case document
 
     var id: String { rawValue }
 }
@@ -482,6 +644,16 @@ struct WorkspaceMemoryRecord: Codable, Identifiable, Hashable {
     let tags: [String]
     let createdAtUTC: Date
     let updatedAtUTC: Date
+}
+
+struct KnowledgeFileRecord: Codable, Identifiable, Hashable {
+    let id: String
+    let fileName: String
+    let fileType: String
+    let byteCount: Int
+    let importedAtUTC: Date
+    let chunkCount: Int
+    let preview: String
 }
 
 struct WorkspacePlan: Codable, Identifiable, Hashable {

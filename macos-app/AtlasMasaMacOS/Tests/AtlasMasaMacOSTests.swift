@@ -66,6 +66,28 @@ final class AtlasMasaMacOSTests: XCTestCase {
     }
 
     @MainActor
+    func testKnowledgeFilesBecomeSharedWorkspaceMemory() throws {
+        let store = SessionStore(api: offlineClient())
+        store.deleteLocalMemory()
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("atlas-knowledge-\(UUID().uuidString).txt")
+        let content = """
+        BlackHaven project memory should persist strategy context across all workspace lanes.
+        Revenue playbook: run daily outbound, strengthen offer clarity, and enforce weekly close cadence.
+        """
+        try content.write(to: tempURL, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        store.importKnowledgeFiles(urls: [tempURL])
+
+        XCTAssertEqual(store.knowledgeFiles.count, 1)
+        let documentRecords = store.workspaceMemoryRecords.filter { $0.source == .document }
+        XCTAssertFalse(documentRecords.isEmpty)
+        XCTAssertTrue(documentRecords.allSatisfy { $0.lane == nil && $0.sessionID == nil })
+    }
+
+    @MainActor
     func testWorkspaceSessionsSeedAndCarryAcrossLanes() async {
         let store = SessionStore(api: offlineClient())
         store.deleteLocalMemory()

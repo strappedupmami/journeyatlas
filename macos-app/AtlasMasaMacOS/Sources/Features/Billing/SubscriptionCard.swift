@@ -5,30 +5,18 @@ struct SubscriptionCard: View {
 
     var body: some View {
         AtlasScreen(
-            title: "Plans + Billing",
-            subtitle: "Every account starts with a 2-month free trial, then Pro continues at ₪20/month."
+            title: "Prepaid Credits",
+            subtitle: "Desktop AI and memory run on-device by default. Cloud usage is pay-as-you-go via prepaid credits."
         ) {
-            AtlasPanel(heading: "Active plan", caption: "Switch between local-first and cloud reasoning modes") {
-                Picker("Plan", selection: $session.selectedTier) {
-                    ForEach(AccountTier.allCases) { tier in
-                        Text(tier.title).tag(tier)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: session.selectedTier) { _, tier in
-                    session.setTier(tier)
-                }
+            AtlasPanel(heading: "Access state", caption: "No premium plan toggle. Credits control cloud access.") {
+                Text(session.prepaidCreditsActive
+                    ? "Status: Prepaid credits active for exact cloud usage."
+                    : "Status: No prepaid credits active. On-device AI remains available."
+                )
+                .foregroundStyle(AtlasTheme.accentWarm)
 
-                Text(session.selectedTier.subtitle)
+                Text("Cloud code and reasoning features activate only when prepaid credits are available.")
                     .foregroundStyle(AtlasTheme.textSecondary)
-
-                if session.selectedTier == .localTrial {
-                    Text("Trial pricing: free for 60 days, then choose Pro at ₪20/month.")
-                        .foregroundStyle(AtlasTheme.accentWarm)
-                } else {
-                    Text("Pro pricing: ₪20/month after the 2-month trial window.")
-                        .foregroundStyle(AtlasTheme.accentWarm)
-                }
             }
 
             AtlasPanel(heading: "Billing capability", caption: "Read from API health when available") {
@@ -50,8 +38,8 @@ struct SubscriptionCard: View {
 
             AtlasPanel(heading: "Revenue path", caption: "Economic model alignment") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("• Free trial: 2 months for every new account")
-                    Text("• Paid plan: ₪20/month after trial")
+                    Text("• Core desktop AI stays on-device with local persistence")
+                    Text("• Cloud models are pay-as-you-go with prepaid credits only")
                     Text("• Mobility: van rental as parallel revenue stream")
                     Text("• Team/business: fleet pricing with SLA")
                 }
@@ -64,7 +52,7 @@ struct SubscriptionCard: View {
     private func capability(_ title: String, ok: Bool) -> some View {
         HStack {
             Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle")
-                .foregroundStyle(ok ? .green : .orange)
+                .foregroundStyle(ok ? .green : AtlasTheme.accent)
             Text("\(title): \(ok ? "ready" : "pending")")
                 .foregroundStyle(AtlasTheme.textPrimary)
             Spacer()

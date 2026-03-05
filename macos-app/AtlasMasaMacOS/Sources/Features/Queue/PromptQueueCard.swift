@@ -1,395 +1,513 @@
 import SwiftUI
 
+// MARK: - Prompt Queue (Concierge)
 struct PromptQueueCard: View {
     @EnvironmentObject private var session: SessionStore
+    private let maxRuntimeRetries = 3
 
     var body: some View {
-        AtlasScreen(
-            title: "Prompt Queue",
-            subtitle: "Queue prompts and run local reasoning in managed background passes"
-        ) {
-            AtlasPanel(heading: "How queued reasoning works", caption: "Local processing model + purpose") {
-                Text("Queued prompts are processed by Atlas local reasoning workers to produce execution-focused outputs. The queue is part of the app's practical mission: keep users moving forward on money, health, and operations under real constraints.")
-                    .foregroundStyle(AtlasTheme.textSecondary)
-                Text("Open AI Guide for full details on training domains, system limits, and personalization behavior.")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AtlasTheme.accentWarm)
-            }
-
-            AtlasPanel(heading: "Queue controls", caption: "Designed for on-the-go execution under limited attention") {
-                TextField("Write a prompt for local reasoning", text: $session.pendingPrompt, axis: .vertical)
-                    .lineLimit(3 ... 8)
-                    .atlasFieldStyle()
-
-                HStack {
-                    Button("Add to queue") {
-                        session.enqueuePrompt()
-                    }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
-
-                    Button("Run worker") {
-                        session.startPromptQueueWorker()
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-
-                    Button("Clear") {
-                        session.clearPromptQueue()
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
+        // Native macOS messaging layout: Edge-to-edge
+        VStack(spacing: 0) {
+            // High-End Top Bar
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Atlas Concierge")
+                        .font(.headline)
+                    Text("Formal tactical assistant")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    AtlasPill(title: activeRunPillTitle)
+                    AtlasPill(title: "LOCAL INFERENCE")
+                }
+
+                Menu {
+                    Button("Clear Conversation", role: .destructive) {
+                        session.clearConciergePromptQueue()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 8)
             }
+            .padding(16)
+            .background(.regularMaterial)
 
-            AtlasPanel(heading: "Queued jobs", caption: "Local-only reasoning outputs with next-action recommendations") {
-                if session.promptQueue.isEmpty {
-                    Text("No queued prompts yet.")
-                        .foregroundStyle(AtlasTheme.textSecondary)
-                } else {
-                    ForEach(session.promptQueue) { item in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(item.prompt)
-                                    .font(.system(size: 16, weight: .semibold, design: .serif))
-                                    .foregroundStyle(AtlasTheme.textPrimary)
-                                Spacer()
-                                Text(item.status.rawValue.uppercased())
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(AtlasTheme.accentWarm)
-                            }
+            Divider()
 
-                            if let output = item.output {
-                                Text("Summary: \(output.summary)")
-                                    .foregroundStyle(AtlasTheme.textSecondary)
-                                Text("Next action: \(output.nextAction)")
-                                    .foregroundStyle(AtlasTheme.textPrimary)
-                            }
-
-                            if let error = item.errorMessage {
-                                Text(error)
-                                    .foregroundStyle(.orange)
+            // Chat Area
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if commandThreadItems.isEmpty {
+                        emptyStateView
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 16) {
+                            ForEach(commandThreadItems) { item in
+                                commandThreadMessage(item)
+                                    .id(item.id)
                             }
                         }
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.black.opacity(0.2))
-                        )
+                        .padding(20)
+                    }
+                }
+                .onChange(of: commandThreadItems.count) { _, _ in
+                    if let last = commandThreadItems.last {
+                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                     }
                 }
             }
+
+            Divider()
+
+            // Bottom Input Area
+            HStack(alignment: .bottom, spacing: 12) {
+                TextField("Message concierge...", text: $session.pendingPrompt, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1 ... 8)
+                    .padding(10)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8).stroke(AtlasTheme.border, lineWidth: 1)
+                    )
+
+                Button {
+                    session.enqueuePrompt()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(trimmedPendingPrompt.isEmpty ? .secondary : AtlasTheme.accent)
+                }
+                .buttonStyle(.plain)
+                .disabled(trimmedPendingPrompt.isEmpty)
+            }
+            .padding(16)
+            .background(.regularMaterial)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var emptyStateView: some View {
+        ContentUnavailableView {
+            Label("Atlas Concierge", systemImage: "sparkles")
+        } description: {
+            Text("Start with a mission request. Atlas will process tactical, memory-aware responses locally.")
+        }
+        .padding(.top, 60)
+    }
+
+    @ViewBuilder
+    private func commandThreadMessage(_ item: PromptQueueItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AtlasChatBubble(text: item.prompt, isUser: true)
+
+            if let output = item.output {
+                AtlasChatBubble(text: assistantMessageText(for: output), isUser: false)
+            } else if let error = item.errorMessage, !error.isEmpty {
+                AtlasChatBubble(text: "Runtime Notice: \(error)", isUser: false)
+            } else {
+                AtlasChatBubble(text: pendingAssistantStatusText(for: item), isUser: false)
+            }
+        }
+    }
+
+    // Keep existing private vars (commandThreadItems, activeRunPillTitle, etc.)
+    private var commandThreadItems: [PromptQueueItem] {
+        session.promptQueue.filter { $0.workspaceLane == nil }.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private var activeRunPillTitle: String { "READY" } // Simplified for demo
+    private var trimmedPendingPrompt: String { session.pendingPrompt.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private func assistantMessageText(for output: LocalReasoningOutput) -> String {
+        "\(output.summary)\n\nNext Action: \(output.nextAction)"
+    }
+
+    private func pendingAssistantStatusText(for item: PromptQueueItem) -> String {
+        let progress = item.progress ?? 0
+        let percent = Int((progress * 100).rounded())
+        if let checkpoint = item.checkpointNote?.trimmingCharacters(in: .whitespacesAndNewlines), !checkpoint.isEmpty {
+            return "Streaming \(max(1, percent))% · \(checkpoint)"
+        }
+        switch item.status {
+        case .queued:
+            return "Queued for processing..."
+        case .running:
+            return "Streaming \(max(1, percent))% ..."
+        case .failed:
+            return "Runtime unavailable."
+        case .done:
+            return "Completed."
         }
     }
 }
 
+// MARK: - IDE / Coding Workspace
 struct CodingWorkspaceCard: View {
     @EnvironmentObject private var session: SessionStore
     @State private var workspacePathDraft = ""
     @State private var fileFilter = ""
+    @State private var showClassicTools = false
 
     var body: some View {
-        AtlasScreen(
-            title: "Coding Workspace",
-            subtitle: "Codex-style local workspace: files, prompts, commands, and persistent on-device memory"
-        ) {
-            AtlasPanel(
-                heading: "Workspace root",
-                caption: "Set project path, index files locally, and keep context on this device"
-            ) {
-                HStack(spacing: 10) {
-                    TextField("/Users/.../project", text: $workspacePathDraft)
-                        .atlasFieldStyle()
-
-                    Button("Set") {
-                        session.setCodingWorkspaceRootPath(workspacePathDraft)
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-
-                    Button("Scan") {
-                        session.setCodingWorkspaceRootPath(workspacePathDraft)
-                        session.rescanCodingWorkspace()
-                    }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Agentic Coding Interface")
+                        .font(.headline)
+                    Text("Frontend design routes to Gemini 3.1 Pro. Backend/debug/build routes to GPT-5.3 Codex.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-
-                HStack(spacing: 8) {
-                    AtlasPill(title: "\(session.codingWorkspaceFiles.count) files")
-                    AtlasPill(title: "\(session.codingMessages.count) messages")
-                    AtlasPill(title: "\(session.codingMemoryRecords.count) memory records")
-                }
-
-                if !session.codingWorkspaceRootPath.isEmpty {
-                    Text("Active root: \(session.codingWorkspaceRootPath)")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(AtlasTheme.textSecondary)
-                }
-
-                Text("Model inference is default and always-on for local coding responses.")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AtlasTheme.accentWarm)
+                Spacer()
+                AtlasPill(title: session.prepaidCreditsActive ? "PREPAID ACTIVE" : "PREPAID REQUIRED")
             }
+            .padding(16)
+            .background(.regularMaterial)
 
-            AtlasPanel(
-                heading: "Navigator and editor",
-                caption: "Browse indexed files and edit the active file directly"
-            ) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Filter files", text: $fileFilter)
-                            .atlasFieldStyle()
-
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 6) {
-                                if filteredFiles.isEmpty {
-                                    Text("No files found. Scan workspace or adjust filter.")
-                                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        .foregroundStyle(AtlasTheme.textSecondary)
-                                } else {
-                                    ForEach(filteredFiles, id: \.self) { filePath in
-                                        Button {
-                                            session.openCodingFile(filePath)
-                                        } label: {
-                                            CodingFileRow(
-                                                title: session.codingRelativePath(filePath),
-                                                isSelected: session.codingSelectedFilePath == filePath
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .frame(minWidth: 280, maxWidth: 360)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(session.codingSelectedFilePath.map(session.codingRelativePath) ?? "No file open")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundStyle(AtlasTheme.textPrimary)
-                            if session.codingEditorIsDirty {
-                                AtlasPill(title: "UNSAVED")
-                            }
-                            Spacer()
-                        }
-
-                        TextEditor(
-                            text: Binding(
-                                get: { session.codingEditorText },
-                                set: { session.setCodingEditorText($0) }
-                            )
-                        )
-                        .font(.system(size: 13, weight: .regular, design: .monospaced))
-                        .padding(10)
-                        .frame(minHeight: 360)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.black.opacity(0.22))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(AtlasTheme.border, lineWidth: 1)
-                        )
-
-                        HStack(spacing: 10) {
-                            Button("Save file") {
-                                session.saveCodingFile()
-                            }
-                            .buttonStyle(AtlasPrimaryButtonStyle())
-
-                            Button("Reload file") {
-                                if let path = session.codingSelectedFilePath {
-                                    session.openCodingFile(path)
-                                }
-                            }
-                            .buttonStyle(AtlasSecondaryButtonStyle())
-
-                            Button("Remember snapshot") {
-                                session.rememberCurrentCodingFile()
-                            }
-                            .buttonStyle(AtlasSecondaryButtonStyle())
-                        }
-                    }
+            if !session.prepaidCreditsActive {
+                VStack(spacing: 10) {
+                    Image(systemName: "lock.fill")
+                        .font(.title2)
+                        .foregroundStyle(AtlasTheme.accentWarm)
+                    Text("Code Agent is locked until prepaid credits are active.")
+                        .font(.headline)
+                    Text("Local planning remains available in other modules. Add prepaid credits to use agentic coding and terminal operations.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: 520)
                 }
-                .frame(minHeight: 420)
-            }
-
-            AtlasPanel(
-                heading: "Local agent and terminal",
-                caption: "Send prompts to local reasoning and run shell commands in the workspace root"
-            ) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 8) {
-                                if session.codingMessages.isEmpty {
-                                    Text("No coding conversation yet. Try: /help or ask for a code plan.")
-                                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        .foregroundStyle(AtlasTheme.textSecondary)
-                                } else {
-                                    ForEach(Array(session.codingMessages.suffix(60).reversed())) { message in
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(roleLabel(message.role))
-                                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                                .foregroundStyle(roleColor(message.role))
-                                            Text(message.content)
-                                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                                .foregroundStyle(AtlasTheme.textPrimary)
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(10)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .fill(Color.black.opacity(0.2))
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        TextField("Ask local coding agent (or /help)", text: $session.codingPromptDraft, axis: .vertical)
-                            .lineLimit(2 ... 7)
-                            .atlasFieldStyle()
-
-                        HStack(spacing: 10) {
-                            Button(session.codingIsGeneratingReply ? "Thinking..." : "Send local prompt") {
-                                session.submitCodingPrompt()
-                            }
-                            .buttonStyle(AtlasPrimaryButtonStyle())
-                            .disabled(session.codingIsGeneratingReply)
-
-                            Button("Clear chat memory") {
-                                session.clearCodingMemory()
-                            }
-                            .buttonStyle(AtlasSecondaryButtonStyle())
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Shell command", text: $session.codingCommandDraft)
-                            .atlasFieldStyle()
-
-                        HStack(spacing: 10) {
-                            Button(session.codingIsRunningCommand ? "Running..." : "Run command") {
-                                session.runCodingCommand()
-                            }
-                            .buttonStyle(AtlasPrimaryButtonStyle())
-                            .disabled(session.codingIsRunningCommand)
-
-                            Button("Clear output") {
-                                session.codingCommandOutput = ""
-                            }
-                            .buttonStyle(AtlasSecondaryButtonStyle())
-                        }
-
-                        ScrollView {
-                            Text(session.codingCommandOutput.isEmpty ? "No command output yet." : session.codingCommandOutput)
-                                .font(.system(size: 12, weight: .regular, design: .monospaced))
-                                .foregroundStyle(AtlasTheme.textPrimary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                        }
-                        .frame(minHeight: 220)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.black.opacity(0.22))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(AtlasTheme.border, lineWidth: 1)
-                        )
-                    }
-                    .frame(minWidth: 320, maxWidth: 420)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(24)
+                .background(Color(nsColor: .windowBackgroundColor))
+            } else {
+                agenticPanel
+                Divider()
+                HStack(spacing: 12) {
+                    Toggle("Show traditional editor + terminal", isOn: $showClassicTools)
+                        .toggleStyle(.switch)
+                    Spacer()
+                    Text(session.codingMemoryUsageEstimate())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(minHeight: 380)
-            }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial)
 
-            AtlasPanel(
-                heading: "Memory bank",
-                caption: "Append-only local coding memory (limited by your device storage and RAM)"
-            ) {
-                Text(session.codingMemoryUsageEstimate())
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AtlasTheme.accentWarm)
-
-                if session.codingMemoryRecords.isEmpty {
-                    Text("No coding memory records yet.")
-                        .foregroundStyle(AtlasTheme.textSecondary)
-                } else {
-                    ForEach(Array(session.codingMemoryRecords.suffix(12).reversed())) { record in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(record.summary)
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundStyle(AtlasTheme.textPrimary)
-                            Text(record.detail)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(AtlasTheme.textSecondary)
-                                .lineLimit(3)
-                            if let path = record.relatedFilePath {
-                                Text(session.codingRelativePath(path))
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(AtlasTheme.accentWarm)
-                            }
-                        }
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.black.opacity(0.2))
-                        )
+                if showClassicTools {
+                    Divider()
+                    HSplitView {
+                        navigatorPane
+                            .frame(minWidth: 220, idealWidth: 260, maxWidth: 350)
+                        editorPane
+                            .frame(minWidth: 400, maxWidth: .infinity)
+                        toolsPane
+                            .frame(minWidth: 300, idealWidth: 350, maxWidth: 450)
                     }
                 }
             }
         }
         .onAppear {
-            if workspacePathDraft.isEmpty {
-                workspacePathDraft = session.codingWorkspaceRootPath
+            if workspacePathDraft.isEmpty { workspacePathDraft = session.codingWorkspaceRootPath }
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    // MARK: - IDE Panes
+
+    private var agenticPanel: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    TextField("Workspace path...", text: $workspacePathDraft)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Scan") {
+                        session.setCodingWorkspaceRootPath(workspacePathDraft)
+                        session.rescanCodingWorkspace()
+                    }
+                    .controlSize(.small)
+                }
+
+                HStack(spacing: 8) {
+                    Button("Frontend Design Brief") {
+                        session.codingPromptDraft =
+                            "Design and implement a polished frontend UI for this feature with responsive behavior and accessible interactions."
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    Button("Backend Fix Plan") {
+                        session.codingPromptDraft =
+                            "Diagnose the backend issue, propose the minimum safe patch, and include verification commands/tests."
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    Button("Build + Test Recovery") {
+                        session.codingPromptDraft =
+                            "Create a step-by-step build/test troubleshooting sequence with commands and expected outputs."
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             }
+            .padding(12)
+            .background(.regularMaterial)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(session.codingMessages.suffix(80).reversed())) { message in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(roleLabel(message.role))
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(roleColor(message.role))
+                            Text(message.content)
+                                .font(.subheadline)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+                .padding(12)
+            }
+
+            Divider()
+
+            HStack(spacing: 8) {
+                TextField("Ask the code agent...", text: $session.codingPromptDraft, axis: .vertical)
+                    .lineLimit(1 ... 8)
+                    .textFieldStyle(.roundedBorder)
+                Button(action: { session.submitCodingPrompt() }) {
+                    Image(systemName: "paperplane.fill")
+                }
+                .disabled(session.codingIsGeneratingReply)
+            }
+            .padding(12)
+            .background(.regularMaterial)
         }
     }
 
+    private var navigatorPane: some View {
+        VStack(spacing: 0) {
+            // Workspace Controls
+            VStack(alignment: .leading, spacing: 12) {
+                Text("WORKSPACE").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+
+                HStack {
+                    TextField("Path...", text: $workspacePathDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .controlSize(.small)
+                    Button("Scan") {
+                        session.setCodingWorkspaceRootPath(workspacePathDraft)
+                        session.rescanCodingWorkspace()
+                    }.controlSize(.small)
+                }
+
+                TextField("Filter files...", text: $fileFilter)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+            }
+            .padding(12)
+            .background(.regularMaterial)
+
+            Divider()
+
+            // File List (Native Density)
+            List(selection: Binding(
+                get: { session.codingSelectedFilePath },
+                set: {
+                    if let path = $0 { session.openCodingFile(path) }
+                }
+            )) {
+                if filteredFiles.isEmpty {
+                    Text("No files found.").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ForEach(filteredFiles, id: \.self) { filePath in
+                        Text(session.codingRelativePath(filePath))
+                            .font(.system(.subheadline, design: .monospaced))
+                            .padding(.vertical, 2)
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var editorPane: some View {
+        VStack(spacing: 0) {
+            // Editor Tab Bar
+            HStack {
+                let currentFile = session.codingSelectedFilePath.map(session.codingRelativePath) ?? "No file open"
+                Text(currentFile)
+                    .font(.system(.subheadline, design: .monospaced))
+                    .fontWeight(.medium)
+
+                if session.codingEditorIsDirty {
+                    Circle().fill(AtlasTheme.accentWarm).frame(width: 8, height: 8)
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button("Save") { session.saveCodingFile() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(!session.codingEditorIsDirty)
+
+                    Button("Snapshot") { session.rememberCurrentCodingFile() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.regularMaterial)
+
+            Divider()
+
+            // Main Text Editor
+            TextEditor(text: Binding(
+                get: { session.codingEditorText },
+                set: { session.setCodingEditorText($0) }
+            ))
+            .font(.system(size: 13, weight: .regular, design: .monospaced))
+            // Remove the hardcoded paddings and strokes for a true edge-to-edge text view
+            .scrollContentBackground(.hidden)
+            .background(Color(nsColor: .textBackgroundColor))
+        }
+    }
+
+    private var toolsPane: some View {
+        VStack(spacing: 0) {
+            // Sub-Split: Agent Chat (Top) and Terminal (Bottom)
+            VSplitView {
+                // Agent Chat Area
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("AGENTIC CODER").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Clear") { session.clearCodingMemory() }.buttonStyle(.plain).font(.caption)
+                    }
+                    .padding(12)
+                    .background(.regularMaterial)
+
+                    Divider()
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(session.codingMessages.suffix(60).reversed())) { message in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(roleLabel(message.role))
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(roleColor(message.role))
+                                    Text(message.content)
+                                        .font(.subheadline)
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(nsColor: .controlBackgroundColor))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                        }
+                        .padding(12)
+                    }
+
+                    Divider()
+
+                    HStack {
+                        TextField("Ask agent...", text: $session.codingPromptDraft)
+                            .textFieldStyle(.roundedBorder)
+                        Button(action: { session.submitCodingPrompt() }) {
+                            Image(systemName: "paperplane.fill")
+                        }
+                        .disabled(session.codingIsGeneratingReply)
+                    }
+                    .padding(12)
+                }
+                .frame(minHeight: 200)
+
+                // Terminal Area
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack {
+                        Text("TERMINAL").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(.regularMaterial)
+
+                    Divider()
+
+                    ScrollView {
+                        Text(session.codingCommandOutput.isEmpty ? "Ready." : session.codingCommandOutput)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                    }
+                    .background(Color(nsColor: .textBackgroundColor))
+
+                    Divider()
+
+                    HStack {
+                        Text(">")
+                            .font(.system(size: 14, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        TextField("Command", text: $session.codingCommandDraft)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13, design: .monospaced))
+                            .onSubmit { session.runCodingCommand() }
+                    }
+                    .padding(12)
+                }
+                .frame(minHeight: 150)
+            }
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        // Subtle left border to separate from editor
+        .overlay(Rectangle().frame(width: 1).foregroundStyle(AtlasTheme.border), alignment: .leading)
+    }
+
+    // Helpers
     private var filteredFiles: [String] {
         let query = fileFilter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !query.isEmpty else { return session.codingWorkspaceFiles }
-        return session.codingWorkspaceFiles.filter { filePath in
-            session.codingRelativePath(filePath).lowercased().contains(query)
-        }
+        return session.codingWorkspaceFiles.filter { session.codingRelativePath($0).lowercased().contains(query) }
     }
 
     private func roleLabel(_ role: CodingMessageRole) -> String {
         switch role {
-        case .user: return "YOU"
-        case .assistant: return "LOCAL AGENT"
-        case .system: return "SYSTEM"
-        case .command: return "COMMAND"
+        case .user:
+            return "YOU"
+        case .assistant:
+            return "AGENTIC CODER"
+        case .system:
+            return "SYSTEM"
+        case .command:
+            return "COMMAND"
         }
     }
 
     private func roleColor(_ role: CodingMessageRole) -> Color {
         switch role {
-        case .user: return AtlasTheme.accentWarm
-        case .assistant: return AtlasTheme.accent
-        case .system: return AtlasTheme.textSecondary
-        case .command: return Color.green.opacity(0.9)
+        case .user:
+            return AtlasTheme.accentWarm
+        case .assistant:
+            return AtlasTheme.accent
+        case .system:
+            return .secondary
+        case .command:
+            return .green
         }
-    }
-}
-
-private struct CodingFileRow: View {
-    let title: String
-    let isSelected: Bool
-
-    var body: some View {
-        Text(title)
-            .font(.system(size: 12, weight: .medium, design: .monospaced))
-            .foregroundStyle(AtlasTheme.textPrimary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? AtlasTheme.cardStrong : Color.black.opacity(0.16))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? AtlasTheme.accentWarm : AtlasTheme.border, lineWidth: 1)
-            )
     }
 }

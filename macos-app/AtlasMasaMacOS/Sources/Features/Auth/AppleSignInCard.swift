@@ -1,106 +1,251 @@
 import AuthenticationServices
 import SwiftUI
 
+// MARK: - Auth Mode Enum
+private enum AuthMode: String, CaseIterable, Identifiable {
+    case signIn = "Sign In"
+    case signUp = "Create Account"
+    var id: String { self.rawValue }
+}
+
 struct AppleSignInCard: View {
     @EnvironmentObject private var session: SessionStore
     @Environment(\.openURL) private var openURL
 
+    // UI State
+    @State private var authMode: AuthMode = .signIn
+
     var body: some View {
-        AtlasScreen(
-            title: "Account Access",
-            subtitle: "Traditional provider auth plus passwordless flows, no legacy passwords"
-        ) {
-            AtlasPanel(heading: "Sign up", caption: "Create secure account using provider auth or passwordless") {
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    Task { await session.handleAppleAuthorization(result: result) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 32) {
+                // High-End Top Header
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Account Access")
+                        .font(.largeTitle.weight(.bold))
+                    Text("Secure, passwordless identity for cross-device personalization")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(height: 50)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.bottom, 8)
 
-                HStack {
-                    Button("Sign up with Google") {
-                        session.signInWithGooglePlaceholder()
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-
-                    Button("Passwordless sign up") {
-                        session.signUpWithPasswordless()
-                    }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
-                }
-
-                Button("Start Apple OAuth in browser") {
-                    Task {
-                        await session.beginAppleWebSignIn { url in
-                            openURL(url)
+                // Two-Column Desktop Layout
+                HStack(alignment: .top, spacing: 32) {
+                    // MARK: - LEFT COLUMN: Active Auth Box
+                    VStack(spacing: 0) {
+                        if session.isSignedIn {
+                            activeProfileCard
+                        } else {
+                            authenticationCard
                         }
                     }
-                }
-                .buttonStyle(AtlasSecondaryButtonStyle())
-            }
+                    .frame(maxWidth: .infinity, alignment: .top)
 
-            AtlasPanel(heading: "Sign in", caption: "Use secure provider session or passwordless entry") {
-                HStack {
-                    Button("Sign in with Google") {
-                        session.signInWithGooglePlaceholder()
+                    // MARK: - RIGHT COLUMN: System Status & Info
+                    VStack(spacing: 24) {
+                        providerStatusCard
+                        securityExplainerCard
                     }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-
-                    Button("Passwordless sign in") {
-                        session.signInWithPasswordless()
-                    }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
-                }
-
-                if session.isSignedIn {
-                    HStack {
-                        Text("Active account: \(session.accountLabel)")
-                            .foregroundStyle(AtlasTheme.textSecondary)
-                        Spacer()
-                        Button("Sign out") {
-                            session.signOut()
-                        }
-                        .buttonStyle(AtlasSecondaryButtonStyle())
-                    }
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
             }
-
-            AtlasPanel(heading: "Provider status", caption: "Live capability check from Rust API when available") {
-                if let health = session.health {
-                    capabilityRow("Apple", available: health.capabilities.appleOAuth)
-                    capabilityRow("Google", available: health.capabilities.googleOAuth)
-                    capabilityRow("Passkey", available: health.capabilities.passkey)
-                    capabilityRow("Billing", available: health.capabilities.billing)
-                } else {
-                    Text("Health check pending. Refresh to verify provider readiness.")
-                        .foregroundStyle(AtlasTheme.textSecondary)
-                }
-
-                Button("Refresh provider status") {
-                    Task { await session.refreshHealth() }
-                }
-                .buttonStyle(AtlasSecondaryButtonStyle())
-            }
-
-            AtlasPanel(heading: "How account state drives personalization", caption: "Why account state matters") {
-                Text("Atlas uses secure account identity to persist your personalization graph across sessions and devices. The AI uses your signed-in data (survey, notes, queue outputs, and workspace sessions) to produce tailored execution plans.")
-                    .foregroundStyle(AtlasTheme.textSecondary)
-                Text("No legacy passwords are used: provider auth + passkeys + secure sessions.")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AtlasTheme.accentWarm)
+            .padding(32)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            if session.health == nil {
+                Task { await session.refreshHealth() }
             }
         }
     }
 
+    // MARK: - Auth Views (Left Column)
+
+    private var authenticationCard: some View {
+        AtlasPanel(heading: authMode.rawValue, caption: "Use a secure provider or passwordless entry") {
+            VStack(spacing: 20) {
+                // Segmented Control for Mode Switching
+                Picker("Mode", selection: $authMode) {
+                    ForEach(AuthMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.bottom, 8)
+
+                // Primary Apple Auth (Native Button)
+                SignInWithAppleButton(authMode == .signIn ? .signIn : .signUp) { request in
+                    request.requestedScopes = [.fullName, .email]
+                    session.appendOutput("Starting native Apple sign-in...")
+                } onCompletion: { result in
+                    Task {
+                        await session.handleAppleAuthorization(result: result)
+                        if case let .failure(error) = result, shouldAutoFallbackToWeb(error) {
+                            await session.beginAppleWebSignIn { url in openURL(url) }
+                        }
+                    }
+                }
+                .frame(height: 44)
+                .signInWithAppleButtonStyle(.whiteOutline) // Mac-appropriate styling
+
+                HStack {
+                    VStack { Divider() }
+                    Text("OR").font(.caption).foregroundStyle(.secondary)
+                    VStack { Divider() }
+                }
+                .padding(.vertical, 8)
+
+                // Unified Secondary Actions
+                VStack(spacing: 12) {
+                    Button(action: {
+                        Task { await session.beginGoogleWebSignIn { url in openURL(url) } }
+                    }) {
+                        Label("Continue with Google", systemImage: "g.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                    .controlSize(.large)
+
+                    Button(action: {
+                        if authMode == .signIn {
+                            session.signInWithPasswordless()
+                        } else {
+                            session.signUpWithPasswordless()
+                        }
+                    }) {
+                        Label(authMode == .signIn ? "Passwordless Sign In" : "Passwordless Sign Up", systemImage: "key.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                    .controlSize(.large)
+                }
+
+                Button("Start Apple OAuth in browser") {
+                    Task { await session.beginAppleWebSignIn { url in openURL(url) } }
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+                .padding(.top, 8)
+            }
+        }
+    }
+
+    private var activeProfileCard: some View {
+        AtlasPanel(heading: "Active Session", caption: "You are currently authenticated") {
+            VStack(alignment: .center, spacing: 16) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 64))
+                    .foregroundStyle(AtlasTheme.accentWarm)
+                    .padding(.top, 16)
+
+                VStack(spacing: 4) {
+                    Text("Operator Identity")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                    Text(session.accountLabel)
+                        .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                }
+
+                Divider().padding(.vertical, 8)
+
+                Button("Sign Out", role: .destructive) {
+                    session.signOut()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.bottom, 8)
+        }
+    }
+
+    // MARK: - Info Views (Right Column)
+
+    private var providerStatusCard: some View {
+        AtlasPanel(heading: "Provider Status", caption: "Live capability check from API") {
+            VStack(alignment: .leading, spacing: 16) {
+                if let health = session.health {
+                    VStack(spacing: 12) {
+                        capabilityRow("Apple OAuth", available: health.capabilities.appleOAuth)
+                        capabilityRow("Google OAuth", available: health.capabilities.googleOAuth)
+                        capabilityRow("Passkey", available: health.capabilities.passkey)
+                        capabilityRow("Billing", available: health.capabilities.billing)
+                    }
+                } else {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text("Verifying provider readiness...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                HStack {
+                    Spacer()
+                    Button("Refresh Status") {
+                        Task { await session.refreshHealth() }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private var securityExplainerCard: some View {
+        AtlasPanel(heading: "Data & Personalization", caption: "Why account state matters") {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.title2)
+                        .foregroundStyle(AtlasTheme.accentWarm)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Secure Identity")
+                            .font(.subheadline.weight(.semibold))
+                        Text("No legacy passwords are used. Atlas strictly utilizes provider auth, passkeys, and secure sessions.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.title2)
+                        .foregroundStyle(AtlasTheme.accentWarm)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Personalization Graph")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Your signed-in data (surveys, notes, queue outputs, and workspace sessions) is persisted to produce tailored execution plans.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
     private func capabilityRow(_ title: String, available: Bool) -> some View {
         HStack {
-            Image(systemName: available ? "checkmark.seal.fill" : "xmark.seal")
-                .foregroundStyle(available ? .green : .orange)
-            Text("\(title): \(available ? "available" : "pending")")
-                .foregroundStyle(AtlasTheme.textPrimary)
+            Image(systemName: available ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(available ? .green : AtlasTheme.accent)
+            Text(title)
+                .font(.subheadline.weight(.medium))
             Spacer()
+            Text(available ? "Operational" : "Pending")
+                .font(.caption.weight(.bold).monospaced())
+                .foregroundStyle(available ? Color.secondary : AtlasTheme.accentWarm)
         }
+    }
+
+    private func shouldAutoFallbackToWeb(_ error: Error) -> Bool {
+        guard let authError = error as? ASAuthorizationError else {
+            return true
+        }
+        return authError.code != .canceled
     }
 }

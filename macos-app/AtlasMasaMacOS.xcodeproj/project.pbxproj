@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0998F22B093399F87F4A6FE7 /* AcademicResearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB24EE85781AE9CB5C157345 /* AcademicResearchService.swift */; };
 		0AB73635DD6EC74C5856AB01 /* MobilityOpsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA23865D59A435635C050AB1 /* MobilityOpsCard.swift */; };
 		2E1C12D442534358B369176A /* RootDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E70C98214F54693A2902DF /* RootDashboardView.swift */; };
 		32F358D0A804D6B6729B9633 /* CommandCenterCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 701AC8F4232AEDB3C55A73FF /* CommandCenterCard.swift */; };
@@ -19,10 +20,12 @@
 		67FC01DCAE5F9A7B74C23D2E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBEA857915038352C5FB3F77 /* Models.swift */; };
 		6EDEA19E422CAAD3406C4490 /* AppleSignInCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9E9B68F4A4CF5BC665C3ED4 /* AppleSignInCard.swift */; };
 		6EEBF9E6195B6B0BBFCC8D65 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AEDA4DBA73A4A08C4AE4749 /* APIClient.swift */; };
+		6FCC7851AAC9B40B6D9543B9 /* RecoverySupportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91E98F42EF32900AF84000A5 /* RecoverySupportService.swift */; };
 		76F04D481CF68BE58AF18CD3 /* PromptQueueCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C62F7ACC25BA48AF08C43F09 /* PromptQueueCard.swift */; };
 		8283E8F4FF3031E795FD5A9D /* ProactiveFeedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465052A26DDD04F7EDBFECDE /* ProactiveFeedCard.swift */; };
 		8E949F72E420073EE03B3827 /* AIGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606AF14FB62334E10CEE744A /* AIGuideCard.swift */; };
 		9D10A98F11702E4D31217BC6 /* AdaptiveSurveyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA8F9C3658DF251A9FACC77 /* AdaptiveSurveyCard.swift */; };
+		A130F92FAF214088F464DED7 /* LocalSyncBlueprintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 601F4FBE9354F1020C103697 /* LocalSyncBlueprintService.swift */; };
 		A5F3805AD134EB9422571662 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8631F1FF407506DC227EDA6C /* SessionStore.swift */; };
 		A6AAA3C7D9CFE1A584DCCEAA /* AtlasMasaMacOS.icns in Resources */ = {isa = PBXBuildFile; fileRef = DE1C978ED3573F17EBCE6F6D /* AtlasMasaMacOS.icns */; };
 		D1A738641AB896B8672BD6F5 /* SubscriptionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC34004A8E67F5BCAC9DE5D /* SubscriptionCard.swift */; };
@@ -53,17 +56,20 @@
 		465052A26DDD04F7EDBFECDE /* ProactiveFeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveFeedCard.swift; sourceTree = "<group>"; };
 		4B12A51870BD19ABD4449574 /* AtlasResearchPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasResearchPack.swift; sourceTree = "<group>"; };
 		53C22511E6096A3D8FED9BDD /* AtlasTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasTheme.swift; sourceTree = "<group>"; };
+		601F4FBE9354F1020C103697 /* LocalSyncBlueprintService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSyncBlueprintService.swift; sourceTree = "<group>"; };
 		606AF14FB62334E10CEE744A /* AIGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIGuideCard.swift; sourceTree = "<group>"; };
 		66AE552C360A6F968678AF5F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		701AC8F4232AEDB3C55A73FF /* CommandCenterCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandCenterCard.swift; sourceTree = "<group>"; };
 		8631F1FF407506DC227EDA6C /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		8E9A1D2906182B7701821C8D /* LocalReasoningEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalReasoningEngine.swift; sourceTree = "<group>"; };
+		91E98F42EF32900AF84000A5 /* RecoverySupportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoverySupportService.swift; sourceTree = "<group>"; };
 		A2E70C98214F54693A2902DF /* RootDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootDashboardView.swift; sourceTree = "<group>"; };
 		AA23865D59A435635C050AB1 /* MobilityOpsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobilityOpsCard.swift; sourceTree = "<group>"; };
 		AEA99F6D0296C48ECE4A2A60 /* SystemOutputCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemOutputCard.swift; sourceTree = "<group>"; };
 		B9F90A457FB34F6384CE7322 /* AtlasMasaMacOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AtlasMasaMacOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C62F7ACC25BA48AF08C43F09 /* PromptQueueCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptQueueCard.swift; sourceTree = "<group>"; };
 		D34CF08BA1DF4E4687C867B6 /* AtlasResearchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasResearchEngine.swift; sourceTree = "<group>"; };
+		DB24EE85781AE9CB5C157345 /* AcademicResearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicResearchService.swift; sourceTree = "<group>"; };
 		DBA5C0BAC13AFA7A9431BA67 /* WorkspacesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacesCard.swift; sourceTree = "<group>"; };
 		DE1C978ED3573F17EBCE6F6D /* AtlasMasaMacOS.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AtlasMasaMacOS.icns; sourceTree = "<group>"; };
 		DFA8F9C3658DF251A9FACC77 /* AdaptiveSurveyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSurveyCard.swift; sourceTree = "<group>"; };
@@ -238,6 +244,7 @@
 		F8AD3AEA3034D10E5E871D90 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				DB24EE85781AE9CB5C157345 /* AcademicResearchService.swift */,
 				1AEDA4DBA73A4A08C4AE4749 /* APIClient.swift */,
 				66AE552C360A6F968678AF5F /* AppEnvironment.swift */,
 				D34CF08BA1DF4E4687C867B6 /* AtlasResearchEngine.swift */,
@@ -245,7 +252,9 @@
 				53C22511E6096A3D8FED9BDD /* AtlasTheme.swift */,
 				2D5FA2B3895F9BA19A3F6034 /* JobMarketRadar.swift */,
 				8E9A1D2906182B7701821C8D /* LocalReasoningEngine.swift */,
+				601F4FBE9354F1020C103697 /* LocalSyncBlueprintService.swift */,
 				FBEA857915038352C5FB3F77 /* Models.swift */,
+				91E98F42EF32900AF84000A5 /* RecoverySupportService.swift */,
 				8631F1FF407506DC227EDA6C /* SessionStore.swift */,
 			);
 			path = Core;
@@ -350,6 +359,7 @@
 			files = (
 				8E949F72E420073EE03B3827 /* AIGuideCard.swift in Sources */,
 				6EEBF9E6195B6B0BBFCC8D65 /* APIClient.swift in Sources */,
+				0998F22B093399F87F4A6FE7 /* AcademicResearchService.swift in Sources */,
 				9D10A98F11702E4D31217BC6 /* AdaptiveSurveyCard.swift in Sources */,
 				D6F1B592D61E9572BD59F9D9 /* AppEnvironment.swift in Sources */,
 				6EDEA19E422CAAD3406C4490 /* AppleSignInCard.swift in Sources */,
@@ -360,11 +370,13 @@
 				32F358D0A804D6B6729B9633 /* CommandCenterCard.swift in Sources */,
 				EE30675B53D82B07E851A14D /* JobMarketRadar.swift in Sources */,
 				F9FA19C612C06175DF6172FD /* LocalReasoningEngine.swift in Sources */,
+				A130F92FAF214088F464DED7 /* LocalSyncBlueprintService.swift in Sources */,
 				0AB73635DD6EC74C5856AB01 /* MobilityOpsCard.swift in Sources */,
 				67FC01DCAE5F9A7B74C23D2E /* Models.swift in Sources */,
 				FD1F2CC4129730D32F8E3B9A /* NotesCard.swift in Sources */,
 				8283E8F4FF3031E795FD5A9D /* ProactiveFeedCard.swift in Sources */,
 				76F04D481CF68BE58AF18CD3 /* PromptQueueCard.swift in Sources */,
+				6FCC7851AAC9B40B6D9543B9 /* RecoverySupportService.swift in Sources */,
 				2E1C12D442534358B369176A /* RootDashboardView.swift in Sources */,
 				A5F3805AD134EB9422571662 /* SessionStore.swift in Sources */,
 				D1A738641AB896B8672BD6F5 /* SubscriptionCard.swift in Sources */,
@@ -462,6 +474,7 @@
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 				SWIFT_VERSION = 5.1;
 			};
 			name = Debug;
@@ -571,6 +584,7 @@
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 				SWIFT_VERSION = 5.1;
 			};
 			name = Release;

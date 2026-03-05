@@ -4,6 +4,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.10
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
 packages: {}
@@ -19,13 +20,15 @@ targets:
     info:
       path: AtlasMasaMacOS/Info.plist
       properties:
-        CFBundleDisplayName: Atlas/אטלס Desktop
+        CFBundleDisplayName: Atlas
         CFBundleIconFile: AtlasMasaMacOS
         LSApplicationCategoryType: public.app-category.business
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: AtlasMasaMacOS/AtlasMasaMacOS.entitlements
       properties:
+        com.apple.developer.applesignin:
+          - Default
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
     settings:
