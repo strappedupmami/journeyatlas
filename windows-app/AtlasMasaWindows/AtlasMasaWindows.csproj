@@ -12,14 +12,24 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <PublishReadyToRun>true</PublishReadyToRun>
     <PublishTrimmed>false</PublishTrimmed>
     <TieredCompilation>true</TieredCompilation>
     <ServerGarbageCollection>true</ServerGarbageCollection>
+    <RustReasonerBinary Condition="'$(RustReasonerBinary)'==''">$(MSBuildThisFileDirectory)..\rust-atlas-reasoner\target\release\atlas-rust-reasoner.exe</RustReasonerBinary>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.6" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.240829007" />
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(RustReasonerBinary)')">
+    <Content Include="$(RustReasonerBinary)">
+      <Link>atlas-rust-reasoner.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 </Project>

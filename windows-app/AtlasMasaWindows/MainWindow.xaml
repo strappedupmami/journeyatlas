@@ -39,7 +39,7 @@
                         <Border Background="#121C30" CornerRadius="12" Padding="14">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Why this exists" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" />
-                                <TextBlock Text="Atlas is built to help users execute with precision across life, work, and mobility, especially under pressure and uncertainty." TextWrapping="Wrap" Foreground="#D0DBEF" />
+                                <TextBlock Text="Atlas is built to help users execute with precision across life, work, and travel, especially under pressure and uncertainty." TextWrapping="Wrap" Foreground="#D0DBEF" />
                                 <TextBlock Text="This Windows build is local-first and tuned for high-end PCs using multi-worker queue orchestration and persistent state recovery." TextWrapping="Wrap" Foreground="#D0DBEF" />
                             </StackPanel>
                         </Border>
@@ -89,17 +89,33 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Text="{Binding CurrentSurveyQuestion.Title}" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" TextWrapping="WrapWholeWords" />
                                 <TextBlock Text="{Binding CurrentSurveyQuestion.Description}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
-                                <ListView ItemsSource="{Binding CurrentSurveyChoices}" SelectionMode="None">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate x:DataType="models:SurveyChoice">
-                                            <Button
-                                                Margin="0,3,0,3"
-                                                Content="{x:Bind Label}"
-                                                Tag="{Binding}"
-                                                Click="SurveyChoiceButton_Click" />
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
+                                <StackPanel Visibility="{x:Bind SurveySingleVisibility(ViewModel.IsCurrentSurveyQuestionMulti), Mode=OneWay}">
+                                    <ListView ItemsSource="{Binding CurrentSurveyChoices}" SelectionMode="None">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate x:DataType="models:SurveyChoice">
+                                                <Button
+                                                    Margin="0,3,0,3"
+                                                    Content="{x:Bind Label}"
+                                                    Click="SurveyChoiceButton_Click" />
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+                                </StackPanel>
+                                <StackPanel Spacing="8" Visibility="{x:Bind SurveyMultiVisibility(ViewModel.IsCurrentSurveyQuestionMulti), Mode=OneWay}">
+                                    <ItemsControl ItemsSource="{Binding CurrentSurveyChoices}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:SurveyChoice">
+                                                <CheckBox
+                                                    Content="{x:Bind Label}"
+                                                    Checked="SurveyMultiChoice_Checked"
+                                                    Unchecked="SurveyMultiChoice_Unchecked"
+                                                    Margin="0,2,0,2" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding SurveyMultiSelectionLine}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                    <Button Content="Continue" Command="{Binding SubmitSurveyMultiChoiceCommand}" HorizontalAlignment="Left" />
+                                </StackPanel>
                                 <TextBlock Text="{Binding SelectedSurveyAnswerLabel}" Foreground="#9AB0CF" />
                             </StackPanel>
                         </Border>
@@ -107,24 +123,86 @@
                 </ScrollViewer>
             </TabViewItem>
 
-            <TabViewItem Header="Prompt Queue">
+            <TabViewItem Header="Code">
                 <ScrollViewer>
                     <StackPanel Spacing="12" Padding="0,6,0,0">
                         <Border Background="#121C30" CornerRadius="12" Padding="14">
                             <StackPanel Spacing="10">
-                                <TextBlock Text="Local reasoning queue (resumable)" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" />
-                                <TextBlock Text="Queue persists to disk and resumes after app restart. High-end PCs process multiple queued prompts in parallel." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
-                                <TextBox Header="Prompt" Text="{Binding NewPrompt, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="74" />
-                                <Button Content="Queue prompt" Command="{Binding EnqueuePromptCommand}" HorizontalAlignment="Left" />
+                                <TextBlock Text="Agentic coding workspace" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" />
+                                <TextBlock Text="Code runs through cloud routing only when prepaid credits are active. Frontend design tasks route to Gemini 3.1 Pro; backend/debug/build tasks route to GPT-5.3 Codex." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+
+                                <Border
+                                    Background="#3A1823"
+                                    CornerRadius="8"
+                                    Padding="10"
+                                    Visibility="{x:Bind PrepaidLockedVisibility(ViewModel.Session.PrepaidCreditsActive), Mode=OneWay}">
+                                    <TextBlock
+                                        Text="Code Agent is locked. Activate prepaid credits to run coding tasks."
+                                        Foreground="#F7B0B5"
+                                        TextWrapping="WrapWholeWords" />
+                                </Border>
+
+                                <StackPanel
+                                    Spacing="10"
+                                    IsEnabled="{Binding Session.PrepaidCreditsActive}">
+                                    <ComboBox Header="Agent route mode" SelectedItem="{Binding SelectedCodeAgentMode, Mode=TwoWay}" Width="280">
+                                        <x:String>auto</x:String>
+                                        <x:String>frontend_design</x:String>
+                                        <x:String>backend_ops</x:String>
+                                    </ComboBox>
+                                    <TextBox
+                                        Header="Agentic task"
+                                        Text="{Binding CodePromptDraft, Mode=TwoWay}"
+                                        AcceptsReturn="True"
+                                        TextWrapping="Wrap"
+                                        MinHeight="100"
+                                        PlaceholderText="Describe the coding task, repo area, and expected result." />
+                                    <Button Content="Run Code Agent task" Command="{Binding RunCodeAgentTaskCommand}" HorizontalAlignment="Left" />
+                                </StackPanel>
+
+                                <ToggleSwitch
+                                    Header="Show traditional editor + terminal (optional)"
+                                    IsOn="{Binding ShowClassicCodeTools, Mode=TwoWay}"
+                                    IsEnabled="{Binding Session.PrepaidCreditsActive}" />
+
+                                <StackPanel
+                                    Spacing="8"
+                                    Visibility="{x:Bind ClassicToolsVisibility(ViewModel.ShowClassicCodeTools), Mode=OneWay}">
+                                    <TextBox
+                                        Header="Classic scratchpad"
+                                        Text="{Binding ClassicCodeScratchpad, Mode=TwoWay}"
+                                        AcceptsReturn="True"
+                                        TextWrapping="Wrap"
+                                        MinHeight="96" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBox
+                                            Width="420"
+                                            Header="Terminal command"
+                                            Text="{Binding ClassicCodeCommandDraft, Mode=TwoWay}" />
+                                        <Button
+                                            VerticalAlignment="Bottom"
+                                            Content="Run command"
+                                            Command="{Binding RunClassicCodeCommandCommand}" />
+                                    </StackPanel>
+                                    <TextBox
+                                        Header="Terminal output"
+                                        Text="{Binding ClassicCodeCommandOutput}"
+                                        IsReadOnly="True"
+                                        AcceptsReturn="True"
+                                        TextWrapping="Wrap"
+                                        MinHeight="120" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
+                        <TextBlock Text="Code run history" Foreground="#F4F7FC" FontSize="18" FontWeight="SemiBold" />
                         <ListView ItemsSource="{Binding Queue}">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="models:QueueRecord">
                                     <Border Background="#10192D" CornerRadius="10" Margin="0,4,0,4" Padding="12">
                                         <StackPanel Spacing="6">
                                             <TextBlock Text="{x:Bind Prompt}" Foreground="#F4F7FC" FontWeight="SemiBold" TextWrapping="WrapWholeWords" />
+                                            <TextBlock Text="{x:Bind CodeAgentRoute}" Foreground="#8FB1FF" />
                                             <TextBlock Text="{x:Bind Status}" Foreground="#A8BAD8" />
                                             <ProgressBar Minimum="0" Maximum="1" Value="{x:Bind Progress, Mode=OneWay}" />
                                             <TextBlock Text="{x:Bind CheckpointNote}" Foreground="#9AB0CF" />
@@ -229,15 +307,21 @@
                         <Border Background="#121C30" CornerRadius="12" Padding="14">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Passwordless-first access" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
-                                <TextBlock Text="Windows local tier uses local state by default. Provider sign-in establishes identity for sync/cloud tiers later." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Windows local tier runs AI + memory on-device. Provider sign-in enables identity sync, and prepaid credits unlock optional cloud AI add-ons." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Sign-in opens a secure in-app browser window and only completes after backend session verification succeeds." Foreground="#A6B6D4" TextWrapping="WrapWholeWords" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="Sign in with Apple" Command="{Binding SignInAppleCommand}" />
                                     <Button Content="Sign in with Google" Command="{Binding SignInGoogleCommand}" />
                                     <Button Content="Sign in with Passkey" Command="{Binding SignInPasskeyCommand}" />
+                                    <Button Content="Sign up with Passkey" Command="{Binding SignUpPasskeyCommand}" />
                                     <Button Content="Sign out" Command="{Binding SignOutCommand}" />
                                 </StackPanel>
+                                <TextBlock Text="{Binding AuthFlowStatusLine}" Foreground="#A6B6D4" TextWrapping="WrapWholeWords" />
                                 <TextBlock Text="{Binding Session.AccountLabel}" Foreground="#DCE7FA" FontSize="16" />
                                 <TextBlock Text="{Binding Session.Provider}" Foreground="#9AB0CF" />
+                                <TextBox Header="Shared backend API base" Text="{Binding BackendApiBaseDraft, Mode=TwoWay}" />
+                                <Button Content="Save backend target" Command="{Binding SaveBackendConfigCommand}" HorizontalAlignment="Left" />
+                                <TextBlock Text="{Binding Session.ApiBaseUrl}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -256,22 +340,149 @@
                                 <TextBlock Text="Privacy boundary: local-first memory; user-controlled memory opt-in; explicit transparency in core workflows." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
                             </StackPanel>
                         </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabViewItem>
 
-            <TabViewItem Header="Mobility + Ops">
-                <ScrollViewer>
-                    <StackPanel Spacing="12" Padding="0,6,0,0">
+                        <Border Background="#121C30" CornerRadius="12" Padding="14">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Continuous adaptive questionnaire" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding AdaptiveQuestionProgressLine}" Foreground="#A6B6D4" />
+                                <TextBlock Text="{Binding Session.AdaptiveBusinessRuntimeStatusLine}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <StackPanel Orientation="Horizontal" Spacing="14">
+                                    <CheckBox Content="Enable adaptive questions" IsChecked="{Binding Session.AdaptiveBusinessQuestionEngineEnabled, Mode=TwoWay}" />
+                                    <CheckBox Content="Enable business autopilot" IsChecked="{Binding Session.BusinessAutopilotEnabled, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Save runtime settings" Command="{Binding SaveAdaptiveRuntimeSettingsCommand}" />
+                                    <Button Content="Generate question now" Command="{Binding RequestAdaptiveQuestionNowCommand}" />
+                                    <Button Content="Activate guided learning" Command="{Binding ActivateGuidedLearningCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <Border Background="#121C30" CornerRadius="12" Padding="14">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Mobility operations orientation" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
-                                <TextBlock Text="Atlas treats mobility as infrastructure: uptime, safe harbor routing, continuity kits, and legal/safety constraints." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
-                                <TextBlock Text="This Windows app can stage plans for land/sea/air operations and sync with shared workspaces when cloud tier is enabled." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Pending adaptive question" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding PendingAdaptiveBusinessQuestion.Prompt}" Foreground="#DCE7FA" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Select all options that apply:" Foreground="#9FB2D2" />
+                                <ItemsControl ItemsSource="{Binding PendingAdaptiveBusinessQuestion.Options}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox
+                                                Content="{Binding}"
+                                                Checked="AdaptiveOption_Checked"
+                                                Unchecked="AdaptiveOption_Unchecked"
+                                                Margin="0,2,0,2" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBox
+                                    Header="Optional freeform context"
+                                    Text="{Binding AdaptiveFreeformResponseDraft, Mode=TwoWay}"
+                                    AcceptsReturn="True"
+                                    TextWrapping="Wrap"
+                                    MinHeight="88" />
+                                <TextBlock Text="{Binding AdaptiveSelectedOptionsLine}" Foreground="#9FB2D2" TextWrapping="WrapWholeWords" />
+                                <Button Content="Submit response" Command="{Binding SubmitAdaptiveQuestionResponseCommand}" HorizontalAlignment="Left" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
+            </TabViewItem>
+
+            <TabViewItem Header="World Monitor">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#121C30" CornerRadius="12" Padding="14" Margin="0,6,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.3*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Spacing="9" Margin="0,0,12,0">
+                                <TextBlock Text="World Monitor integration" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="Embed the worldmonitor-main dashboard directly in Atlas. Use hosted mode or point to your local dev server." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBox Header="World Monitor URL" Text="{Binding WorldMonitorUrlDraft, Mode=TwoWay}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Load URL" Command="{Binding ApplyWorldMonitorUrlCommand}" />
+                                    <Button Content="Use Hosted" Command="{Binding UseHostedWorldMonitorCommand}" />
+                                    <Button Content="Use Local Dev" Command="{Binding UseLocalWorldMonitorCommand}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding WorldMonitorStatusLine}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Local dev tip: in /Users/avrohom/Downloads/BlackHaven/worldmonitor-main run npm install, then npm run dev." Foreground="#8397B9" TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+
+                            <Border Grid.Column="1" Background="#10192D" CornerRadius="10" Padding="12">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Nature + wildlife indicators" Foreground="#F4F7FC" FontSize="17" FontWeight="SemiBold" />
+                                        <TextBlock Text="Critical sources to keep biodiversity, habitat, fire, and climate risk visible during planning." Foreground="#C8D6EE" TextWrapping="WrapWholeWords" />
+                                        <HyperlinkButton Content="IUCN Red List (threatened species portal)" NavigateUri="https://www.iucnredlist.org/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="IUCN Red List API (token required)" NavigateUri="https://api.iucnredlist.org/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="GBIF species data portal" NavigateUri="https://www.gbif.org/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="GBIF API" NavigateUri="https://api.gbif.org/v1/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="Protected Planet (WDPA)" NavigateUri="https://www.protectedplanet.net/en" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="Global Forest Watch" NavigateUri="https://www.globalforestwatch.org/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="NASA FIRMS active fire data" NavigateUri="https://firms.modaps.eosdis.nasa.gov/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="NOAA Climate at a Glance" NavigateUri="https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="Copernicus Climate Bulletins" NavigateUri="https://climate.copernicus.eu/climate-bulletins" HorizontalAlignment="Left" />
+
+                                        <Rectangle Height="1" Fill="#263753" Margin="0,4,0,4" />
+
+                                        <TextBlock Text="Charity impact monitor" Foreground="#F4F7FC" FontSize="17" FontWeight="SemiBold" />
+                                        <TextBlock Text="Track charity progress, gaps, funding needs, and external accountability signals." Foreground="#C8D6EE" TextWrapping="WrapWholeWords" />
+                                        <TextBlock Text="Recommended scorecard dimensions: impact trend, governance risk, financial runway, and unmet funding gap." Foreground="#AFC2E0" TextWrapping="WrapWholeWords" />
+                                        <HyperlinkButton Content="Charity Navigator (search + profiles)" NavigateUri="https://www.charitynavigator.org/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="Charity Navigator Data API portal" NavigateUri="https://developer.charitynavigator.org/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="Charity Navigator GraphQL API product page" NavigateUri="https://www.charitynavigator.org/products-and-services/graphql-api/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="Charity Navigator ratings methodology" NavigateUri="https://www.charitynavigator.org/about-us/our-methodology/ratings/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="IRS Tax Exempt Organization Search" NavigateUri="https://apps.irs.gov/app/eos/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="ProPublica Nonprofit Explorer (990s)" NavigateUri="https://projects.propublica.org/nonprofits/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="Candid (GuideStar) organization profiles" NavigateUri="https://www.guidestar.org/" HorizontalAlignment="Left" />
+                                        <HyperlinkButton Content="GiveWell top charities" NavigateUri="https://www.givewell.org/charities/top-charities" HorizontalAlignment="Left" />
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="1" Background="#121C30" CornerRadius="12" Padding="14" Margin="0,0,0,10">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Nature Signal Stack v2" Foreground="#F4F7FC" FontSize="18" FontWeight="SemiBold" />
+                                <Button Content="Refresh now" Command="{Binding RefreshNatureSignalStackCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding NatureRiskLine}" Foreground="#DCE7FA" />
+                            <TextBlock Text="{Binding NatureThresholdLine}" Foreground="#9FB2D2" />
+                            <TextBlock Text="{Binding NatureAlertSummary}" Foreground="#BFD0EB" TextWrapping="WrapWholeWords" />
+                            <ListView ItemsSource="{Binding NatureSignalTiles}" MaxHeight="220">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="models:NatureSignalTile">
+                                        <Border Background="#10192D" CornerRadius="8" Margin="0,3,0,3" Padding="10">
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="{x:Bind Title}" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                                <TextBlock Text="{x:Bind Metric}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{x:Bind Trend}" Foreground="#9AB0CF" />
+                                                    <TextBlock Text="{x:Bind Severity}" Foreground="#9AB0CF" />
+                                                    <TextBlock Text="{x:Bind SourceLabel}" Foreground="#8FB1FF" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="2" Background="#10192D" CornerRadius="12" Padding="4">
+                        <WebView2 Source="{Binding WorldMonitorUri}" />
+                    </Border>
+                </Grid>
             </TabViewItem>
 
             <TabViewItem Header="System Output">
