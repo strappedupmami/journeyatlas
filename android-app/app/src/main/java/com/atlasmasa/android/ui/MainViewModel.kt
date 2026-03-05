@@ -8,7 +8,9 @@ import com.atlasmasa.android.domain.AtlasSessionState
 import com.atlasmasa.android.domain.AuthProvider
 import com.atlasmasa.android.domain.FeedItem
 import com.atlasmasa.android.domain.MemoryRecord
+import com.atlasmasa.android.domain.PromptOutputType
 import com.atlasmasa.android.domain.PromptQueueItem
+import com.atlasmasa.android.domain.QuizDifficulty
 import com.atlasmasa.android.domain.SurveyQuestion
 import com.atlasmasa.android.domain.UserNote
 import com.atlasmasa.android.domain.WorkspaceSession
@@ -39,7 +41,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         repository.observeSessionState().onEach { state ->
-            _uiState.value = _uiState.value.copy(session = state)
+            _uiState.value = _uiState.value.copy(
+                session = state,
+                surveyAnswers = state.surveyAnswers,
+            )
             if (lastSurveyLanguage != state.languageCode) {
                 lastSurveyLanguage = state.languageCode
                 loadSurveyForLanguage(state.languageCode)
@@ -65,6 +70,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             repository.refreshHealth()
             repository.addSystemOutput(repository.localLlmStatusLine())
+            repository.runAdaptiveBusinessRuntimeTick(trigger = "startup")
             refreshFeed()
             PromptQueueWorker.enqueueImmediate(getApplication())
             PromptQueueWorker.ensurePeriodic(getApplication())
@@ -120,12 +126,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun enqueuePrompt(prompt: String) {
+    fun enqueuePrompt(
+        prompt: String,
+        outputType: PromptOutputType = PromptOutputType.STANDARD,
+        quizDifficulty: QuizDifficulty? = null,
+    ) {
         viewModelScope.launch {
-            val queued = repository.enqueuePrompt(prompt)
+            val queued = repository.enqueuePrompt(
+                prompt = prompt,
+                outputType = outputType,
+                quizDifficulty = quizDifficulty,
+            )
             if (queued) {
                 PromptQueueWorker.enqueueImmediate(getApplication())
             }
+        }
+    }
+
+    fun updateInferenceRuntime(
+        openAiEndpoint: String,
+        openAiApiKey: String,
+        geminiApiKey: String,
+        podcastVoiceName: String,
+    ) {
+        viewModelScope.launch {
+            repository.updateInferenceRuntime(
+                openAiEndpoint = openAiEndpoint,
+                openAiApiKey = openAiApiKey,
+                geminiApiKey = geminiApiKey,
+                podcastVoiceName = podcastVoiceName,
+            )
+        }
+    }
+
+    fun updateBackendRuntime(apiBaseUrl: String) {
+        viewModelScope.launch {
+            repository.updateBackendRuntime(apiBaseUrl)
         }
     }
 
@@ -136,11 +172,54 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun answerSurvey(questionId: String, answer: String) {
-        val map = _uiState.value.surveyAnswers.toMutableMap()
-        map[questionId] = answer
-        _uiState.value = _uiState.value.copy(surveyAnswers = map)
         viewModelScope.launch {
-            repository.addSystemOutput("Survey answer recorded: $questionId=$answer")
+            repository.submitSurveyAnswer(questionId, answer)
+            refreshFeed()
+        }
+    }
+
+    fun activateGuidedLearningAfterSurvey() {
+        viewModelScope.launch {
+            val activated = repository.activateGuidedLearningAfterSurvey()
+            if (activated) {
+                PromptQueueWorker.enqueueImmediate(getApplication(), delayMs = 1_000)
+            }
+            refreshFeed()
+        }
+    }
+
+    fun saveAdaptiveBusinessRuntimeSettings(
+        questionEngineEnabled: Boolean,
+        businessAutopilotEnabled: Boolean,
+    ) {
+        viewModelScope.launch {
+            repository.saveAdaptiveBusinessRuntimeSettings(
+                questionEngineEnabled = questionEngineEnabled,
+                businessAutopilotEnabled = businessAutopilotEnabled,
+            )
+            PromptQueueWorker.enqueueImmediate(getApplication(), delayMs = 1_000)
+        }
+    }
+
+    fun requestNextAdaptiveBusinessQuestionNow() {
+        viewModelScope.launch {
+            repository.requestNextAdaptiveBusinessQuestionNow()
+            PromptQueueWorker.enqueueImmediate(getApplication(), delayMs = 1_000)
+        }
+    }
+
+    fun answerAdaptiveBusinessQuestion(
+        questionId: String,
+        selectedOptions: List<String>,
+        freeformText: String,
+    ) {
+        viewModelScope.launch {
+            repository.answerAdaptiveBusinessQuestion(
+                questionId = questionId,
+                selectedOptions = selectedOptions,
+                freeformText = freeformText,
+            )
+            PromptQueueWorker.enqueueImmediate(getApplication(), delayMs = 1_000)
             refreshFeed()
         }
     }

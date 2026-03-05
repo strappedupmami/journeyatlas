@@ -17,9 +17,15 @@ class PromptQueueWorker(
 
     override suspend fun doWork(): Result {
         val repo = AtlasRepository.get(applicationContext)
+        val runtimeTick = repo.runAdaptiveBusinessRuntimeTick(trigger = "worker")
         val processedCount = repo.processQueuedPromptsBatch()
-        if (processedCount > 0 && repo.hasQueuedItems()) {
+        val hasQueued = repo.hasQueuedItems()
+        val keepAdaptiveRuntimeAlive = repo.shouldKeepAdaptiveRuntimeAlive()
+        if ((processedCount > 0 || runtimeTick.enqueuedPrompt) && hasQueued) {
             enqueueImmediate(applicationContext, delayMs = 1_000)
+        } else if (keepAdaptiveRuntimeAlive) {
+            // Keep adaptive runtime progressing between periodic WorkManager windows.
+            enqueueImmediate(applicationContext, delayMs = 90_000)
         }
         return Result.success()
     }

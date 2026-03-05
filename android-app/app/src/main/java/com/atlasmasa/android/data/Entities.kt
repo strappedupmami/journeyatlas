@@ -3,7 +3,9 @@ package com.atlasmasa.android.data
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.atlasmasa.android.domain.PromptOutputType
 import com.atlasmasa.android.domain.PromptQueueStatus
+import com.atlasmasa.android.domain.QuizDifficulty
 import com.atlasmasa.android.domain.WorkspaceLane
 
 @Entity(
@@ -27,6 +29,8 @@ data class NoteEntity(
 data class PromptQueueEntity(
     @PrimaryKey val id: String,
     val prompt: String,
+    val outputType: PromptOutputType,
+    val quizDifficulty: QuizDifficulty?,
     val status: PromptQueueStatus,
     val createdAtEpochMs: Long,
     val startedAtEpochMs: Long?,
@@ -35,6 +39,13 @@ data class PromptQueueEntity(
     val checkpointNote: String?,
     val outputSummary: String?,
     val nextAction: String?,
+    val outputContent: String?,
+    val outputModel: String?,
+    val podcastAudioPath: String?,
+    val podcastMimeType: String?,
+    val podcastVoiceName: String?,
+    val podcastDurationSeconds: Double?,
+    val podcastBytes: Int?,
     val confidence: Double?,
     val errorMessage: String?,
 )

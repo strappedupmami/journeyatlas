@@ -9,7 +9,7 @@ import java.util.concurrent.Executors
 
 @Database(
     entities = [NoteEntity::class, PromptQueueEntity::class, MemoryEntity::class, WorkspaceSessionEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(AtlasTypeConverters::class)

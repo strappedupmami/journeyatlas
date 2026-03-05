@@ -6,6 +6,8 @@ import java.util.UUID
 enum class AuthProvider { APPLE, GOOGLE, PASSKEY, GUEST }
 enum class AccountTier { LOCAL_CORE, PRO_CLOUD }
 enum class PromptQueueStatus { QUEUED, RUNNING, DONE, FAILED }
+enum class PromptOutputType { STANDARD, PODCAST, QUIZ }
+enum class QuizDifficulty { EASY, MEDIUM, HARD }
 enum class WorkspaceLane { COMMAND, SURVEY, FEED, NOTES, WORKSPACES, MOBILITY, STATUS, ACCESS, PLANS, GUIDE }
 
 @Serializable
@@ -50,6 +52,8 @@ data class UserNote(
 data class PromptQueueItem(
     val id: String = UUID.randomUUID().toString(),
     val prompt: String,
+    val outputType: PromptOutputType = PromptOutputType.STANDARD,
+    val quizDifficulty: QuizDifficulty? = null,
     val status: PromptQueueStatus = PromptQueueStatus.QUEUED,
     val createdAtEpochMs: Long = System.currentTimeMillis(),
     val startedAtEpochMs: Long? = null,
@@ -58,6 +62,13 @@ data class PromptQueueItem(
     val checkpointNote: String? = null,
     val outputSummary: String? = null,
     val nextAction: String? = null,
+    val outputContent: String? = null,
+    val outputModel: String? = null,
+    val podcastAudioPath: String? = null,
+    val podcastMimeType: String? = null,
+    val podcastVoiceName: String? = null,
+    val podcastDurationSeconds: Double? = null,
+    val podcastBytes: Int? = null,
     val confidence: Double? = null,
     val errorMessage: String? = null,
 )
@@ -83,11 +94,30 @@ data class MemoryRecord(
 )
 
 @Serializable
+data class AdaptiveBusinessQuestionResponse(
+    val selectedOptions: List<String> = emptyList(),
+    val freeformText: String = "",
+    val answeredAtEpochMs: Long = System.currentTimeMillis(),
+)
+
+@Serializable
+data class AdaptiveBusinessQuestion(
+    val id: String = UUID.randomUUID().toString(),
+    val prompt: String,
+    val options: List<String>,
+    val allowsMultipleSelection: Boolean = true,
+    val generatedAtEpochMs: Long = System.currentTimeMillis(),
+    val source: String = "fallback",
+    val response: AdaptiveBusinessQuestionResponse? = null,
+)
+
+@Serializable
 data class AtlasSessionState(
     val isSignedIn: Boolean = false,
     val accountProvider: AuthProvider = AuthProvider.GUEST,
     val accountLabel: String = "Guest Operator",
     val accountTier: AccountTier = AccountTier.LOCAL_CORE,
+    val prepaidCreditsActive: Boolean = false,
     val memoryOptIn: Boolean = true,
     val apiBaseUrl: String = "https://api.atlasmasa.com",
     val languageCode: String = "en",
@@ -99,5 +129,18 @@ data class AtlasSessionState(
     val blockers: String = "",
     val gymToday: Boolean = false,
     val moneyToday: Boolean = false,
+    val surveyAnswers: Map<String, String> = emptyMap(),
+    val guidedLearningRuntimeActive: Boolean = false,
+    val adaptiveBusinessQuestionEngineEnabled: Boolean = true,
+    val businessAutopilotEnabled: Boolean = true,
+    val adaptiveBusinessQuestions: List<AdaptiveBusinessQuestion> = emptyList(),
+    val adaptiveBusinessRuntimeStatusLine: String = "Adaptive business runtime idle.",
+    val lastAdaptiveBusinessQuestionAtEpochMs: Long = 0L,
+    val lastBusinessAutopilotAtEpochMs: Long = 0L,
+    val adaptiveBusinessAutopilotCursor: Int = 0,
+    val openAiCompatibleEndpoint: String = "http://127.0.0.1:8080/v1/chat/completions",
+    val openAiCompatibleApiKey: String = "",
+    val geminiApiKey: String = "",
+    val podcastVoiceName: String = "Kore",
     val systemOutput: List<String> = listOf("Booting Atlas Android local core..."),
 )

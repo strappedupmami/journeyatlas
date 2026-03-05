@@ -5,12 +5,12 @@ import com.atlasmasa.android.domain.UserNote
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -151,6 +151,70 @@ class OnDeviceLlmClient(
         )
     }
 
+    data class AdaptiveQuestionOutput(
+        val question: String,
+        val options: List<String>,
+    )
+
+    suspend fun adaptiveBusinessQuestion(
+        answeredSnapshot: String,
+        globalUserContext: String,
+    ): AdaptiveQuestionOutput? = withContext(Dispatchers.IO) {
+        if (!enabled) return@withContext null
+        val url = endpoint.toHttpUrlOrNull() ?: return@withContext null
+        if (!isEndpointAllowed(url)) return@withContext null
+
+        val instruction = """
+            You are Atlas adaptive business interviewer running on Ollama.
+            Generate exactly one multiple-choice question from user memory context.
+            Output ONLY valid JSON:
+            {"question":"...","options":["...","...","...","..."]}
+            Constraints:
+            - options must be 3 to 5 concise choices
+            - each option <= 72 chars
+            - question <= 180 chars
+            - question should improve business execution precision now
+            - avoid repeating previous answered questions
+
+            PREVIOUS ANSWERS
+            $answeredSnapshot
+
+            GLOBAL USER CONTEXT
+            $globalUserContext
+        """.trimIndent()
+
+        val requestBody = ChatRequest(
+            model = model,
+            messages = listOf(
+                ChatMessage("system", "Return only valid JSON."),
+                ChatMessage("user", instruction)
+            ),
+            temperature = 0.2,
+            max_tokens = 420,
+            stream = false,
+        )
+        val requestJson = json.encodeToString(ChatRequest.serializer(), requestBody)
+        val req = Request.Builder()
+            .url(url)
+            .post(requestJson.toRequestBody("application/json".toMediaType()))
+            .addHeader("Accept", "application/json")
+            .addHeader("Cache-Control", "no-store")
+            .build()
+
+        val content = runCatching {
+            okHttp.newCall(req).execute().use { rsp ->
+                if (!rsp.isSuccessful) return@use null
+                val body = rsp.body?.string().orEmpty()
+                val parsed = json.decodeFromString(ChatResponse.serializer(), body)
+                parsed.choices.firstOrNull()?.message?.content?.trim()
+                    ?.ifEmpty { null }
+                    ?: parsed.choices.firstOrNull()?.text?.trim()?.ifEmpty { null }
+            }
+        }.getOrNull() ?: return@withContext null
+
+        parseAdaptiveQuestionOutput(content)
+    }
+
     private data class QueueOutput(
         val summary: String,
         val nextAction: String,
@@ -168,6 +232,25 @@ class OnDeviceLlmClient(
                 summary = summary.trim(),
                 nextAction = nextAction.trim(),
                 confidence = confidence,
+            )
+        }
+        return null
+    }
+
+    private fun parseAdaptiveQuestionOutput(raw: String): AdaptiveQuestionOutput? {
+        for (candidate in jsonCandidates(raw)) {
+            val element = runCatching { json.parseToJsonElement(candidate) }.getOrNull() as? JsonObject ?: continue
+            val question = element.string("question")
+            val options = (element["options"] as? JsonArray)
+                ?.mapNotNull { it as? JsonPrimitive }
+                ?.mapNotNull { it.contentOrNull?.trim() }
+                ?.filter { it.isNotBlank() }
+                ?.distinct()
+                .orEmpty()
+            if (question.isBlank() || options.size < 3) continue
+            return AdaptiveQuestionOutput(
+                question = question.trim(),
+                options = options.take(5),
             )
         }
         return null

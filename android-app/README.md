@@ -42,7 +42,7 @@ Native Android app for Atlas local-core Life OS.
 - Both flavors are equivalent in functionality and exist for independent tester distribution.
 
 ## Build
-1. Open `/Users/avrohom/Downloads/journeyatlas/android-app` in Android Studio.
+1. Open `/Users/avrohom/Downloads/BlackHaven/android-app` in Android Studio.
 2. Let Gradle sync and install SDK packages.
 3. Run one of:
    - `app` / `yosefDebug` / `yashaDebug`
@@ -50,6 +50,11 @@ Native Android app for Atlas local-core Life OS.
 
 ## Local LLM bridge (optional, local-first)
 Prompt queue reasoning can use a local OpenAI-compatible endpoint first, then fall back to deterministic local reasoning.
+
+## Shared backend target
+Android now uses the same Atlas backend base as web + iOS (`https://api.atlasmasa.com`).
+- UI: `Access` tab → `Shared backend` → `API base URL`
+- Validation: production host allowlist in release, with localhost/http only for debug local testing
 
 BuildConfig keys:
 - `LOCAL_LLM_ENABLED` (`true` by default)
@@ -59,13 +64,13 @@ BuildConfig keys:
 Shared runtime launcher:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ATLAS_LLM_HF_REPO=unsloth/Qwen2.5-3B-Instruct-GGUF:q4_k_m \
 ATLAS_LLM_MODEL_ALIAS=atlas-local-3b \
 ./scripts/start-local-llm-runtime.sh
 ```
 
-See `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md` for cross-platform rollout details.
+See `/Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md` for cross-platform rollout details.
 
 ## Notes
 - This tier is designed for local compute/storage.

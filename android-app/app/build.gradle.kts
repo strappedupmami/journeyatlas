@@ -70,6 +70,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        allWarningsAsErrors = true
         freeCompilerArgs = freeCompilerArgs + listOf("-Xjvm-default=all")
     }
 
