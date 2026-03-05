@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
+import Network
 import Security
 #if canImport(UIKit)
 import UIKit
@@ -8,16 +9,32 @@ import UIKit
 
 @MainActor
 final class SessionStore: ObservableObject {
-    private static let localTrialDurationDays = 60
+    private static let localTrialDurationDays = 30
+    private static let modelBriefRefreshWindowSeconds: TimeInterval = 75
+    private static let feedRefreshWindowSeconds: TimeInterval = 90
+    private static let minimumSurveyAnswersForModelAutofill = 50
+    nonisolated private static let localInferenceCacheTTLSeconds: TimeInterval = 120
+    private static let queueRuntimeRetryLimit = 3
+    nonisolated private static let geminiReasoningModel = "gemini-3-flash-preview"
+    nonisolated private static let geminiPodcastTTSModel = "gemini-2.5-pro-preview-tts"
+    nonisolated private static let geminiPodcastVoiceName = "Kore"
+
+    private enum PromptDispatchMode {
+        case queue
+        case steer
+    }
 
     @Published var health: HealthResponse?
-    @Published var systemOutput: [String] = ["Booting Atlas Masa Travel Design OS (Swift local tier)..."]
+    @Published var systemOutput: [String] = ["Booting Atlas Travel Design OS (Swift local tier)..."]
     @Published var survey: SurveyNextResponse?
     @Published var feedItems: [FeedItem] = []
     @Published var notes: [UserNote] = []
     @Published var pendingNoteTitle = ""
     @Published var pendingNoteContent = ""
     @Published var pendingPrompt = ""
+    @Published var pendingPromptOutputType: PromptOutputType = .standard
+    @Published var pendingPromptQuizDifficulty: QuizDifficulty = .medium
+    @Published var pendingLessonInput = ""
     @Published var promptQueue: [PromptQueueItem] = []
     @Published var codingWorkspaceRootPath = ""
     @Published var codingWorkspaceFiles: [String] = []
@@ -41,7 +58,14 @@ final class SessionStore: ObservableObject {
     @Published var isPasskeyInProgress = false
     @Published var accountProvider: AuthProvider?
     @Published var accountLabel = "Guest Operator"
+    @Published var accountFirstName = ""
+    @Published var accountMiddleName = ""
+    @Published var accountLastName = ""
+    @Published var accountUsername = ""
+    @Published private(set) var profilePhotoData: Data?
     @Published var accountStatusMessage = "Use provider auth or passwordless to activate your account."
+    @Published var billingAccessEnabled = false
+    @Published var billingStatusMessage = "Add a payment method to unlock cloud AI."
     @Published var selectedTier: AccountTier = .localTrial
     @Published var trialDaysRemaining = SessionStore.localTrialDurationDays
     @Published var safetyModeActive = false
@@ -63,12 +87,21 @@ final class SessionStore: ObservableObject {
     @Published var researchStreams: [ResearchExecutionStream] = []
     @Published var workspaceMemoryRecords: [WorkspaceMemoryRecord] = []
     @Published var workspacePlans: [WorkspacePlan] = []
+    @Published var conciergeSessions: [ConciergeChatSession] = []
+    @Published var activeConciergeSessionID: String?
     @Published var workspaceSessions: [WorkspaceNotebookSession] = []
     @Published var activeWorkspaceLane: WorkspaceLane = .mobilityOps
     @Published var activeWorkspaceSessionByLane: [WorkspaceLane: String] = [:]
+    @Published var executionSelectedLane: WorkspaceLane = .mobilityOps
     @Published var learningPackage: AdaptiveLearningPackage?
     @Published var memoryCollectionEnabled = true
     @Published var surveyAdditionalPassesCompleted = 0
+    @Published var openSurveyTabRequested = false
+    @Published var guidedLearningActivated = false
+    @Published var adaptiveBusinessQuestionEngineEnabled = true
+    @Published var businessAutopilotEnabled = true
+    @Published var adaptiveBusinessQuestions: [AdaptiveBusinessQuestion] = []
+    @Published var adaptiveBusinessRuntimeStatusLine = "Adaptive business runtime idle."
 
     @Published var pendingFeedback = ""
     @Published var feedbackOfferEnabled = true
@@ -78,6 +111,7 @@ final class SessionStore: ObservableObject {
     @Published var annualDistanceKM = "70000"
     @Published var workspaceMode = "Business mobility"
     @Published var jobMarketOpportunities: [JobOpportunity] = []
+    @Published var jobOpportunityNarratives: [String: String] = [:]
 
     struct InferenceProviderOption: Identifiable, Hashable {
         let id: String
@@ -94,11 +128,49 @@ final class SessionStore: ObservableObject {
         let statusLine: String
     }
 
+    struct GuidedLearningSettingsSnapshot: Hashable {
+        let kiwixBaseURL: String
+        let ollamaEndpoint: String
+        let ollamaModel: String
+    }
+
+    struct GuidedLearningResult: Hashable {
+        let answer: String
+        let groundingSummary: String
+        let kiwixSourceURL: String?
+        let runtimeStatus: String
+    }
+
+    struct AdaptiveBusinessQuestionResponse: Codable, Hashable {
+        let selectedOptions: [String]
+        let freeformText: String
+        let answeredAtUTC: Date
+    }
+
+    struct AdaptiveBusinessQuestion: Codable, Hashable, Identifiable {
+        let id: String
+        let prompt: String
+        let options: [String]
+        let allowsMultipleSelection: Bool
+        let generatedAtUTC: Date
+        let source: String
+        var response: AdaptiveBusinessQuestionResponse?
+    }
+
     let api: APIClient
     private let localReasoning = LocalReasoningEngine()
+    nonisolated private static let localInferenceTransport = LocalInferenceTransport()
+    nonisolated private static let localInferenceResponseCache = LocalInferenceResponseCache(
+        defaultTTL: SessionStore.localInferenceCacheTTLSeconds
+    )
+
     private enum LocalInferenceProvider: String, CaseIterable {
         case openAICompatible = "openai_compatible"
         case gemini = "gemini"
+
+        static var selectableCases: [LocalInferenceProvider] {
+            LocalInferenceProvider.allCases
+        }
 
         var title: String {
             switch self {
@@ -112,18 +184,18 @@ final class SessionStore: ObservableObject {
         var subtitle: String {
             switch self {
             case .openAICompatible:
-                return "Local or hosted /v1/chat/completions endpoint"
+                return "OpenAI /v1/chat/completions endpoint (locked: gpt-5.2)"
             case .gemini:
-                return "Google Gemini cloud endpoint"
+                return "Google Gemini cloud endpoint (locked: gemini-3-flash-preview)"
             }
         }
 
         var defaultModel: String {
             switch self {
             case .openAICompatible:
-                return "atlas-local-3b"
+                return "gpt-5.2"
             case .gemini:
-                return "gemini-2.0-flash"
+                return SessionStore.geminiReasoningModel
             }
         }
     }
@@ -132,14 +204,16 @@ final class SessionStore: ObservableObject {
         let configured = UserDefaults.standard.string(forKey: LocalInferenceDefaults.providerKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        guard let configured, !configured.isEmpty else { return .openAICompatible }
-        return LocalInferenceProvider(rawValue: configured) ?? .openAICompatible
+        guard let configured, !configured.isEmpty else { return .gemini }
+        return LocalInferenceProvider(rawValue: configured) ?? .gemini
     }
 
     private var localInferenceModelName: String {
-        let configured = UserDefaults.standard.string(forKey: LocalInferenceDefaults.modelKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (configured?.isEmpty == false) ? configured! : localInferenceProvider.defaultModel
+        localInferenceProvider.defaultModel
+    }
+
+    private var preferredInferenceProviders: [LocalInferenceProvider] {
+        [.gemini, .openAICompatible]
     }
 
     private var localInferenceEnabled: Bool {
@@ -150,7 +224,7 @@ final class SessionStore: ObservableObject {
     private var configuredLocalInferenceEndpointRawValue: String {
         let configured = UserDefaults.standard.string(forKey: LocalInferenceDefaults.endpointKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let fallback = "http://127.0.0.1:8080/v1/chat/completions"
+        let fallback = "https://api.openai.com/v1/chat/completions"
         return (configured?.isEmpty == false ? configured! : fallback)
     }
 
@@ -177,16 +251,60 @@ final class SessionStore: ObservableObject {
         return url
     }
 
-    private var localInferenceAPIKey: String? {
-        let stored = readLocalInferenceAPIKey()?.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func localInferenceAPIKey(for provider: LocalInferenceProvider) -> String? {
+        let stored = readLocalInferenceAPIKey(for: provider)?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let stored, !stored.isEmpty else { return nil }
         return stored
     }
 
+    private var guidedLearningKiwixBaseURLRawValue: String {
+        let configured = UserDefaults.standard.string(forKey: GuidedLearningDefaults.kiwixBaseURLKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = "http://127.0.0.1:8080"
+        return (configured?.isEmpty == false) ? configured! : fallback
+    }
+
+    private var guidedLearningOllamaEndpointRawValue: String {
+        let configured = UserDefaults.standard.string(forKey: GuidedLearningDefaults.ollamaEndpointKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = "http://127.0.0.1:11434/v1/chat/completions"
+        return (configured?.isEmpty == false) ? configured! : fallback
+    }
+
+    private var guidedLearningOllamaModelName: String {
+        let configured = UserDefaults.standard.string(forKey: GuidedLearningDefaults.ollamaModelKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (configured?.isEmpty == false) ? configured! : "llama3.2:latest"
+    }
+
+    private var guidedLearningKiwixBaseURL: URL? {
+        normalizeEndpointURL(
+            guidedLearningKiwixBaseURLRawValue,
+            defaultPath: "",
+            allowPrivateNetworkHTTP: true
+        )
+    }
+
+    private var guidedLearningOllamaEndpointURL: URL? {
+        normalizeEndpointURL(
+            guidedLearningOllamaEndpointRawValue,
+            defaultPath: "/v1/chat/completions",
+            allowPrivateNetworkHTTP: true
+        )
+    }
+
     private var queueWorkerTask: Task<Void, Never>?
+    private var adaptiveBusinessQuestionTask: Task<Void, Never>?
+    private var businessAutopilotTask: Task<Void, Never>?
+    private var lastAdaptiveBusinessQuestionAt = Date.distantPast
+    private var lastBusinessAutopilotAt = Date.distantPast
+    private var adaptiveBusinessAutopilotCursor = 0
     private var runtimeTelemetryTask: Task<Void, Never>?
     private var pendingRuntimeTelemetry: [String] = []
     private var lastRuntimeTelemetryAt = Date.distantPast
+    private var networkPathMonitor: NWPathMonitor?
+    private var isInternetConnectionAvailable = true
+    private var hasLoggedQueueReconnectWait = false
     private var appleAuthCoordinator: AppleAuthorizationCoordinator?
     private var passkeyAuthCoordinator: AppleAuthorizationCoordinator?
 
@@ -196,13 +314,52 @@ final class SessionStore: ObservableObject {
     private let stateStorageLegacyKey = "atlas_ios_state_v2"
     private let stateFileName = "session-state-v3.json"
     private let stateBackupFileName = "session-state-v3.bak.json"
+    private let profilePhotoFileName = "profile-photo-v1.bin"
+    private let profilePhotoBackupFileName = "profile-photo-v1.bak.bin"
     private static let checkpointFormatter = ISO8601DateFormatter()
     private enum LocalInferenceDefaults {
         static let endpointKey = "atlas.local.llm.endpoint"
         static let modelKey = "atlas.local.llm.model"
         static let providerKey = "atlas.local.llm.provider"
         static let keychainService = "com.atlasmasa.local.llm"
-        static let keychainAccount = "provider_api_key"
+        static let keychainAccountPrefix = "provider_api_key"
+        static let legacyKeychainAccount = "provider_api_key"
+    }
+
+    private enum GuidedLearningDefaults {
+        static let kiwixBaseURLKey = "atlas.guided.learning.kiwix.base_url"
+        static let ollamaEndpointKey = "atlas.guided.learning.ollama.endpoint"
+        static let ollamaModelKey = "atlas.guided.learning.ollama.model"
+    }
+
+    private enum AdaptiveBusinessDefaults {
+        static let questionsKey = "atlas.adaptive.business.questions.v1"
+        static let questionEngineEnabledKey = "atlas.adaptive.business.questions.enabled"
+        static let autopilotEnabledKey = "atlas.adaptive.business.autopilot.enabled"
+        static let lastQuestionAtKey = "atlas.adaptive.business.last_question_at"
+        static let lastAutopilotAtKey = "atlas.adaptive.business.last_autopilot_at"
+        static let autopilotCursorKey = "atlas.adaptive.business.autopilot.cursor"
+    }
+
+    private static let adaptiveQuestionLoopIntervalSeconds: TimeInterval = 55
+    private static let adaptiveQuestionGenerationCadenceSeconds: TimeInterval = 210
+    private static let adaptiveQuestionPendingCap = 3
+    private static let adaptiveQuestionHistoryCap = 42
+    private static let businessAutopilotLoopIntervalSeconds: TimeInterval = 65
+    private static let businessAutopilotCadenceSeconds: TimeInterval = 240
+
+    private struct AdaptiveQuestionModelEnvelope: Codable {
+        let question: String
+        let options: [String]
+    }
+
+    private struct KiwixGroundingSnapshot {
+        let sourceURL: URL
+        let snippets: [String]
+    }
+
+    private func keychainAccount(for provider: LocalInferenceProvider) -> String {
+        "\(LocalInferenceDefaults.keychainAccountPrefix).\(provider.rawValue)"
     }
     private var surveyAnswers: [String: String] = [:]
     private var surveyQuestionSessionIndex: [String: String] = [:]
@@ -216,6 +373,14 @@ final class SessionStore: ObservableObject {
     private var learningVersion = 0
     private var learningFingerprint = ""
     private var consecutiveSafeInputs = 0
+    private var lastCommandBriefSignature = ""
+    private var lastCommandBriefRefreshAt = Date.distantPast
+    private var lastWorkspaceBriefSignatureByLane: [WorkspaceLane: String] = [:]
+    private var lastWorkspaceBriefRefreshAtByLane: [WorkspaceLane: Date] = [:]
+    private var lastFeedInferenceSignature = ""
+    private var lastFeedInferenceAt = Date.distantPast
+    private var lastJobNarrativeSignature = ""
+    private var lastJobNarrativeRefreshAt = Date.distantPast
 
     private enum CareerRouteMode {
         case employee
@@ -621,14 +786,33 @@ final class SessionStore: ObservableObject {
 
     init(api: APIClient = APIClient()) {
         self.api = api
+        configureNetworkPathMonitor()
         restoreStateFromDisk()
+        restoreProfilePhotoFromDisk()
         if codingWorkspaceRootPath.isEmpty {
             codingWorkspaceRootPath = defaultCodingWorkspaceRootPath()
         }
+        ensureConciergeSessionsSeeded()
         ensureWorkspaceSessionsSeeded()
         loadPromptQueueFromDisk()
+        reconcileSessionIDsForLegacyPromptQueue()
         recoverInterruptedQueueItemsAfterRestart()
         startPromptQueueWorker()
+        loadAdaptiveBusinessRuntimeFromDefaults()
+        startAgenticBusinessRuntime()
+    }
+
+    deinit {
+        networkPathMonitor?.cancel()
+    }
+
+    var hasProfilePhoto: Bool {
+        profilePhotoData != nil
+    }
+
+    var profilePhotoImage: UIImage? {
+        guard let profilePhotoData else { return nil }
+        return UIImage(data: profilePhotoData)
     }
 
     func bootstrap() async {
@@ -643,10 +827,12 @@ final class SessionStore: ObservableObject {
         await refreshWorkspaceModelBrief()
         await refreshFeed()
         startPromptQueueWorker()
+        startAgenticBusinessRuntime()
     }
 
     func handleAppBecameActive() async {
         await syncSessionFromServerIfAvailable()
+        startAgenticBusinessRuntime()
     }
 
     func refreshHealth() async {
@@ -654,12 +840,12 @@ final class SessionStore: ObservableObject {
             health = try await api.health()
             appendOutput("API reachable. Capabilities refreshed.")
         } catch {
-            appendOutput("API health unavailable. App remains in local-first mode.")
+            appendOutput("API health unavailable. App remains in offline-first continuity mode.")
         }
     }
 
     func inferenceProviderOptions() -> [InferenceProviderOption] {
-        LocalInferenceProvider.allCases.map { provider in
+        LocalInferenceProvider.selectableCases.map { provider in
             InferenceProviderOption(
                 id: provider.rawValue,
                 title: provider.title,
@@ -669,12 +855,14 @@ final class SessionStore: ObservableObject {
     }
 
     func inferenceSettingsSnapshot() -> InferenceSettingsSnapshot {
-        InferenceSettingsSnapshot(
-            providerID: localInferenceProvider.rawValue,
-            model: localInferenceModelName,
+        let provider = localInferenceProvider
+        let providerAPIKey = localInferenceAPIKey(for: provider)
+        return InferenceSettingsSnapshot(
+            providerID: provider.rawValue,
+            model: provider.defaultModel,
             endpoint: configuredLocalInferenceEndpointRawValue,
-            apiKeyStored: localInferenceAPIKey != nil,
-            apiKeyHint: localInferenceAPIKey.map(maskedAPIKey),
+            apiKeyStored: providerAPIKey != nil,
+            apiKeyHint: providerAPIKey.map(maskedAPIKey),
             statusLine: localLLMRuntimeStatusLine()
         )
     }
@@ -685,14 +873,12 @@ final class SessionStore: ObservableObject {
         endpoint: String,
         newAPIKey: String
     ) {
-        let provider = LocalInferenceProvider(rawValue: providerID) ?? .openAICompatible
+        let provider = LocalInferenceProvider(rawValue: providerID) ?? .gemini
         UserDefaults.standard.set(provider.rawValue, forKey: LocalInferenceDefaults.providerKey)
-
-        let cleanModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleanModel.isEmpty {
-            UserDefaults.standard.removeObject(forKey: LocalInferenceDefaults.modelKey)
-        } else {
-            UserDefaults.standard.set(cleanModel, forKey: LocalInferenceDefaults.modelKey)
+        UserDefaults.standard.set(provider.defaultModel, forKey: LocalInferenceDefaults.modelKey)
+        let requestedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !requestedModel.isEmpty, requestedModel != provider.defaultModel {
+            appendOutput("Model target is locked to \(provider.defaultModel) for \(provider.title).")
         }
 
         let cleanEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -704,24 +890,461 @@ final class SessionStore: ObservableObject {
 
         let cleanAPIKey = newAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if !cleanAPIKey.isEmpty {
-            if storeLocalInferenceAPIKey(cleanAPIKey) {
-                appendOutput("Inference API key stored securely in Keychain.")
+            if storeLocalInferenceAPIKey(cleanAPIKey, for: provider) {
+                appendOutput("\(provider.title) API key stored securely in Keychain.")
             } else {
-                appendOutput("Could not store inference API key in Keychain.")
+                appendOutput("Could not store \(provider.title) API key in Keychain.")
             }
         }
 
-        appendOutput("Inference runtime updated: \(provider.title) · model \(localInferenceModelName).")
+        appendOutput("Inference runtime updated: \(provider.title) keychain settings saved. Runtime policy remains Gemini primary with GPT-5.2 fallback.")
         appendOutput(localLLMRuntimeStatusLine())
     }
 
     func clearInferenceAPIKey() {
-        if deleteLocalInferenceAPIKey() {
-            appendOutput("Inference API key removed from Keychain.")
+        let provider = localInferenceProvider
+        if deleteLocalInferenceAPIKey(for: provider) {
+            appendOutput("\(provider.title) API key removed from Keychain.")
         } else {
-            appendOutput("Could not remove inference API key from Keychain.")
+            appendOutput("Could not remove \(provider.title) API key from Keychain.")
         }
         appendOutput(localLLMRuntimeStatusLine())
+    }
+
+    func guidedLearningSettingsSnapshot() -> GuidedLearningSettingsSnapshot {
+        GuidedLearningSettingsSnapshot(
+            kiwixBaseURL: guidedLearningKiwixBaseURLRawValue,
+            ollamaEndpoint: guidedLearningOllamaEndpointRawValue,
+            ollamaModel: guidedLearningOllamaModelName
+        )
+    }
+
+    func saveGuidedLearningSettings(
+        kiwixBaseURL: String,
+        ollamaEndpoint: String,
+        ollamaModel: String
+    ) {
+        let cleanKiwix = kiwixBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanOllamaEndpoint = ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanOllamaModel = ollamaModel.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if cleanKiwix.isEmpty {
+            UserDefaults.standard.removeObject(forKey: GuidedLearningDefaults.kiwixBaseURLKey)
+        } else {
+            UserDefaults.standard.set(cleanKiwix, forKey: GuidedLearningDefaults.kiwixBaseURLKey)
+        }
+
+        if cleanOllamaEndpoint.isEmpty {
+            UserDefaults.standard.removeObject(forKey: GuidedLearningDefaults.ollamaEndpointKey)
+        } else {
+            UserDefaults.standard.set(cleanOllamaEndpoint, forKey: GuidedLearningDefaults.ollamaEndpointKey)
+        }
+
+        if cleanOllamaModel.isEmpty {
+            UserDefaults.standard.removeObject(forKey: GuidedLearningDefaults.ollamaModelKey)
+        } else {
+            UserDefaults.standard.set(cleanOllamaModel, forKey: GuidedLearningDefaults.ollamaModelKey)
+        }
+
+        appendOutput("Guided learning settings updated. \(guidedLearningRuntimeStatusLine())")
+    }
+
+    func activateGuidedLearningAfterSurvey() {
+        guard isPrimarySurveyComplete else {
+            appendOutput("Guided learning activation blocked. Finish the initialization survey first.")
+            openSurveyTabRequested = true
+            return
+        }
+        guard !guidedLearningActivated else {
+            appendOutput("Guided learning is already active.")
+            return
+        }
+
+        guidedLearningActivated = true
+        persistStateToDisk()
+        startAgenticBusinessRuntime()
+        Task { await generateAdaptiveBusinessQuestionIfNeeded(force: true, trigger: "activation") }
+        appendOutput("Guided learning activated after survey completion. Kiwix + Ollama runtime is now available.")
+    }
+
+    func requestGuidedLearningResponse(for query: String) async -> GuidedLearningResult {
+        let cleanQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanQuery.isEmpty else {
+            return GuidedLearningResult(
+                answer: "Add a concrete learning question to continue.",
+                groundingSummary: "No query provided.",
+                kiwixSourceURL: nil,
+                runtimeStatus: guidedLearningRuntimeStatusLine()
+            )
+        }
+
+        guard isGuidedLearningRuntimeActive else {
+            return GuidedLearningResult(
+                answer: "Complete the initialization survey, then confirm that you are ready to start using the app to enable guided learning.",
+                groundingSummary: "Runtime locked until explicit post-survey activation.",
+                kiwixSourceURL: nil,
+                runtimeStatus: guidedLearningRuntimeStatusLine()
+            )
+        }
+
+        let grounding = await fetchKiwixGroundingSnapshot(for: cleanQuery)
+        let groundingLines = grounding?.snippets.prefix(6).map { "- \($0)" }.joined(separator: "\n") ?? "- No snippets returned from Kiwix."
+        let profileSignals = surveyAnswers
+            .sorted { $0.key < $1.key }
+            .prefix(16)
+            .map { "- \($0.key): \($0.value)" }
+            .joined(separator: "\n")
+        let noteSignals = notes
+            .prefix(5)
+            .map { "- \($0.title): \(sanitizeWorkspaceMemoryValue($0.content, maxLength: 120))" }
+            .joined(separator: "\n")
+
+        let prompt = sanitizeModelInput(
+            """
+            You are Atlas guided learning copilot.
+            Use the Kiwix snippets as factual grounding and adapt the explanation to this user's profile.
+            Return concise markdown with these sections:
+            1) Personalized overview
+            2) Guided learning path (now, this week, this month)
+            3) Practice drill
+            4) Reflection checkpoint
+            Keep it practical and execution-oriented.
+
+            USER QUESTION
+            \(cleanQuery)
+
+            KIWIX GROUNDED SNIPPETS
+            \(groundingLines)
+
+            PROFILE SIGNALS
+            \(profileSignals.isEmpty ? "- No survey signals yet." : profileSignals)
+
+            NOTES SIGNALS
+            \(noteSignals.isEmpty ? "- No notes captured." : noteSignals)
+
+            GLOBAL CONTEXT
+            \(globalReasoningContextDigest(maxLength: 2200))
+            """,
+            maxLength: 13_000
+        )
+
+        let answer = await requestGuidedLearningOllama(prompt: prompt, timeoutSeconds: 28)
+            ?? "Ollama is unreachable right now. Verify the Ollama endpoint/model settings, keep Kiwix reachable, and try again."
+
+        let sourceURL = grounding?.sourceURL.absoluteString
+        let groundingSummary: String
+        if let sourceURL {
+            groundingSummary = "Kiwix grounding loaded from \(sourceURL) (\(grounding?.snippets.count ?? 0) snippets)."
+        } else {
+            groundingSummary = "No Kiwix snippets returned. Response was personalized from survey/notes only."
+        }
+
+        return GuidedLearningResult(
+            answer: answer,
+            groundingSummary: groundingSummary,
+            kiwixSourceURL: sourceURL,
+            runtimeStatus: guidedLearningRuntimeStatusLine()
+        )
+    }
+
+    var pendingAdaptiveBusinessQuestion: AdaptiveBusinessQuestion? {
+        adaptiveBusinessQuestions.first(where: { $0.response == nil })
+    }
+
+    var answeredAdaptiveBusinessQuestionCount: Int {
+        adaptiveBusinessQuestions.filter { $0.response != nil }.count
+    }
+
+    func saveAdaptiveBusinessRuntimeSettings(
+        questionEngineEnabled: Bool,
+        businessAutopilotEnabled: Bool
+    ) {
+        adaptiveBusinessQuestionEngineEnabled = questionEngineEnabled
+        self.businessAutopilotEnabled = businessAutopilotEnabled
+        adaptiveBusinessRuntimeStatusLine = "Adaptive runtime updated. Questions: \(questionEngineEnabled ? "on" : "off"), autopilot: \(businessAutopilotEnabled ? "on" : "off")."
+        persistAdaptiveBusinessRuntimeToDefaults()
+    }
+
+    func answerAdaptiveBusinessQuestion(
+        questionID: String,
+        selectedOptions: [String],
+        freeformText: String
+    ) {
+        guard let index = adaptiveBusinessQuestions.firstIndex(where: { $0.id == questionID }) else {
+            adaptiveBusinessRuntimeStatusLine = "Question not found. Generate a new one."
+            return
+        }
+        guard adaptiveBusinessQuestions[index].response == nil else {
+            adaptiveBusinessRuntimeStatusLine = "This question was already answered."
+            return
+        }
+
+        let availableOptions = Set(adaptiveBusinessQuestions[index].options)
+        let normalizedSelections = Array(
+            Set(selectedOptions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+                .intersection(availableOptions)
+        ).sorted()
+        let cleanFreeform = sanitizeModelInput(freeformText, maxLength: 360)
+        guard !normalizedSelections.isEmpty || !cleanFreeform.isEmpty else {
+            adaptiveBusinessRuntimeStatusLine = "Choose at least one option or add a freeform response."
+            return
+        }
+
+        let response = AdaptiveBusinessQuestionResponse(
+            selectedOptions: normalizedSelections,
+            freeformText: cleanFreeform,
+            answeredAtUTC: Date()
+        )
+        adaptiveBusinessQuestions[index].response = response
+
+        let summary = """
+        Q: \(adaptiveBusinessQuestions[index].prompt)
+        Selected: \(normalizedSelections.isEmpty ? "none" : normalizedSelections.joined(separator: ", "))
+        Notes: \(cleanFreeform.isEmpty ? "none" : cleanFreeform)
+        """
+        var records = workspaceMemoryRecords
+        upsertWorkspaceMemoryRecord(
+            in: &records,
+            lane: .wealthOperations,
+            sessionID: activeSessionID(for: .wealthOperations),
+            source: .system,
+            key: "adaptive_business_question.\(questionID)",
+            value: summary,
+            weight: 0.82,
+            tags: ["adaptive", "business", "questionnaire", "ollama"],
+            now: Date()
+        )
+        workspaceMemoryRecords = normalizeWorkspaceMemoryRecords(records, now: Date())
+        persistStateToDisk()
+        persistAdaptiveBusinessRuntimeToDefaults()
+        adaptiveBusinessRuntimeStatusLine = "Response captured and added to memory."
+    }
+
+    func requestNextAdaptiveBusinessQuestionNow() {
+        Task {
+            await generateAdaptiveBusinessQuestionIfNeeded(force: true, trigger: "manual")
+        }
+    }
+
+    func startAgenticBusinessRuntime() {
+        if adaptiveBusinessQuestionTask == nil {
+            adaptiveBusinessQuestionTask = Task { [weak self] in
+                await self?.runAdaptiveBusinessQuestionLoop()
+            }
+        }
+        if businessAutopilotTask == nil {
+            businessAutopilotTask = Task { [weak self] in
+                await self?.runBusinessAutopilotLoop()
+            }
+        }
+    }
+
+    private func runAdaptiveBusinessQuestionLoop() async {
+        while !Task.isCancelled {
+            await generateAdaptiveBusinessQuestionIfNeeded(force: false, trigger: "loop")
+            let interval = UInt64(Self.adaptiveQuestionLoopIntervalSeconds * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: interval)
+        }
+        adaptiveBusinessQuestionTask = nil
+    }
+
+    private func runBusinessAutopilotLoop() async {
+        while !Task.isCancelled {
+            await performBusinessAutopilotTickIfNeeded(force: false, trigger: "loop")
+            let interval = UInt64(Self.businessAutopilotLoopIntervalSeconds * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: interval)
+        }
+        businessAutopilotTask = nil
+    }
+
+    private func generateAdaptiveBusinessQuestionIfNeeded(force: Bool, trigger: String) async {
+        guard isGuidedLearningRuntimeActive else {
+            if force {
+                adaptiveBusinessRuntimeStatusLine = "Adaptive questions are locked until guided learning is active."
+            }
+            return
+        }
+        guard adaptiveBusinessQuestionEngineEnabled || force else { return }
+
+        let pendingCount = adaptiveBusinessQuestions.filter { $0.response == nil }.count
+        if !force, pendingCount >= Self.adaptiveQuestionPendingCap {
+            return
+        }
+
+        let now = Date()
+        if !force, now.timeIntervalSince(lastAdaptiveBusinessQuestionAt) < Self.adaptiveQuestionGenerationCadenceSeconds {
+            return
+        }
+
+        let generated = await buildAdaptiveBusinessQuestion()
+        adaptiveBusinessQuestions.insert(generated, at: 0)
+        if adaptiveBusinessQuestions.count > Self.adaptiveQuestionHistoryCap {
+            adaptiveBusinessQuestions = Array(adaptiveBusinessQuestions.prefix(Self.adaptiveQuestionHistoryCap))
+        }
+        lastAdaptiveBusinessQuestionAt = now
+        persistAdaptiveBusinessRuntimeToDefaults()
+        adaptiveBusinessRuntimeStatusLine = "Adaptive question generated (\(trigger))."
+        appendOutput("Adaptive question generated from memory context (\(generated.source)).")
+    }
+
+    private func performBusinessAutopilotTickIfNeeded(force: Bool, trigger: String) async {
+        guard isGuidedLearningRuntimeActive else { return }
+        guard businessAutopilotEnabled || force else { return }
+
+        let now = Date()
+        if !force, now.timeIntervalSince(lastBusinessAutopilotAt) < Self.businessAutopilotCadenceSeconds {
+            return
+        }
+
+        let prompt = businessAutopilotPrompt(for: adaptiveBusinessAutopilotCursor)
+        let backupDraft = pendingPrompt
+        pendingPrompt = sanitizeModelInput(prompt, maxLength: 1800)
+        enqueuePrompt(outputType: .standard)
+        if !backupDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            pendingPrompt = backupDraft
+        }
+
+        adaptiveBusinessAutopilotCursor = (adaptiveBusinessAutopilotCursor + 1) % 3
+        lastBusinessAutopilotAt = now
+        persistAdaptiveBusinessRuntimeToDefaults()
+        adaptiveBusinessRuntimeStatusLine = "Business autopilot enqueued a task (\(trigger))."
+    }
+
+    private func buildAdaptiveBusinessQuestion() async -> AdaptiveBusinessQuestion {
+        let answeredSnapshot = adaptiveBusinessQuestions
+            .compactMap { question -> String? in
+                guard let response = question.response else { return nil }
+                let selected = response.selectedOptions.joined(separator: ", ")
+                let text = response.freeformText
+                return "- Q: \(question.prompt)\n  A: \(selected)\n  Notes: \(text)"
+            }
+            .prefix(4)
+            .joined(separator: "\n")
+
+        let prompt = sanitizeModelInput(
+            """
+            You are Atlas adaptive business interviewer running on Ollama.
+            Generate exactly one multiple-choice question from user memory context.
+            Output ONLY valid JSON:
+            {"question":"...","options":["...","...","...","..."]}
+            Constraints:
+            - options must be 3 to 5 concise choices
+            - each option <= 72 chars
+            - question <= 180 chars
+            - question should improve business execution precision now
+            - avoid repeating previous answered questions
+
+            PREVIOUS ANSWERS
+            \(answeredSnapshot.isEmpty ? "- none yet" : answeredSnapshot)
+
+            GLOBAL USER CONTEXT
+            \(globalReasoningContextDigest(maxLength: 2400))
+            """,
+            maxLength: 13_000
+        )
+
+        if let raw = await requestGuidedLearningOllama(prompt: prompt, timeoutSeconds: 22),
+           let decoded: AdaptiveQuestionModelEnvelope = Self.decodeModelJSON(raw)
+        {
+            let questionText = sanitizeWorkspaceMemoryValue(decoded.question, maxLength: 180)
+            let options = decoded.options
+                .map { sanitizeWorkspaceMemoryValue($0, maxLength: 72) }
+                .filter { !$0.isEmpty }
+            if !questionText.isEmpty, options.count >= 3 {
+                return AdaptiveBusinessQuestion(
+                    id: UUID().uuidString,
+                    prompt: questionText,
+                    options: Array(options.prefix(5)),
+                    allowsMultipleSelection: true,
+                    generatedAtUTC: Date(),
+                    source: "ollama",
+                    response: nil
+                )
+            }
+        }
+
+        return AdaptiveBusinessQuestion(
+            id: UUID().uuidString,
+            prompt: "What is the highest-leverage growth bottleneck right now?",
+            options: [
+                "Top-of-funnel lead flow is too weak",
+                "Offer/value proposition is unclear",
+                "Conversion calls close too slowly",
+                "Retention/expansion is underperforming"
+            ],
+            allowsMultipleSelection: true,
+            generatedAtUTC: Date(),
+            source: "fallback",
+            response: nil
+        )
+    }
+
+    private func businessAutopilotPrompt(for cursor: Int) -> String {
+        let baseContext = """
+        Use all memory context to produce a concise, execution-ready deliverable.
+        Include:
+        1) Immediate action
+        2) 7-day sequence
+        3) KPI checkpoint
+        4) Risk + mitigation
+        """
+        switch cursor % 3 {
+        case 0:
+            return """
+            \(baseContext)
+            Deliverable: Weekly growth operating brief with north-star focus, experiment cadence, and resource allocation.
+            """
+        case 1:
+            return """
+            \(baseContext)
+            Deliverable: Retention and expansion plan with churn diagnosis, onboarding fixes, and NRR recovery path.
+            """
+        default:
+            return """
+            \(baseContext)
+            Deliverable: Platform leverage plan for distribution flywheel, channel sequencing, and conversion architecture.
+            """
+        }
+    }
+
+    private func loadAdaptiveBusinessRuntimeFromDefaults() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: AdaptiveBusinessDefaults.questionEngineEnabledKey) != nil {
+            adaptiveBusinessQuestionEngineEnabled = defaults.bool(forKey: AdaptiveBusinessDefaults.questionEngineEnabledKey)
+        }
+        if defaults.object(forKey: AdaptiveBusinessDefaults.autopilotEnabledKey) != nil {
+            businessAutopilotEnabled = defaults.bool(forKey: AdaptiveBusinessDefaults.autopilotEnabledKey)
+        }
+        if let timestamp = defaults.object(forKey: AdaptiveBusinessDefaults.lastQuestionAtKey) as? TimeInterval {
+            lastAdaptiveBusinessQuestionAt = Date(timeIntervalSince1970: timestamp)
+        }
+        if let timestamp = defaults.object(forKey: AdaptiveBusinessDefaults.lastAutopilotAtKey) as? TimeInterval {
+            lastBusinessAutopilotAt = Date(timeIntervalSince1970: timestamp)
+        }
+        if defaults.object(forKey: AdaptiveBusinessDefaults.autopilotCursorKey) != nil {
+            adaptiveBusinessAutopilotCursor = max(0, defaults.integer(forKey: AdaptiveBusinessDefaults.autopilotCursorKey))
+        }
+        if let data = defaults.data(forKey: AdaptiveBusinessDefaults.questionsKey),
+           let decoded = try? JSONDecoder().decode([AdaptiveBusinessQuestion].self, from: data)
+        {
+            adaptiveBusinessQuestions = decoded
+                .sorted(by: { $0.generatedAtUTC > $1.generatedAtUTC })
+                .prefix(Self.adaptiveQuestionHistoryCap)
+                .map { $0 }
+        }
+        adaptiveBusinessRuntimeStatusLine = "Adaptive business runtime restored."
+    }
+
+    private func persistAdaptiveBusinessRuntimeToDefaults() {
+        let defaults = UserDefaults.standard
+        defaults.set(adaptiveBusinessQuestionEngineEnabled, forKey: AdaptiveBusinessDefaults.questionEngineEnabledKey)
+        defaults.set(businessAutopilotEnabled, forKey: AdaptiveBusinessDefaults.autopilotEnabledKey)
+        defaults.set(lastAdaptiveBusinessQuestionAt.timeIntervalSince1970, forKey: AdaptiveBusinessDefaults.lastQuestionAtKey)
+        defaults.set(lastBusinessAutopilotAt.timeIntervalSince1970, forKey: AdaptiveBusinessDefaults.lastAutopilotAtKey)
+        defaults.set(adaptiveBusinessAutopilotCursor, forKey: AdaptiveBusinessDefaults.autopilotCursorKey)
+        if let encoded = try? JSONEncoder().encode(adaptiveBusinessQuestions) {
+            defaults.set(encoded, forKey: AdaptiveBusinessDefaults.questionsKey)
+        }
     }
 
     func handleAppleAuthorization(result: Result<ASAuthorization, Error>) async {
@@ -753,12 +1376,20 @@ final class SessionStore: ObservableObject {
                     displayName: displayName,
                     locale: Locale.current.identifier
                 )
-                markSignedIn(provider: .apple, accountName: credential.fullName?.givenName ?? "Atlas Owner")
+                markSignedIn(
+                    provider: .apple,
+                    accountName: displayName ?? credential.fullName?.givenName ?? "Atlas Owner",
+                    email: email
+                )
                 appendOutput("Native Apple sign-in synced with API.")
                 accountStatusMessage = "Apple account activated and synced."
             } catch {
                 // Keep sign-in local-first so user can still use the app even if API sync fails.
-                markSignedIn(provider: .apple, accountName: credential.fullName?.givenName ?? "Atlas Owner")
+                markSignedIn(
+                    provider: .apple,
+                    accountName: displayName ?? credential.fullName?.givenName ?? "Atlas Owner",
+                    email: email
+                )
                 appendOutput("Apple sign-in completed locally. API sync pending.")
                 accountStatusMessage = "Apple account activated locally. Cloud sync endpoint is pending."
             }
@@ -896,7 +1527,7 @@ final class SessionStore: ObservableObject {
 
     private func performPasskeySignUpFlow() async throws {
         let start = try await api.passkeyRegisterStart(
-            displayName: "Atlas Masa Member",
+            displayName: "Atlas Member",
             locale: currentLocaleCode()
         )
         let parsed = try parsePasskeyRegistrationStart(start)
@@ -935,7 +1566,7 @@ final class SessionStore: ObservableObject {
         let displayName = response.user.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? response.user.email
             : response.user.name
-        markSignedIn(provider: provider, accountName: displayName)
+        markSignedIn(provider: provider, accountName: displayName, email: response.user.email)
         memoryCollectionEnabled = response.user.memoryOptIn
         appendOutput("Passwordless sign-in completed and verified with API.")
         accountStatusMessage = "Passwordless sign-in active."
@@ -1051,7 +1682,7 @@ final class SessionStore: ObservableObject {
 
         let userName = ((user["name"] as? String)?.trimmedNil())
             ?? ((user["displayName"] as? String)?.trimmedNil())
-            ?? "Atlas Masa Member"
+            ?? "Atlas Member"
 
         let authenticatorSelection = (options["authenticatorSelection"] as? [String: Any])
             ?? (options["authenticator_selection"] as? [String: Any])
@@ -1290,19 +1921,146 @@ final class SessionStore: ObservableObject {
         isSignedIn = false
         accountProvider = nil
         accountLabel = "Guest Operator"
+        accountFirstName = ""
+        accountMiddleName = ""
+        accountLastName = ""
+        accountUsername = ""
+        billingAccessEnabled = false
+        billingStatusMessage = "Add a payment method to unlock cloud AI."
+        selectedTier = .localTrial
         persistStateToDisk()
         Task {
             _ = try? await api.logout()
         }
         appendOutput("Signed out.")
-        accountStatusMessage = "Signed out. Re-authenticate to continue synced personalization."
+        accountStatusMessage = "Signed out. Sign in again to continue."
+    }
+
+    func saveAccountIdentity(
+        firstName: String,
+        middleName: String,
+        lastName: String,
+        username: String
+    ) {
+        guard isSignedIn else {
+            accountStatusMessage = "Sign in first to edit your account identity."
+            appendOutput("Account identity update blocked: sign in required.")
+            return
+        }
+
+        let normalizedFirst = sanitizeNameComponent(firstName, maxLength: 40)
+        let normalizedMiddle = sanitizeNameComponent(middleName, maxLength: 40)
+        let normalizedLast = sanitizeNameComponent(lastName, maxLength: 40)
+        let normalizedUsername = sanitizeUsername(username, maxLength: 32)
+
+        accountFirstName = normalizedFirst
+        accountMiddleName = normalizedMiddle
+        accountLastName = normalizedLast
+        accountUsername = normalizedUsername
+        accountLabel = resolvedAccountLabel(fallback: accountLabel)
+        accountStatusMessage = "Profile identity updated."
+        appendOutput("Account identity saved: \(accountLabel)")
+        persistStateToDisk()
     }
 
     func setTier(_ tier: AccountTier) {
+        if tier == .cloudPro && !billingAccessEnabled {
+            selectedTier = .localTrial
+            billingStatusMessage = "Billing is required before cloud mode can be enabled."
+            appendOutput("Plan change blocked: billing not active yet.")
+            return
+        }
         selectedTier = tier
         persistStateToDisk()
         Task { await refreshFeed() }
         appendOutput("Active plan: \(tier.title)")
+    }
+
+    func refreshBillingStatus() async {
+        await syncSessionFromServerIfAvailable()
+    }
+
+    func startInAppPurchaseFlow() {
+        billingStatusMessage = "In-app purchase flow is not wired yet. Use manual card setup as fallback for now."
+        appendOutput("Billing notice: StoreKit purchase flow is pending integration.")
+    }
+
+    func startManualCardSetup(openURL: (URL) -> Void) async {
+        guard isSignedIn else {
+            accountStatusMessage = "Sign in before adding a payment method."
+            appendOutput("Billing notice: sign in first, then add payment method.")
+            return
+        }
+        do {
+            let checkout = try await api.createBillingCheckoutSession()
+            guard let url = URL(string: checkout.checkoutURL) else {
+                billingStatusMessage = "Billing checkout URL is invalid."
+                appendOutput("Billing setup failed: checkout URL is invalid.")
+                return
+            }
+            openURL(url)
+            billingStatusMessage = "Checkout opened. Complete payment setup, then tap Refresh billing status."
+            appendOutput("Billing checkout opened in secure browser.")
+        } catch {
+            billingStatusMessage = "Could not open billing checkout: \(error.localizedDescription)"
+            appendOutput("Billing setup failed: \(error.localizedDescription)")
+        }
+    }
+
+    func allConciergeSessions() -> [ConciergeChatSession] {
+        conciergeSessions
+            .sorted { lhs, rhs in
+                if lhs.updatedAtUTC == rhs.updatedAtUTC {
+                    return lhs.createdAtUTC > rhs.createdAtUTC
+                }
+                return lhs.updatedAtUTC > rhs.updatedAtUTC
+            }
+    }
+
+    func activeConciergeSessionTitle() -> String {
+        let activeID = resolvedActiveConciergeSessionID()
+        return conciergeSessions.first(where: { $0.id == activeID })?.title ?? "Chat"
+    }
+
+    func createConciergeSession(title: String? = nil) {
+        let now = Date()
+        let custom = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaultTitle = "Concierge Chat \(allConciergeSessions().count + 1)"
+        let resolvedTitle = sanitizeWorkspaceMemoryValue(custom?.isEmpty == false ? custom! : defaultTitle, maxLength: 90)
+
+        let session = ConciergeChatSession(
+            id: UUID().uuidString,
+            title: resolvedTitle,
+            createdAtUTC: now,
+            updatedAtUTC: now,
+            summary: "Fresh chat. Atlas will preload personalized opportunities.",
+            isPinned: false
+        )
+        conciergeSessions.append(session)
+        activeConciergeSessionID = session.id
+        persistStateToDisk()
+        appendOutput("Created concierge chat: \(resolvedTitle).")
+    }
+
+    func activateConciergeSession(_ sessionID: String) {
+        guard conciergeSessions.contains(where: { $0.id == sessionID }) else { return }
+        activeConciergeSessionID = sessionID
+        persistStateToDisk()
+    }
+
+    func deleteConciergeSession(_ sessionID: String) {
+        guard conciergeSessions.contains(where: { $0.id == sessionID }) else { return }
+        let removedCount = promptQueue.reduce(0) { partial, item in
+            partial + ((item.workspaceLane == nil && item.conciergeSessionID == sessionID) ? 1 : 0)
+        }
+        promptQueue.removeAll { item in
+            item.workspaceLane == nil && item.conciergeSessionID == sessionID
+        }
+        conciergeSessions.removeAll { $0.id == sessionID }
+        ensureConciergeSessionsSeeded()
+        persistPromptQueueToDisk()
+        persistStateToDisk()
+        appendOutput("Deleted concierge chat (\(removedCount) messages removed).")
     }
 
     func sessions(for lane: WorkspaceLane) -> [WorkspaceNotebookSession] {
@@ -1318,6 +2076,7 @@ final class SessionStore: ObservableObject {
 
     func setActiveWorkspaceLane(_ lane: WorkspaceLane) {
         activeWorkspaceLane = lane
+        executionSelectedLane = lane
         ensureWorkspaceSessionsSeeded()
         persistStateToDisk()
         Task { await refreshWorkspaceModelBrief() }
@@ -1329,28 +2088,237 @@ final class SessionStore: ObservableObject {
 
     func createWorkspaceSession(for lane: WorkspaceLane, title: String? = nil) {
         let now = Date()
-        let defaultName = "\(lane.title) · Session \(sessions(for: lane).count + 1)"
+        let defaultName = "\(lane.title) · Chat \(sessions(for: lane).count + 1)"
+        let customTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle: String
+        if let customTitle, !customTitle.isEmpty {
+            resolvedTitle = customTitle
+        } else {
+            resolvedTitle = workspaceNameSuggestions(for: lane, limit: 1).first ?? defaultName
+        }
+
         let newSession = WorkspaceNotebookSession(
             id: UUID().uuidString,
             lane: lane,
-            title: sanitizeWorkspaceMemoryValue(title ?? defaultName, maxLength: 90),
+            title: sanitizeWorkspaceMemoryValue(resolvedTitle, maxLength: 90),
             createdAtUTC: now,
             updatedAtUTC: now,
-            summary: "Fresh session notebook.",
+            summary: "Awaiting first AI response.",
             isPinned: false
         )
         workspaceSessions.append(newSession)
         activeWorkspaceSessionByLane[lane] = newSession.id
         activeWorkspaceLane = lane
+        executionSelectedLane = lane
         persistStateToDisk()
-        appendOutput("Created session notebook in \(lane.title).")
+        appendOutput("Created workspace chat in \(lane.title).")
         Task { await refreshWorkspaceModelBrief() }
+    }
+
+    func workspaceNameSuggestions(for lane: WorkspaceLane, limit: Int = 3) -> [String] {
+        let safeLimit = max(1, min(6, limit))
+        let nextSessionIndex = sessions(for: lane).count + 1
+        let defaultName = "\(lane.title) · Chat \(nextSessionIndex)"
+        let personalizationDepth = workspacePersonalizationDepth(for: lane)
+        let prefix = laneNamingPrefix(for: lane)
+
+        var signalFragments: [String] = []
+        if let plan = workspacePlans.first(where: { $0.lane == lane }) {
+            if let objective = normalizeWorkspaceNameFragment(plan.objective, maxWords: 6, maxLength: 44) {
+                signalFragments.append(objective)
+            }
+            if let nextAction = normalizeWorkspaceNameFragment(plan.nextActionNow, maxWords: 6, maxLength: 44) {
+                signalFragments.append(nextAction)
+            }
+        }
+        if let daily = normalizeWorkspaceNameFragment(dailyPriority, maxWords: 6, maxLength: 44) {
+            signalFragments.append(daily)
+        }
+        if let mid = normalizeWorkspaceNameFragment(midTermGoal, maxWords: 6, maxLength: 44) {
+            signalFragments.append(mid)
+        }
+        if let long = normalizeWorkspaceNameFragment(longTermVision, maxWords: 6, maxLength: 44) {
+            signalFragments.append(long)
+        }
+        if let blocker = normalizeWorkspaceNameFragment(checkInBlockers, maxWords: 5, maxLength: 34) {
+            signalFragments.append("Unblock \(blocker)")
+        }
+        if let laneMode = laneModeDescriptor(for: lane) {
+            signalFragments.append(laneMode)
+        }
+        if let noteTitle = laneNoteTitle(for: lane) {
+            signalFragments.append(noteTitle)
+        }
+        if personalizationDepth >= 5, let surveyDescriptor = laneSurveyDescriptor(for: lane) {
+            signalFragments.append(surveyDescriptor)
+        }
+
+        var suggestions: [String] = []
+        if let first = signalFragments.first {
+            suggestions.append("\(prefix): \(first)")
+        }
+        if personalizationDepth >= 3, signalFragments.count > 1 {
+            suggestions.append("\(prefix): \(signalFragments[1])")
+        }
+        if personalizationDepth >= 6, signalFragments.count > 1 {
+            suggestions.append("\(signalFragments[0]) - \(signalFragments[1])")
+        }
+        if personalizationDepth >= 8 {
+            let tempo: String
+            if checkInEnergy >= 4 {
+                tempo = "High-energy execution sprint"
+            } else if checkInEnergy <= 2 {
+                tempo = "Friction reset and stabilization"
+            } else {
+                tempo = "Steady execution block"
+            }
+            suggestions.append("\(prefix): \(tempo)")
+        }
+        if suggestions.isEmpty, let laneMode = laneModeDescriptor(for: lane) {
+            suggestions.append("\(prefix): \(laneMode)")
+        }
+
+        suggestions.append(defaultName)
+
+        var seen = Set<String>()
+        let unique = suggestions
+            .map { sanitizeWorkspaceMemoryValue($0, maxLength: 90) }
+            .filter { candidate in
+                let normalized = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !normalized.isEmpty else { return false }
+                let dedupeKey = normalized.lowercased()
+                guard !seen.contains(dedupeKey) else { return false }
+                seen.insert(dedupeKey)
+                return true
+            }
+
+        return Array(unique.prefix(safeLimit))
+    }
+
+    private func workspacePersonalizationDepth(for lane: WorkspaceLane) -> Int {
+        var score = 0
+        if dailyPriority.trimmedNil() != nil { score += 2 }
+        if midTermGoal.trimmedNil() != nil { score += 2 }
+        if longTermVision.trimmedNil() != nil { score += 2 }
+        if checkInBlockers.trimmedNil() != nil { score += 1 }
+        if checkInMood.trimmedNil() != nil { score += 1 }
+        if workspacePlans.contains(where: { $0.lane == lane }) { score += 2 }
+        score += min(4, surveyAnswers.count / 6)
+        score += min(3, notes.count / 4)
+        score += min(2, sessions(for: lane).count / 2)
+        return score
+    }
+
+    private func laneNamingPrefix(for lane: WorkspaceLane) -> String {
+        switch lane {
+        case .emergencyCommand:
+            return "Command"
+        case .wealthOperations:
+            return "Wealth"
+        case .mobilityOps:
+            return "Mobility"
+        case .deepWork:
+            return "Cognition"
+        case .innovation:
+            return "Innovation"
+        }
+    }
+
+    private func laneModeDescriptor(for lane: WorkspaceLane) -> String? {
+        switch lane {
+        case .mobilityOps:
+            let region = normalizeWorkspaceNameFragment(travelRegion, maxWords: 3, maxLength: 20)
+            let mode = normalizeWorkspaceNameFragment(workspaceMode, maxWords: 4, maxLength: 26)
+            if let region, let mode {
+                return "\(region) \(mode)"
+            }
+            return mode ?? region
+        case .emergencyCommand:
+            if checkInEnergy <= 2 {
+                return "Stabilize load and response"
+            }
+            return "Readiness and response cadence"
+        case .wealthOperations:
+            if let incomeEngine = surveyAnswers["income_engine"] {
+                return normalizeWorkspaceNameFragment(incomeEngine.replacingOccurrences(of: "_", with: " "), maxWords: 4, maxLength: 30)
+            }
+            if let wealthVehicle = surveyAnswers["wealth_vehicle"] {
+                return normalizeWorkspaceNameFragment(wealthVehicle.replacingOccurrences(of: "_", with: " "), maxWords: 4, maxLength: 30)
+            }
+            return nil
+        case .deepWork:
+            if let focus = surveyAnswers["brain_focus_stability"] {
+                return normalizeWorkspaceNameFragment(focus.replacingOccurrences(of: "_", with: " "), maxWords: 4, maxLength: 30)
+            }
+            if let sleep = surveyAnswers["brain_sleep_quality"] {
+                return normalizeWorkspaceNameFragment(sleep.replacingOccurrences(of: "_", with: " "), maxWords: 4, maxLength: 30)
+            }
+            return nil
+        case .innovation:
+            if let industry = surveyAnswers["industry_focus"] {
+                return normalizeWorkspaceNameFragment(industry.replacingOccurrences(of: "_", with: " "), maxWords: 4, maxLength: 30)
+            }
+            if let model = surveyAnswers["business_model_focus"] {
+                return normalizeWorkspaceNameFragment(model.replacingOccurrences(of: "_", with: " "), maxWords: 4, maxLength: 30)
+            }
+            return nil
+        }
+    }
+
+    private func laneSurveyDescriptor(for lane: WorkspaceLane) -> String? {
+        let candidateKeys: [String]
+        switch lane {
+        case .emergencyCommand:
+            candidateKeys = ["daily_pressure", "stress_trigger", "runway_months"]
+        case .wealthOperations:
+            candidateKeys = ["high_paying_job_track", "income_gap_primary", "weekly_revenue_reps"]
+        case .mobilityOps:
+            candidateKeys = ["travel_priority", "vehicle_strategy", "travel_risk_tolerance"]
+        case .deepWork:
+            candidateKeys = ["brain_stress_regulation", "decision_protocol", "break_structure"]
+        case .innovation:
+            candidateKeys = ["monetizable_skill_stack", "growth_priority", "customer_growth_focus"]
+        }
+
+        for key in candidateKeys {
+            if let value = surveyAnswers[key] {
+                let readable = value.replacingOccurrences(of: "_", with: " ")
+                if let fragment = normalizeWorkspaceNameFragment(readable, maxWords: 5, maxLength: 34) {
+                    return fragment
+                }
+            }
+        }
+        return nil
+    }
+
+    private func laneNoteTitle(for lane: WorkspaceLane) -> String? {
+        guard let note = notes.first(where: { noteLaneIndex[$0.noteID] == lane.rawValue }) else {
+            return nil
+        }
+        return normalizeWorkspaceNameFragment(note.title, maxWords: 5, maxLength: 36)
+    }
+
+    private func normalizeWorkspaceNameFragment(_ text: String, maxWords: Int, maxLength: Int) -> String? {
+        let cleaned = sanitizeWorkspaceMemoryValue(text, maxLength: 180)
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !cleaned.isEmpty else { return nil }
+        let compact = cleaned
+            .split(separator: " ")
+            .prefix(max(1, maxWords))
+            .joined(separator: " ")
+        let bounded = String(compact.prefix(max(1, maxLength)))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return bounded.trimmedNil()
     }
 
     func activateWorkspaceSession(_ sessionID: String) {
         guard let target = workspaceSessions.first(where: { $0.id == sessionID }) else { return }
         activeWorkspaceSessionByLane[target.lane] = target.id
         activeWorkspaceLane = target.lane
+        executionSelectedLane = target.lane
         persistStateToDisk()
         appendOutput("Active notebook switched to \(target.title).")
         Task { await refreshWorkspaceModelBrief() }
@@ -1383,6 +2351,17 @@ final class SessionStore: ObservableObject {
     }
 
     func refreshFeed() async {
+        if !isModelAutofillUnlocked {
+            feedItems = []
+            let statusLine = "AI feed autofill unlocks after \(Self.minimumSurveyAnswersForModelAutofill) survey answers (\(modelAutofillSurveyAnswersRemaining) remaining)."
+            let shouldLog = feedInferenceStatus != statusLine
+            feedInferenceStatus = statusLine
+            if shouldLog {
+                appendOutput("Execution feed AI autofill locked until \(Self.minimumSurveyAnswersForModelAutofill) survey answers are completed.")
+            }
+            return
+        }
+
         if selectedTier == .cloudPro {
             do {
                 let payload = try await api.feedProactive()
@@ -1391,19 +2370,181 @@ final class SessionStore: ObservableObject {
                 appendOutput("Cloud proactive feed refreshed.")
                 return
             } catch {
-                appendOutput("Cloud feed unavailable. Falling back to local orchestration.")
+                appendOutput("Cloud feed unavailable. Falling back to on-device orchestration.")
             }
+        }
+
+        let feedSignature = feedInferenceSignature()
+        let now = Date()
+        if feedSignature == lastFeedInferenceSignature,
+           now.timeIntervalSince(lastFeedInferenceAt) < Self.feedRefreshWindowSeconds,
+           !feedItems.isEmpty
+        {
+            feedInferenceStatus = "Model-generated feed active (cached)"
+            return
+        }
+        defer {
+            lastFeedInferenceSignature = feedSignature
+            lastFeedInferenceAt = Date()
         }
 
         if let modelItems = await modelDrivenFeedItems() {
             feedItems = modelItems
-            feedInferenceStatus = "Model-generated local feed active"
-            appendOutput("Local model generated execution feed.")
+            feedInferenceStatus = "Model-generated feed active"
+            appendOutput("AI model generated execution feed.")
         } else {
-            feedItems = localFeedFromExecutionPlan()
-            feedInferenceStatus = "Fallback deterministic local feed active"
-            appendOutput("Local model feed unavailable; using deterministic fallback feed.")
+            feedItems = []
+            feedInferenceStatus = "AI feed unavailable"
+            appendOutput("AI feed generation unavailable. No synthesized feed was generated.")
         }
+    }
+
+    func updateExecutionTaskChecklist(
+        taskID: String,
+        completed: Bool,
+        collapsed: Bool? = nil
+    ) async {
+        let cleanTaskID = taskID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanTaskID.isEmpty else { return }
+        guard isSignedIn else {
+            appendOutput("Task checklist sync requires sign-in.")
+            return
+        }
+        guard selectedTier == .cloudPro else {
+            appendOutput("Task checklist sync requires cloud tier.")
+            return
+        }
+        do {
+            let feed = try await api.toggleExecutionTask(taskID: cleanTaskID, completed: completed, collapsed: collapsed)
+            feedItems = feed.items
+            feedInferenceStatus = "Cloud proactive feed active"
+            appendOutput("Execution task \(completed ? "completed" : "reopened"): \(cleanTaskID)")
+        } catch {
+            appendOutput("Execution task sync failed: \(error.localizedDescription)")
+        }
+    }
+
+    func submitExecutionTaskResponse(
+        taskID: String,
+        completedParts: String?,
+        incompleteParts: String?,
+        note: String?,
+        completed: Bool? = nil,
+        collapsed: Bool? = nil
+    ) async {
+        let cleanTaskID = taskID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanTaskID.isEmpty else { return }
+        guard isSignedIn else {
+            appendOutput("Task response sync requires sign-in.")
+            return
+        }
+        guard selectedTier == .cloudPro else {
+            appendOutput("Task response sync requires cloud tier.")
+            return
+        }
+        let done = completedParts?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pending = incompleteParts?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let noteValue = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if (done?.isEmpty ?? true) && (pending?.isEmpty ?? true) && (noteValue?.isEmpty ?? true) {
+            appendOutput("Add task response details before sending.")
+            return
+        }
+        do {
+            let feed = try await api.respondExecutionTask(
+                taskID: cleanTaskID,
+                completedParts: done,
+                incompleteParts: pending,
+                note: noteValue,
+                completed: completed,
+                collapsed: collapsed
+            )
+            feedItems = feed.items
+            feedInferenceStatus = "Cloud proactive feed active"
+            appendOutput("Execution task response synced: \(cleanTaskID)")
+        } catch {
+            appendOutput("Task response sync failed: \(error.localizedDescription)")
+        }
+    }
+
+    func executionActions(for lane: WorkspaceLane) -> [ExecutionAction] {
+        executionActions.filter { action in
+            let inferredLane = inferWorkspaceLane(from: "\(action.title) \(action.details)")
+            return inferredLane == lane
+        }
+    }
+
+    func feedItems(for lane: WorkspaceLane) -> [FeedItem] {
+        let laneToken = lane.rawValue.replacingOccurrences(of: "_", with: " ")
+        return feedItems.filter { item in
+            let text = "\(item.title) \(item.summary) \(item.whyNow)".lowercased()
+            if text.contains(laneToken) {
+                return true
+            }
+            if let inferred = inferWorkspaceLane(from: text) {
+                return inferred == lane
+            }
+            return false
+        }
+    }
+
+    func starterMessageForConciergeSession(sessionID: String?) -> String? {
+        let resolvedSessionID = sessionID ?? resolvedActiveConciergeSessionID()
+        let hasMessages = promptQueue.contains { item in
+            item.workspaceLane == nil && item.conciergeSessionID == resolvedSessionID
+        }
+        guard !hasMessages else { return nil }
+
+        let lane = executionSelectedLane
+        let lanePlan = workspacePlans.first(where: { $0.lane == lane })
+        let topOpportunity = jobMarketOpportunities.first
+        let opportunityLine: String
+        if isJobRadarReady, let topOpportunity {
+            let narrative = jobNarrative(for: topOpportunity)
+            opportunityLine = "Top opportunity now: \(topOpportunity.title) (\(topOpportunity.salaryBandUSD)) in \(topOpportunity.location). \(narrative)"
+        } else {
+            opportunityLine = "Complete the adaptive survey to unlock personalized global job radar context."
+        }
+
+        return """
+        Session brief (\(activeConciergeSessionTitle())):
+        \(lanePlan?.nextActionNow ?? "Define one high-leverage mission for this chat and I will convert it into a tactical execution sequence.")
+        \(opportunityLine)
+        """
+    }
+
+    func starterMessageForWorkspaceSession(lane: WorkspaceLane, sessionID: String?) -> String? {
+        guard let sessionID else { return nil }
+        let hasMessages = promptQueue.contains { item in
+            item.workspaceLane == lane && item.workspaceSessionID == sessionID
+        }
+        guard !hasMessages else { return nil }
+
+        let plan = workspacePlans.first(where: { $0.lane == lane })
+        let topOpportunity = jobMarketOpportunities.first
+        let opportunityContext: String
+        if isJobRadarReady, let topOpportunity {
+            opportunityContext = "Career context: \(topOpportunity.title) — \(jobNarrative(for: topOpportunity))"
+        } else {
+            opportunityContext = "Career context unlocks after primary survey completion."
+        }
+
+        return """
+        \(lane.title) briefing:
+        Objective: \(plan?.objective ?? workspaceObjective(for: lane))
+        Next action: \(plan?.nextActionNow ?? "Capture one concrete next action.")
+        \(opportunityContext)
+        """
+    }
+
+    func jobNarrative(for opportunity: JobOpportunity) -> String {
+        if let narrative = jobOpportunityNarratives[opportunity.id],
+           !narrative.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return narrative
+        }
+        let whyLine = opportunity.whyHighlights.prefix(2).joined(separator: " ")
+        let howLine = opportunity.capabilityPath.prefix(2).joined(separator: " ")
+        return "Why: \(whyLine) How: \(howLine)"
     }
 
     func loadSurvey() async {
@@ -1466,6 +2607,10 @@ final class SessionStore: ObservableObject {
         }
 
         rebuildInsightsAndExecutionPlan()
+        Task {
+            await refreshCommandModelBrief()
+            await refreshFeed()
+        }
         persistStateToDisk()
     }
 
@@ -1512,12 +2657,332 @@ final class SessionStore: ObservableObject {
             appendOutput("Note stored locally. API sync pending.")
         }
 
+        _ = await ingestYouTubeLinksIntoMemory(from: "\(title)\n\(content)", noteTitle: title)
+
         rebuildInsightsAndExecutionPlan()
         persistStateToDisk()
     }
 
+    private struct YouTubeVideoCandidate {
+        let videoID: String
+        let canonicalURL: URL
+    }
+
+    private struct YouTubeVideoMetadata {
+        let title: String
+        let channel: String
+        let description: String
+    }
+
+    private struct YouTubeOEmbedEnvelope: Decodable {
+        let title: String?
+        let authorName: String?
+
+        enum CodingKeys: String, CodingKey {
+            case title
+            case authorName = "author_name"
+        }
+    }
+
+    private func ingestYouTubeLinksIntoMemory(from text: String, noteTitle: String) async -> Int {
+        let candidates = Self.extractYouTubeVideoCandidates(from: text)
+        guard !candidates.isEmpty else { return 0 }
+
+        let now = Date()
+        var mergedRecords = workspaceMemoryRecords
+        var imported = 0
+
+        for candidate in candidates.prefix(3) {
+            guard let metadata = await Self.fetchYouTubeVideoMetadata(videoID: candidate.videoID, canonicalURL: candidate.canonicalURL) else {
+                continue
+            }
+
+            let summary = """
+            YouTube context from note "\(sanitizeWorkspaceMemoryValue(noteTitle, maxLength: 60))": \
+            \(metadata.title) by \(metadata.channel). \
+            \(sanitizeWorkspaceMemoryValue(metadata.description, maxLength: 120))
+            """
+            upsertWorkspaceMemoryRecord(
+                in: &mergedRecords,
+                lane: nil,
+                sessionID: nil,
+                source: .document,
+                key: "youtube.video.\(candidate.videoID)",
+                value: summary,
+                weight: 0.78,
+                tags: ["youtube", "video", "context", "scraped"],
+                now: now
+            )
+            imported += 1
+        }
+
+        guard imported > 0 else {
+            appendOutput("Detected YouTube link(s), but no readable metadata was extracted.")
+            return 0
+        }
+
+        workspaceMemoryRecords = normalizeWorkspaceMemoryRecords(mergedRecords, now: now)
+        appendOutput("Indexed \(imported) YouTube link(s) into AI memory context.")
+        return imported
+    }
+
+    nonisolated private static func extractYouTubeVideoCandidates(from text: String) -> [YouTubeVideoCandidate] {
+        let pattern = #"https?://(?:www\.)?(?:youtube\.com|m\.youtube\.com|youtu\.be)/[^\s)\]]+"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return []
+        }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsText.length))
+        var seen = Set<String>()
+        var output: [YouTubeVideoCandidate] = []
+
+        for match in matches {
+            let raw = nsText.substring(with: match.range)
+            guard let parsed = URL(string: raw),
+                  let videoID = youtubeVideoID(from: parsed),
+                  seen.insert(videoID).inserted,
+                  let canonical = URL(string: "https://www.youtube.com/watch?v=\(videoID)")
+            else {
+                continue
+            }
+            output.append(YouTubeVideoCandidate(videoID: videoID, canonicalURL: canonical))
+        }
+        return output
+    }
+
+    nonisolated private static func youtubeVideoID(from url: URL) -> String? {
+        let host = (url.host ?? "").lowercased()
+        let path = url.path
+
+        func normalizeID(_ raw: String?) -> String? {
+            guard let raw else { return nil }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+            guard trimmed.count >= 6,
+                  trimmed.unicodeScalars.allSatisfy({ allowed.contains($0) })
+            else {
+                return nil
+            }
+            return String(trimmed.prefix(11))
+        }
+
+        if host.contains("youtu.be") {
+            let candidate = path.split(separator: "/").first.map(String.init)
+            return normalizeID(candidate)
+        }
+
+        if path == "/watch",
+           let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let queryID = components.queryItems?.first(where: { $0.name == "v" })?.value
+        {
+            return normalizeID(queryID)
+        }
+
+        if path.hasPrefix("/shorts/") || path.hasPrefix("/embed/") {
+            let parts = path.split(separator: "/")
+            if parts.count >= 2 {
+                return normalizeID(String(parts[1]))
+            }
+        }
+
+        return nil
+    }
+
+    nonisolated private static func fetchYouTubeVideoMetadata(
+        videoID: String,
+        canonicalURL: URL
+    ) async -> YouTubeVideoMetadata? {
+        async let oembed = fetchYouTubeOEmbed(videoURL: canonicalURL)
+        async let description = fetchYouTubeDescription(videoID: videoID)
+
+        let oembedResult = await oembed
+        let descriptionResult = await description
+
+        let title = normalizeWhitespace((oembedResult?.title ?? "YouTube Video").trimmingCharacters(in: .whitespacesAndNewlines))
+        let channel = normalizeWhitespace((oembedResult?.authorName ?? "Unknown channel").trimmingCharacters(in: .whitespacesAndNewlines))
+        let descriptionText = String(normalizeWhitespace(descriptionResult ?? "No description extracted.").prefix(260))
+        guard !title.isEmpty else { return nil }
+
+        return YouTubeVideoMetadata(title: title, channel: channel, description: descriptionText)
+    }
+
+    nonisolated private static func fetchYouTubeOEmbed(videoURL: URL) async -> YouTubeOEmbedEnvelope? {
+        guard var components = URLComponents(string: "https://www.youtube.com/oembed") else { return nil }
+        components.queryItems = [
+            URLQueryItem(name: "url", value: videoURL.absoluteString),
+            URLQueryItem(name: "format", value: "json"),
+        ]
+        guard let endpoint = components.url,
+              let data = await fetchHTTPData(url: endpoint, timeoutSeconds: 12)
+        else {
+            return nil
+        }
+        return try? JSONDecoder().decode(YouTubeOEmbedEnvelope.self, from: data)
+    }
+
+    nonisolated private static func fetchYouTubeDescription(videoID: String) async -> String? {
+        guard let watchURL = URL(string: "https://www.youtube.com/watch?v=\(videoID)"),
+              let htmlData = await fetchHTTPData(url: watchURL, timeoutSeconds: 14),
+              let html = String(data: htmlData, encoding: .utf8)
+        else {
+            return nil
+        }
+
+        let escapedPatterns = [
+            #""shortDescription":"([^"]+)""#,
+            #"<meta name="description" content="([^"]+)""#,
+        ]
+
+        for pattern in escapedPatterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            let nsHTML = html as NSString
+            let range = NSRange(location: 0, length: nsHTML.length)
+            guard let match = regex.firstMatch(in: html, options: [], range: range), match.numberOfRanges >= 2 else { continue }
+            let raw = nsHTML.substring(with: match.range(at: 1))
+            let decoded = decodeEscapedYouTubeString(raw)
+            if !decoded.isEmpty {
+                return decoded
+            }
+        }
+
+        return nil
+    }
+
+    nonisolated private static func decodeEscapedYouTubeString(_ raw: String) -> String {
+        let replaced = raw
+            .replacingOccurrences(of: "\\n", with: " ")
+            .replacingOccurrences(of: "\\r", with: " ")
+            .replacingOccurrences(of: "\\t", with: " ")
+            .replacingOccurrences(of: "\\/", with: "/")
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .replacingOccurrences(of: "\\u0026", with: "&")
+            .replacingOccurrences(of: "\\u003d", with: "=")
+            .replacingOccurrences(of: "\\u003c", with: "<")
+            .replacingOccurrences(of: "\\u003e", with: ">")
+        return normalizeWhitespace(decodeHTMLEntities(replaced))
+    }
+
+    nonisolated private static func fetchHTTPData(url: URL, timeoutSeconds: Int) async -> Data? {
+        await Task.detached(priority: .utility) {
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = TimeInterval(max(4, timeoutSeconds))
+            request.setValue("Mozilla/5.0 AtlasMasa/1.0", forHTTPHeaderField: "User-Agent")
+            request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+            request.setValue("text/html,application/json;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
+
+            let config = URLSessionConfiguration.ephemeral
+            config.requestCachePolicy = .reloadIgnoringLocalCacheData
+            config.urlCache = nil
+            let session = URLSession(configuration: config)
+            defer {
+                session.invalidateAndCancel()
+            }
+
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                    return nil
+                }
+                return data
+            } catch {
+                return nil
+            }
+        }.value
+    }
+
+    func saveLessonToSharedMemory() {
+        guard memoryCollectionEnabled else {
+            appendOutput("Memory capture is disabled. Re-enable memory collection before saving lessons.")
+            return
+        }
+        let cleaned = sanitizeWorkspaceMemoryValue(pendingLessonInput, maxLength: 600)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count >= 12 else {
+            appendOutput("Add a fuller lesson before saving (at least one clear sentence).")
+            return
+        }
+
+        let now = Date()
+        let lane = activeWorkspaceLane
+        let laneSessionID = activeSessionID(for: lane)
+        var merged = workspaceMemoryRecords
+        let sharedKey = "lesson:shared:\(Int(now.timeIntervalSince1970)):\(workspaceStudioKey(from: cleaned))"
+        let laneKey = "lesson:lane:\(lane.rawValue):\(workspaceStudioKey(from: cleaned))"
+
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: nil,
+            sessionID: nil,
+            source: .lesson,
+            key: sharedKey,
+            value: cleaned,
+            weight: 0.97,
+            tags: ["lesson", "shared", "learning", "execution"],
+            now: now
+        )
+        upsertWorkspaceMemoryRecord(
+            in: &merged,
+            lane: lane,
+            sessionID: laneSessionID,
+            source: .lesson,
+            key: laneKey,
+            value: cleaned,
+            weight: 0.90,
+            tags: ["lesson", "lane", lane.rawValue],
+            now: now
+        )
+
+        workspaceMemoryRecords = normalizeWorkspaceMemoryRecords(merged, now: now)
+        pendingLessonInput = ""
+        refreshWorkspaceSessionSnapshots()
+        workspacePlans = buildWorkspacePlans(from: researchStreams, memoryRecords: workspaceMemoryRecords)
+        rebuildInsightsAndExecutionPlan()
+        persistStateToDisk()
+        appendOutput("Lesson saved to shared AI memory. Command, feed, and quizzes will integrate it.")
+
+        Task {
+            await refreshCommandModelBrief()
+            await refreshWorkspaceModelBrief()
+            await refreshFeed()
+        }
+    }
+
+    func recentLessonHighlights(limit: Int = 4) -> [String] {
+        lessonMemoryHighlights(limit: limit)
+    }
+
+    func saveProfilePhoto(_ image: UIImage, sourceDescription: String) {
+        let normalized = Self.normalizeProfilePhotoImage(image)
+        guard let encoded = normalized.jpegData(compressionQuality: 0.90) else {
+            appendOutput("Could not encode profile photo. Try a different image.")
+            return
+        }
+
+        let maxPersistedBytes = 10_000_000
+        let persisted = encoded.count > maxPersistedBytes
+            ? (normalized.jpegData(compressionQuality: 0.74) ?? encoded)
+            : encoded
+
+        profilePhotoData = persisted
+        persistProfilePhotoToDisk()
+        appendOutput("Profile photo updated from \(sourceDescription).")
+    }
+
+    func clearProfilePhoto() {
+        guard profilePhotoData != nil else { return }
+        profilePhotoData = nil
+        persistProfilePhotoToDisk()
+        appendOutput("Profile photo removed.")
+    }
+
     func deleteLocalMemory() {
         notes = []
+        pendingPrompt = ""
+        pendingPromptOutputType = .standard
+        pendingPromptQuizDifficulty = .medium
+        pendingLessonInput = ""
         promptQueue = []
         codingMessages = []
         codingMemoryRecords = []
@@ -1534,6 +2999,9 @@ final class SessionStore: ObservableObject {
         workspaceMemoryRecords = []
         workspacePlans = []
         feedItems = []
+        jobMarketOpportunities = []
+        jobOpportunityNarratives = [:]
+        openSurveyTabRequested = false
         surveyAnswers = [:]
         surveyQuestionSessionIndex = [:]
         surveyQuestionLaneIndex = [:]
@@ -1547,12 +3015,20 @@ final class SessionStore: ObservableObject {
         learningPackage = nil
         learningVersion = 0
         learningFingerprint = ""
+        lastJobNarrativeSignature = ""
+        lastJobNarrativeRefreshAt = .distantPast
+        conciergeSessions = []
+        activeConciergeSessionID = nil
         workspaceSessions = workspaceSessions.map { session in
             var updated = session
             updated.summary = "Session cleared."
             updated.isPinned = false
             return updated
         }
+        executionSelectedLane = .mobilityOps
+        ensureConciergeSessionsSeeded()
+        profilePhotoData = nil
+        persistProfilePhotoToDisk()
         persistPromptQueueToDisk()
         persistStateToDisk()
         appendOutput("Local personalization memory cleared by user request.")
@@ -1580,12 +3056,183 @@ final class SessionStore: ObservableObject {
         pendingFeedback = ""
     }
 
-    func enqueuePrompt() {
+    func submitResponseQualityFeedback(
+        source: String,
+        sentiment: ResponseFeedbackSentiment,
+        prompt: String?,
+        fullResponse: String,
+        selectedText: String?,
+        includePrompt: Bool,
+        contentScope: ResponseFeedbackContentScope,
+        userNote: String
+    ) {
+        let cleanSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanPrompt = Self.trimForDisplay(prompt ?? "", maxChars: 4_000)
+        let cleanResponse = Self.trimForDisplay(fullResponse, maxChars: 14_000)
+        let cleanSelection = Self.trimForDisplay(selectedText ?? "", maxChars: 6_000)
+        let cleanNote = Self.trimForDisplay(userNote, maxChars: 1_600)
+
+        guard !cleanResponse.isEmpty else {
+            appendOutput("Feedback not sent: response content is empty.")
+            return
+        }
+        if contentScope == .highlightedOnly && cleanSelection.isEmpty {
+            appendOutput("Highlight a section before sending highlight-only feedback.")
+            return
+        }
+
+        var lines = [
+            "IOS_RESPONSE_QUALITY_REPORT",
+            "source: \(cleanSource.isEmpty ? "ios_unknown_surface" : cleanSource)",
+            "sentiment: \(sentiment.rawValue)",
+            "content_scope: \(contentScope.rawValue)",
+            "include_prompt: \(includePrompt ? "true" : "false")",
+        ]
+
+        if !cleanNote.isEmpty {
+            lines.append("user_note:")
+            lines.append(cleanNote)
+        }
+
+        if includePrompt && !cleanPrompt.isEmpty {
+            lines.append("prompt:")
+            lines.append(cleanPrompt)
+        }
+
+        switch contentScope {
+        case .fullResponse:
+            lines.append("response:")
+            lines.append(cleanResponse)
+            if !cleanSelection.isEmpty {
+                lines.append("highlighted_excerpt:")
+                lines.append(cleanSelection)
+            }
+        case .highlightedOnly:
+            lines.append("highlighted_section:")
+            lines.append(cleanSelection)
+        }
+
+        let payload = lines.joined(separator: "\n")
+        let severity = sentiment == .thumbsDown ? "normal" : "low"
+        let tags = [
+            "ios",
+            "response-feedback",
+            sentiment.rawValue,
+            contentScope.rawValue,
+            cleanSource.isEmpty ? "unknown-surface" : cleanSource,
+        ]
+
+        Task {
+            do {
+                try await api.submitFeedback(
+                    category: "model_quality",
+                    severity: severity,
+                    message: payload,
+                    tags: tags,
+                    source: cleanSource.isEmpty ? "ios_response_feedback" : cleanSource
+                )
+                appendOutput("Response feedback sent to product team (\(sentiment.title.lowercased())).")
+            } catch {
+                appendOutput("Feedback send failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func enqueuePrompt(
+        outputType overrideType: PromptOutputType? = nil,
+        quizDifficulty overrideQuizDifficulty: QuizDifficulty? = nil
+    ) {
+        enqueuePromptInternal(
+            outputType: overrideType,
+            quizDifficulty: overrideQuizDifficulty,
+            dispatchMode: .queue,
+            workspaceLane: nil,
+            conciergeSessionID: resolvedActiveConciergeSessionID(),
+            workspaceSessionID: nil
+        )
+    }
+
+    func steerPrompt(
+        outputType overrideType: PromptOutputType? = nil,
+        quizDifficulty overrideQuizDifficulty: QuizDifficulty? = nil
+    ) {
+        enqueuePromptInternal(
+            outputType: overrideType,
+            quizDifficulty: overrideQuizDifficulty,
+            dispatchMode: .steer,
+            workspaceLane: nil,
+            conciergeSessionID: resolvedActiveConciergeSessionID(),
+            workspaceSessionID: nil
+        )
+    }
+
+    func enqueueWorkspacePrompt(
+        outputType overrideType: PromptOutputType? = nil,
+        quizDifficulty overrideQuizDifficulty: QuizDifficulty? = nil
+    ) {
+        let lane = activeWorkspaceLane
+        let sessionID = activeSessionID(for: lane)
+        enqueuePromptInternal(
+            outputType: overrideType,
+            quizDifficulty: overrideQuizDifficulty,
+            dispatchMode: .queue,
+            workspaceLane: lane,
+            conciergeSessionID: nil,
+            workspaceSessionID: sessionID
+        )
+    }
+
+    func steerWorkspacePrompt(
+        outputType overrideType: PromptOutputType? = nil,
+        quizDifficulty overrideQuizDifficulty: QuizDifficulty? = nil
+    ) {
+        let lane = activeWorkspaceLane
+        let sessionID = activeSessionID(for: lane)
+        enqueuePromptInternal(
+            outputType: overrideType,
+            quizDifficulty: overrideQuizDifficulty,
+            dispatchMode: .steer,
+            workspaceLane: lane,
+            conciergeSessionID: nil,
+            workspaceSessionID: sessionID
+        )
+    }
+
+    func conciergeHasActiveProcessing() -> Bool {
+        hasActivePromptProcessing(
+            workspaceLane: nil,
+            conciergeSessionID: resolvedActiveConciergeSessionID(),
+            workspaceSessionID: nil
+        )
+    }
+
+    func workspaceHasActiveProcessing() -> Bool {
+        let lane = activeWorkspaceLane
+        let sessionID = activeSessionID(for: lane)
+        return hasActivePromptProcessing(
+            workspaceLane: lane,
+            conciergeSessionID: nil,
+            workspaceSessionID: sessionID
+        )
+    }
+
+    private func enqueuePromptInternal(
+        outputType overrideType: PromptOutputType?,
+        quizDifficulty overrideQuizDifficulty: QuizDifficulty?,
+        dispatchMode: PromptDispatchMode,
+        workspaceLane: WorkspaceLane?,
+        conciergeSessionID: String?,
+        workspaceSessionID: String?
+    ) {
         let cleaned = pendingPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else {
             appendOutput("Write a prompt before queueing.")
             return
         }
+        let selectedOutputType = overrideType ?? pendingPromptOutputType
+        let selectedQuizDifficulty = selectedOutputType == .quiz
+            ? (overrideQuizDifficulty ?? pendingPromptQuizDifficulty)
+            : nil
 
         let safetySignal = evaluateSuspiciousPattern(input: cleaned, source: "prompt")
         if safetySignal.holdQueue {
@@ -1593,21 +3240,125 @@ final class SessionStore: ObservableObject {
             return
         }
 
-        promptQueue.append(
-            PromptQueueItem(
-                id: UUID().uuidString,
-                prompt: cleaned,
-                status: .queued,
-                createdAt: Date(),
-                completedAt: nil,
-                errorMessage: nil,
-                output: nil
-            )
+        let queueItem = PromptQueueItem(
+            id: UUID().uuidString,
+            prompt: cleaned,
+            outputType: selectedOutputType,
+            quizDifficulty: selectedQuizDifficulty,
+            workspaceLane: workspaceLane,
+            conciergeSessionID: conciergeSessionID,
+            workspaceSessionID: workspaceSessionID,
+            retryCount: nil,
+            status: .queued,
+            createdAt: Date(),
+            completedAt: nil,
+            errorMessage: nil,
+            output: nil
         )
+
+        if dispatchMode == .steer {
+            let insertionIndex = steerInsertionIndex(
+                workspaceLane: workspaceLane,
+                conciergeSessionID: conciergeSessionID,
+                workspaceSessionID: workspaceSessionID
+            )
+            promptQueue.insert(queueItem, at: insertionIndex)
+        } else {
+            promptQueue.append(queueItem)
+        }
+
         pendingPrompt = ""
         persistPromptQueueToDisk()
-        appendOutput("Prompt queued for local background reasoning.")
+        let outputDescriptor: String = {
+            if selectedOutputType == .quiz, let selectedQuizDifficulty {
+                return "\(selectedOutputType.title) · \(selectedQuizDifficulty.title)"
+            }
+            return selectedOutputType.title
+        }()
+        let actionLabel = dispatchMode == .steer ? "Steer update prioritized" : "Prompt queued for AI processing"
+        if let lane = workspaceLane {
+            appendOutput("\(actionLabel) (\(outputDescriptor)) in \(lane.title).")
+        } else {
+            appendOutput("\(actionLabel) (\(outputDescriptor)).")
+            if let conciergeSessionID {
+                touchConciergeSession(
+                    id: conciergeSessionID,
+                    summary: "Queued: \(sanitizeWorkspaceMemoryValue(cleaned, maxLength: 120))"
+                )
+            }
+        }
+        refreshConciergeSessionSnapshots()
         startPromptQueueWorker()
+    }
+
+    private func hasActivePromptProcessing(
+        workspaceLane: WorkspaceLane?,
+        conciergeSessionID: String?,
+        workspaceSessionID: String?
+    ) -> Bool {
+        promptQueue.contains { item in
+            queueItemBelongsToScope(
+                item,
+                workspaceLane: workspaceLane,
+                conciergeSessionID: conciergeSessionID,
+                workspaceSessionID: workspaceSessionID
+            ) && (item.status == .running || item.status == .queued)
+        }
+    }
+
+    private func steerInsertionIndex(
+        workspaceLane: WorkspaceLane?,
+        conciergeSessionID: String?,
+        workspaceSessionID: String?
+    ) -> Int {
+        let globalRunningIndex = promptQueue.firstIndex { $0.status == .running }
+        let scopedRunningIndex = promptQueue.firstIndex { item in
+            queueItemBelongsToScope(
+                item,
+                workspaceLane: workspaceLane,
+                conciergeSessionID: conciergeSessionID,
+                workspaceSessionID: workspaceSessionID
+            ) && item.status == .running
+        }
+        let scopedQueuedIndex = promptQueue.firstIndex { item in
+            queueItemBelongsToScope(
+                item,
+                workspaceLane: workspaceLane,
+                conciergeSessionID: conciergeSessionID,
+                workspaceSessionID: workspaceSessionID
+            ) && item.status == .queued
+        }
+
+        var index = promptQueue.count
+        if let scopedRunningIndex {
+            index = scopedRunningIndex + 1
+        } else if let scopedQueuedIndex {
+            index = scopedQueuedIndex
+        } else if let globalRunningIndex {
+            index = globalRunningIndex + 1
+        }
+
+        if let globalRunningIndex, index <= globalRunningIndex {
+            index = globalRunningIndex + 1
+        }
+
+        return max(0, min(index, promptQueue.count))
+    }
+
+    private func queueItemBelongsToScope(
+        _ item: PromptQueueItem,
+        workspaceLane: WorkspaceLane?,
+        conciergeSessionID: String?,
+        workspaceSessionID: String?
+    ) -> Bool {
+        guard let workspaceLane else {
+            guard item.workspaceLane == nil else { return false }
+            guard let conciergeSessionID else { return true }
+            return item.conciergeSessionID == conciergeSessionID
+        }
+        guard item.workspaceLane == workspaceLane else { return false }
+        guard let workspaceSessionID else { return true }
+        return item.workspaceSessionID == nil || item.workspaceSessionID == workspaceSessionID
     }
 
     func launchWorkspaceStudioModule(moduleTitle: String, moduleInstruction: String) {
@@ -1660,7 +3411,7 @@ final class SessionStore: ObservableObject {
         """
 
         pendingPrompt = sanitizeModelInput(prompt, maxLength: 1800)
-        enqueuePrompt()
+        enqueueWorkspacePrompt(outputType: .standard)
 
         var merged = workspaceMemoryRecords
         let now = Date()
@@ -1685,8 +3436,32 @@ final class SessionStore: ObservableObject {
 
     func clearPromptQueue() {
         promptQueue = []
+        refreshConciergeSessionSnapshots()
         persistPromptQueueToDisk()
         appendOutput("Prompt queue cleared.")
+    }
+
+    func clearConciergePromptQueue() {
+        let sessionID = resolvedActiveConciergeSessionID()
+        promptQueue.removeAll {
+            $0.workspaceLane == nil && $0.conciergeSessionID == sessionID
+        }
+        touchConciergeSession(id: sessionID, summary: "Chat cleared.")
+        refreshConciergeSessionSnapshots()
+        persistPromptQueueToDisk()
+        appendOutput("Concierge chat cleared.")
+    }
+
+    func clearWorkspacePromptQueue() {
+        let lane = activeWorkspaceLane
+        let activeSession = activeSessionID(for: lane)
+        promptQueue.removeAll { item in
+            guard item.workspaceLane == lane else { return false }
+            guard let activeSession else { return true }
+            return item.workspaceSessionID == nil || item.workspaceSessionID == activeSession
+        }
+        persistPromptQueueToDisk()
+        appendOutput("Workspace chat cleared for \(lane.title).")
     }
 
     func setCodingWorkspaceRootPath(_ rawPath: String) {
@@ -1898,7 +3673,6 @@ final class SessionStore: ObservableObject {
         }
 
         let selectedPath = codingSelectedFilePath
-        let fallbackReply = composeLocalCodingReply(for: prompt)
         codingIsGeneratingReply = true
         Task {
             let modelPrompt = composeOllamaPrompt(for: prompt)
@@ -1907,18 +3681,23 @@ final class SessionStore: ObservableObject {
                 timeoutSeconds: 24,
                 domain: .coding
             )
-            if modelReply == nil {
-                appendOutput("Local model unavailable/failed; using deterministic coding planner.")
+            let trimmedReply = modelReply?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let reply = trimmedReply, !reply.isEmpty {
+                addCodingMessage(role: .assistant, content: reply, relatedFilePath: selectedPath)
+                addCodingMemoryRecord(
+                    kind: .response,
+                    summary: "Assistant response for latest prompt",
+                    detail: reply,
+                    relatedFilePath: selectedPath
+                )
+            } else {
+                addCodingMessage(
+                    role: .system,
+                    content: "AI coding runtime unavailable. No response was generated. Verify runtime settings and retry.",
+                    relatedFilePath: selectedPath
+                )
+                appendOutput("AI coding runtime unavailable. No synthesized response was generated.")
             }
-
-            let reply = modelReply ?? fallbackReply
-            addCodingMessage(role: .assistant, content: reply, relatedFilePath: selectedPath)
-            addCodingMemoryRecord(
-                kind: .response,
-                summary: "Assistant response for latest prompt",
-                detail: reply,
-                relatedFilePath: selectedPath
-            )
             codingIsGeneratingReply = false
             persistStateToDisk()
         }
@@ -2033,7 +3812,15 @@ final class SessionStore: ObservableObject {
             return "Memory collection disabled"
         }
         let notesBytes = notes.reduce(0) { $0 + $1.title.count + $1.content.count }
-        let queueBytes = promptQueue.reduce(0) { $0 + $1.prompt.count + ($1.output?.summary.count ?? 0) }
+        let queueBytes = promptQueue.reduce(into: 0) { total, item in
+            var itemBytes = item.prompt.count
+            if let output = item.output {
+                itemBytes += output.summary.count
+                itemBytes += output.content?.count ?? 0
+                itemBytes += output.podcastAudio?.bytes ?? 0
+            }
+            total += itemBytes
+        }
         let codingBytes = codingMessages.reduce(0) { $0 + $1.content.count }
             + codingMemoryRecords.reduce(0) { $0 + $1.summary.count + $1.detail.count }
         let totalKB = max(1, (notesBytes + queueBytes + codingBytes) / 1024)
@@ -2044,8 +3831,48 @@ final class SessionStore: ObservableObject {
         surveyAnswers.count
     }
 
+    var surveyCompletionPercent: Int {
+        if let survey {
+            return max(0, min(100, survey.progress.percent))
+        }
+        let total = max(1, localSurveyTotal())
+        return Int((Double(surveyAnswers.count) / Double(total)) * 100.0)
+    }
+
+    var isPrimarySurveyComplete: Bool {
+        if let survey {
+            if survey.question == nil || survey.progress.percent >= 100 {
+                return true
+            }
+        }
+        if surveyExpansionActive {
+            return false
+        }
+        return surveyAnswers.count >= max(34, localSurveyTotal())
+    }
+
+    var isJobRadarReady: Bool {
+        isPrimarySurveyComplete
+    }
+
+    var modelAutofillMinimumSurveyAnswers: Int {
+        Self.minimumSurveyAnswersForModelAutofill
+    }
+
+    var isModelAutofillUnlocked: Bool {
+        surveyAnswers.count >= Self.minimumSurveyAnswersForModelAutofill
+    }
+
+    var modelAutofillSurveyAnswersRemaining: Int {
+        max(0, Self.minimumSurveyAnswersForModelAutofill - surveyAnswers.count)
+    }
+
     var isAdditionalSurveyPassActive: Bool {
         surveyExpansionActive
+    }
+
+    var isGuidedLearningRuntimeActive: Bool {
+        guidedLearningActivated && isPrimarySurveyComplete
     }
 
     func appendOutput(_ line: String) {
@@ -2231,12 +4058,35 @@ final class SessionStore: ObservableObject {
                 break
             }
 
+            if shouldPauseQueueForInternetReconnect {
+                let requestedOutputType = promptQueue[index].outputType ?? .standard
+                markQueueItemWaitingForInternetReconnect(at: index)
+                logQueueReconnectWaitIfNeeded(for: requestedOutputType)
+                try? await Task.sleep(nanoseconds: queueReconnectWaitNanoseconds())
+                continue
+            }
+            hasLoggedQueueReconnectWait = false
+
+            if let runtimeIssue = runtimeAccessBlockingIssue() {
+                promptQueue[index].status = .failed
+                promptQueue[index].completedAt = Date()
+                promptQueue[index].lastCheckpointAt = Date()
+                promptQueue[index].progress = 1.0
+                promptQueue[index].checkpointNote = "AI runtime blocked by account/billing policy."
+                promptQueue[index].output = nil
+                promptQueue[index].retryCount = nil
+                promptQueue[index].errorMessage = runtimeIssue
+                persistPromptQueueToDisk()
+                appendOutput(runtimeIssue)
+                continue
+            }
+
             promptQueue[index].status = .running
             promptQueue[index].startedAt = promptQueue[index].startedAt ?? Date()
             promptQueue[index].completedAt = nil
             promptQueue[index].lastCheckpointAt = Date()
             promptQueue[index].progress = max(promptQueue[index].progress ?? 0.0, 0.05)
-            promptQueue[index].checkpointNote = "Starting local model pass."
+            promptQueue[index].checkpointNote = "Starting AI model pass."
             promptQueue[index].errorMessage = nil
             persistPromptQueueToDisk()
 
@@ -2249,7 +4099,7 @@ final class SessionStore: ObservableObject {
                     await MainActor.run { [weak self] in
                         self?.checkpointRunningQueueItem(
                             id: checkpointID,
-                            note: "Checkpoint saved during local processing."
+                            note: "Checkpoint saved during processing."
                         )
                     }
                 }
@@ -2262,12 +4112,116 @@ final class SessionStore: ObservableObject {
                     content: sanitizeModelInput($0.content, maxLength: 400)
                 )
             }
-            let modelOutput = await modelDrivenQueueOutput(prompt: boundedPrompt, notes: boundedNotes)
-            let output: LocalReasoningOutput
-            if let modelOutput {
-                output = modelOutput
-            } else {
-                output = await localReasoning.reason(prompt: boundedPrompt, notes: boundedNotes)
+            let requestedOutputType = item.outputType ?? .standard
+            let requestedQuizDifficulty = requestedOutputType == .quiz
+                ? (item.quizDifficulty ?? .medium)
+                : nil
+            let scopeLane = item.workspaceLane
+            let scopeSessionID = item.workspaceSessionID
+            let scopedMemoryHighlights = queueMemoryHighlights(
+                for: scopeLane,
+                sessionID: scopeSessionID,
+                limit: 6
+            )
+            let lessonHighlights = lessonMemoryHighlights(limit: 4)
+            let queueMemoryHighlights = uniqueOrdered(scopedMemoryHighlights + lessonHighlights)
+            let queueMemorySnapshot = queueMemoryHighlights.isEmpty
+                ? "- No strong workspace memory signals yet."
+                : queueMemoryHighlights.map { "- \($0)" }.joined(separator: "\n")
+            let surveySnapshotLimit = requestedOutputType == .quiz ? 40 : 24
+            let surveySnapshot = queueSurveySnapshot(for: scopeLane, limit: surveySnapshotLimit)
+            let generationFailureDefault = "Cloud AI runtime unavailable after \(Self.queueRuntimeRetryLimit) retries. No AI response was generated."
+            var generationFailureMessage: String? = nil
+            var generationFailureRetryable = true
+
+            let cloudResult = await serverDrivenQueueOutput(
+                item: item,
+                prompt: boundedPrompt,
+                notes: boundedNotes,
+                outputType: requestedOutputType,
+                quizDifficulty: requestedQuizDifficulty,
+                workspaceMemorySnapshot: queueMemorySnapshot,
+                surveySnapshot: surveySnapshot,
+                lessonHighlights: lessonHighlights
+            )
+            let modelOutput: LocalReasoningOutput?
+            switch cloudResult {
+            case let .success(output):
+                modelOutput = output
+            case let .retryableFailure(message):
+                generationFailureMessage = message
+                generationFailureRetryable = true
+                modelOutput = nil
+            case let .terminalFailure(message):
+                generationFailureMessage = message
+                generationFailureRetryable = false
+                modelOutput = nil
+            }
+
+            guard let output = modelOutput else {
+                checkpointTask.cancel()
+
+                let sanitizedFailureMessage = generationFailureMessage
+                    .map {
+                        String(
+                            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                                .prefix(220)
+                        )
+                    }
+                    .flatMap { $0.isEmpty ? nil : $0 }
+                let resolvedFailureMessage = sanitizedFailureMessage ?? generationFailureDefault
+
+                if !generationFailureRetryable {
+                    promptQueue[index].status = .failed
+                    promptQueue[index].completedAt = Date()
+                    promptQueue[index].lastCheckpointAt = Date()
+                    promptQueue[index].progress = 1.0
+                    promptQueue[index].checkpointNote = "Generation failed."
+                    promptQueue[index].output = nil
+                    promptQueue[index].retryCount = nil
+                    promptQueue[index].errorMessage = resolvedFailureMessage
+                    persistPromptQueueToDisk()
+                    appendOutput("\(requestedOutputType.title) generation failed: \(resolvedFailureMessage)")
+                    continue
+                }
+
+                if shouldPauseQueueForInternetReconnect {
+                    markQueueItemWaitingForInternetReconnect(at: index)
+                    logQueueReconnectWaitIfNeeded(for: requestedOutputType)
+                    try? await Task.sleep(nanoseconds: queueReconnectWaitNanoseconds())
+                    continue
+                }
+
+                let retryAttempt = (promptQueue[index].retryCount ?? 0) + 1
+                if retryAttempt <= Self.queueRuntimeRetryLimit {
+                    promptQueue[index].retryCount = retryAttempt
+                    promptQueue[index].status = .queued
+                    promptQueue[index].lastCheckpointAt = Date()
+                    let currentProgress = promptQueue[index].progress ?? 0.08
+                    promptQueue[index].progress = max(0.04, min(0.55, currentProgress * 0.72))
+                    promptQueue[index].checkpointNote = "Runtime unavailable. Retrying \(retryAttempt)/\(Self.queueRuntimeRetryLimit)..."
+                    promptQueue[index].errorMessage = nil
+                    persistPromptQueueToDisk()
+                    appendOutput("Cloud AI runtime unavailable for \(requestedOutputType.title). Retrying \(retryAttempt)/\(Self.queueRuntimeRetryLimit).")
+                    try? await Task.sleep(nanoseconds: queueRuntimeRetryNanoseconds(for: retryAttempt))
+                    continue
+                }
+
+                promptQueue[index].status = .failed
+                promptQueue[index].completedAt = Date()
+                promptQueue[index].lastCheckpointAt = Date()
+                promptQueue[index].progress = 1.0
+                promptQueue[index].checkpointNote = "Cloud AI runtime unavailable after retries."
+                promptQueue[index].output = nil
+                promptQueue[index].retryCount = Self.queueRuntimeRetryLimit
+                promptQueue[index].errorMessage = resolvedFailureMessage
+                persistPromptQueueToDisk()
+                appendOutput("Cloud AI runtime unavailable after \(Self.queueRuntimeRetryLimit) retries. Queue item marked failed with no synthesized response.")
+                let cooldown = queueCooldownNanoseconds()
+                if cooldown > 0 {
+                    try? await Task.sleep(nanoseconds: cooldown)
+                }
+                continue
             }
             checkpointTask.cancel()
             promptQueue[index].status = .done
@@ -2276,13 +4230,18 @@ final class SessionStore: ObservableObject {
             promptQueue[index].progress = 1.0
             promptQueue[index].checkpointNote = "Completed and saved."
             promptQueue[index].output = output
+            promptQueue[index].retryCount = nil
             promptQueue[index].errorMessage = nil
             persistPromptQueueToDisk()
-            if modelOutput == nil {
-                appendOutput("Local fallback reasoning completed. Next action: \(output.nextAction)")
-            } else {
-                appendOutput("Local LLM reasoning completed. Next action: \(output.nextAction)")
-            }
+            let outputDescriptor: String = {
+                if (output.outputType ?? .standard) == .quiz,
+                   let difficulty = output.quizDifficulty ?? requestedQuizDifficulty
+                {
+                    return "\((output.outputType ?? .standard).title) · \(difficulty.title)"
+                }
+                return (output.outputType ?? .standard).title
+            }()
+            appendOutput("AI model completed (\(outputDescriptor)). Next action: \(output.nextAction)")
 
             let cooldown = queueCooldownNanoseconds()
             if cooldown > 0 {
@@ -2301,11 +4260,17 @@ final class SessionStore: ObservableObject {
         let summary: String
         let nextAction: String
         let confidence: Double?
+        let content: String?
+        let outputType: String?
+        let quizDifficulty: String?
 
         enum CodingKeys: String, CodingKey {
             case summary
             case nextAction = "next_action"
             case confidence
+            case content
+            case outputType = "output_type"
+            case quizDifficulty = "quiz_difficulty"
         }
     }
 
@@ -2347,11 +4312,19 @@ final class SessionStore: ObservableObject {
         }
 
         var includeGlobalContext: Bool {
+            true
+        }
+
+        var contextMaxLength: Int {
             switch self {
+            case .general:
+                return 4200
+            case .briefing:
+                return 2200
+            case .structuredJSON:
+                return 2600
             case .coding:
-                return false
-            default:
-                return true
+                return 1800
             }
         }
     }
@@ -2374,6 +4347,7 @@ final class SessionStore: ObservableObject {
         let messages: [OpenAIChatMessage]
         let temperature: Double
         let maxTokens: Int
+        let reasoningEffort: String?
         let stream: Bool
 
         enum CodingKeys: String, CodingKey {
@@ -2381,6 +4355,7 @@ final class SessionStore: ObservableObject {
             case messages
             case temperature
             case maxTokens = "max_tokens"
+            case reasoningEffort = "reasoning_effort"
             case stream
         }
     }
@@ -2399,8 +4374,19 @@ final class SessionStore: ObservableObject {
         let choices: [OpenAIChatChoice]
     }
 
+    private struct GeminiInlineData: Codable {
+        let mimeType: String?
+        let data: String?
+    }
+
     private struct GeminiTextPart: Codable {
         let text: String?
+        let inlineData: GeminiInlineData?
+
+        init(text: String?, inlineData: GeminiInlineData? = nil) {
+            self.text = text
+            self.inlineData = inlineData
+        }
     }
 
     private struct GeminiMessageContent: Codable {
@@ -2442,27 +4428,200 @@ final class SessionStore: ObservableObject {
         let candidates: [Candidate]?
     }
 
-    private func localLLMRuntimeStatusLine() -> String {
-        let profile = localReasoningProfile(for: .general, timeoutSeconds: 18)
-        switch localInferenceProvider {
-        case .openAICompatible:
-            if let endpoint = localInferenceOpenAIEndpointURL {
-                let host = endpoint.host ?? "unknown-host"
-                let keyStatus = localInferenceAPIKey == nil ? "no API key" : "API key loaded"
-                return "OpenAI-compatible bridge enabled: \(host)\(endpoint.path) · model \(localInferenceModelName) · \(keyStatus) · extra-high \(profile.analysisPasses)-pass reasoning active."
+    private struct GeminiSpeechVoiceConfig: Encodable {
+        struct PrebuiltVoiceConfig: Encodable {
+            let voiceName: String
+        }
+
+        let prebuiltVoiceConfig: PrebuiltVoiceConfig
+    }
+
+    private struct GeminiSpeechConfig: Encodable {
+        let voiceConfig: GeminiSpeechVoiceConfig
+    }
+
+    private struct GeminiTTSGenerationConfig: Encodable {
+        let responseModalities: [String]
+        let speechConfig: GeminiSpeechConfig
+    }
+
+    private struct GeminiTTSGenerateRequest: Encodable {
+        let contents: [GeminiMessageContent]
+        let generationConfig: GeminiTTSGenerationConfig
+    }
+
+    private actor LocalInferenceTransport {
+        private let session: URLSession
+
+        init() {
+            let config = URLSessionConfiguration.default
+            config.requestCachePolicy = .reloadIgnoringLocalCacheData
+            config.urlCache = nil
+            config.httpCookieStorage = nil
+            config.httpShouldSetCookies = false
+            config.waitsForConnectivity = false
+            config.timeoutIntervalForRequest = 22
+            config.timeoutIntervalForResource = 34
+            config.httpMaximumConnectionsPerHost = 4
+            config.httpShouldUsePipelining = true
+            config.httpAdditionalHeaders = [
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+            ]
+            if #available(iOS 13.0, macOS 10.15, *) {
+                config.tlsMinimumSupportedProtocolVersion = .TLSv12
             }
-            return "OpenAI-compatible bridge endpoint unavailable. Atlas will use deterministic local reasoning fallback."
-        case .gemini:
-            let keyStatus = localInferenceAPIKey == nil ? "API key missing" : "API key loaded"
-            return "Gemini cloud reasoning enabled: model \(localInferenceModelName) · \(keyStatus) · extra-high \(profile.analysisPasses)-pass reasoning active."
+            session = URLSession(configuration: config)
+        }
+
+        func requestData(for request: URLRequest, maxRetries: Int) async -> Data? {
+            var attempt = 0
+            while !Task.isCancelled {
+                do {
+                    let (data, response) = try await session.data(for: request)
+                    guard let http = response as? HTTPURLResponse else { return nil }
+                    if (200 ... 299).contains(http.statusCode) {
+                        return data
+                    }
+                    guard attempt < maxRetries, shouldRetry(statusCode: http.statusCode) else {
+                        return nil
+                    }
+                    let delay = retryDelaySeconds(httpResponse: http, attempt: attempt)
+                    attempt += 1
+                    try? await Task.sleep(nanoseconds: UInt64(max(0.0, delay) * 1_000_000_000))
+                } catch {
+                    guard attempt < maxRetries else { return nil }
+                    let delay = min(4.0, 0.35 * pow(2.0, Double(attempt)))
+                    attempt += 1
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                }
+            }
+            return nil
+        }
+
+        private func shouldRetry(statusCode: Int) -> Bool {
+            statusCode == 408 || statusCode == 409 || statusCode == 429 || (500 ... 599).contains(statusCode)
+        }
+
+        private func retryDelaySeconds(httpResponse: HTTPURLResponse, attempt: Int) -> Double {
+            if let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After"),
+               let retryAfterSeconds = Double(retryAfter),
+               retryAfterSeconds > 0
+            {
+                return min(6.0, retryAfterSeconds)
+            }
+            return min(4.0, 0.35 * pow(2.0, Double(attempt)))
         }
     }
 
-    private func readLocalInferenceAPIKey() -> String? {
+    private actor LocalInferenceResponseCache {
+        private struct CacheEntry {
+            let value: String
+            let expiresAt: Date
+        }
+
+        private let defaultTTL: TimeInterval
+        private var entries: [String: CacheEntry] = [:]
+        private var inflight: [String: Task<String?, Never>] = [:]
+
+        init(defaultTTL: TimeInterval) {
+            self.defaultTTL = max(20, defaultTTL)
+        }
+
+        func resolve(
+            key: String,
+            ttl: TimeInterval? = nil,
+            operation: @escaping @Sendable () async -> String?
+        ) async -> String? {
+            let now = Date()
+            purgeExpired(now: now)
+
+            if let cached = entries[key], cached.expiresAt > now {
+                return cached.value
+            }
+
+            if let running = inflight[key] {
+                return await running.value
+            }
+
+            let effectiveTTL = max(10, ttl ?? defaultTTL)
+            let task = Task { await operation() }
+            inflight[key] = task
+            let value = await task.value
+            inflight.removeValue(forKey: key)
+
+            if let value, !value.isEmpty {
+                entries[key] = CacheEntry(
+                    value: value,
+                    expiresAt: Date().addingTimeInterval(effectiveTTL)
+                )
+            }
+            return value
+        }
+
+        private func purgeExpired(now: Date) {
+            entries = entries.filter { $0.value.expiresAt > now }
+        }
+    }
+
+    nonisolated private static func localInferenceCacheKey(
+        providerID: String,
+        model: String,
+        endpointID: String,
+        prompt: String,
+        systemPrompt: String,
+        temperature: Double,
+        maxTokens: Int
+    ) -> String {
+        let raw = [
+            providerID,
+            model,
+            endpointID,
+            String(format: "%.4f", temperature),
+            "\(maxTokens)",
+            systemPrompt,
+            prompt
+        ].joined(separator: "||")
+        return sha256Hex(raw)
+    }
+
+    nonisolated private static func sha256Hex(_ value: String) -> String {
+        let digest = SHA256.hash(data: Data(value.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func localLLMRuntimeStatusLine() -> String {
+        let host = AppEnvironment.apiBaseURL.host ?? "api-host"
+        let sessionStatus: String
+        if !isSignedIn {
+            sessionStatus = "locked: sign in required"
+        } else if !billingAccessEnabled {
+            sessionStatus = "locked: add payment method"
+        } else {
+            sessionStatus = "session + billing active"
+        }
+        return "Runtime policy: server-managed /v1/chat on \(host). Gemini (\(Self.geminiReasoningModel)) primary with GPT-5.2 high-reasoning fallback. \(sessionStatus)."
+    }
+
+    private func guidedLearningRuntimeStatusLine() -> String {
+        let activation = isGuidedLearningRuntimeActive ? "active" : "locked"
+        let ollamaHost = guidedLearningOllamaEndpointURL?.host ?? "invalid-endpoint"
+        let kiwixHost = guidedLearningKiwixBaseURL?.host ?? "invalid-endpoint"
+        return "Guided learning \(activation). Kiwix host: \(kiwixHost) · Ollama host: \(ollamaHost) · model: \(guidedLearningOllamaModelName)."
+    }
+
+    private func readLocalInferenceAPIKey(for provider: LocalInferenceProvider) -> String? {
+        if let scoped = readLocalInferenceAPIKey(account: keychainAccount(for: provider)) {
+            return scoped
+        }
+        return readLocalInferenceAPIKey(account: LocalInferenceDefaults.legacyKeychainAccount)
+    }
+
+    private func readLocalInferenceAPIKey(account: String) -> String? {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: LocalInferenceDefaults.keychainService,
-            kSecAttrAccount as String: LocalInferenceDefaults.keychainAccount,
+            kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -2478,13 +4637,14 @@ final class SessionStore: ObservableObject {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func storeLocalInferenceAPIKey(_ apiKey: String) -> Bool {
+    private func storeLocalInferenceAPIKey(_ apiKey: String, for provider: LocalInferenceProvider) -> Bool {
         guard let data = apiKey.data(using: .utf8) else { return false }
+        let account = keychainAccount(for: provider)
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: LocalInferenceDefaults.keychainService,
-            kSecAttrAccount as String: LocalInferenceDefaults.keychainAccount,
+            kSecAttrAccount as String: account,
         ]
 
         let update: [String: Any] = [
@@ -2501,21 +4661,30 @@ final class SessionStore: ObservableObject {
         var create: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: LocalInferenceDefaults.keychainService,
-            kSecAttrAccount as String: LocalInferenceDefaults.keychainAccount,
+            kSecAttrAccount as String: account,
             kSecValueData as String: data,
         ]
 #if os(iOS)
         create[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 #endif
         let addStatus = SecItemAdd(create as CFDictionary, nil)
+        if addStatus == errSecSuccess {
+            _ = deleteLocalInferenceAPIKey(account: LocalInferenceDefaults.legacyKeychainAccount)
+        }
         return addStatus == errSecSuccess
     }
 
-    private func deleteLocalInferenceAPIKey() -> Bool {
+    private func deleteLocalInferenceAPIKey(for provider: LocalInferenceProvider) -> Bool {
+        let scopedDeleted = deleteLocalInferenceAPIKey(account: keychainAccount(for: provider))
+        let legacyDeleted = deleteLocalInferenceAPIKey(account: LocalInferenceDefaults.legacyKeychainAccount)
+        return scopedDeleted && legacyDeleted
+    }
+
+    private func deleteLocalInferenceAPIKey(account: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: LocalInferenceDefaults.keychainService,
-            kSecAttrAccount as String: LocalInferenceDefaults.keychainAccount,
+            kSecAttrAccount as String: account,
         ]
         let status = SecItemDelete(query as CFDictionary)
         return status == errSecSuccess || status == errSecItemNotFound
@@ -2528,7 +4697,15 @@ final class SessionStore: ObservableObject {
         return "••••\(suffix)"
     }
 
-    private func modelDrivenQueueOutput(prompt: String, notes: [UserNote]) async -> LocalReasoningOutput? {
+    private func modelDrivenQueueOutput(
+        prompt: String,
+        notes: [UserNote],
+        outputType: PromptOutputType,
+        quizDifficulty: QuizDifficulty?,
+        workspaceMemorySnapshot: String,
+        surveySnapshot: String,
+        lessonHighlights: [String]
+    ) async -> LocalReasoningOutput? {
         guard localInferenceEnabled else { return nil }
 
         let notesSnapshot = notes
@@ -2539,17 +4716,700 @@ final class SessionStore: ObservableObject {
             .suffix(8)
             .compactMap { item -> String? in
                 guard let output = item.output else { return nil }
-                return "- \(output.summary)"
+                let typeLabel = output.outputType?.title ?? item.outputType?.title ?? "Standard"
+                return "- [\(typeLabel)] \(output.summary)"
             }
             .joined(separator: "\n")
+        let lessonSnapshot = lessonHighlights.isEmpty
+            ? "- No explicit user lessons captured yet."
+            : lessonHighlights.map { "- \($0)" }.joined(separator: "\n")
 
-        let instruction = """
-        You are Atlas local reasoning engine.
-        Return ONLY valid JSON with this schema:
-        {"summary":"...","next_action":"...","confidence":0.0}
+        if outputType == .quiz {
+            return await modelDrivenFrontierQuizOutput(
+                prompt: prompt,
+                quizDifficulty: quizDifficulty ?? .medium,
+                notesSnapshot: notesSnapshot,
+                historySnapshot: historySnapshot,
+                workspaceMemorySnapshot: workspaceMemorySnapshot,
+                surveySnapshot: surveySnapshot,
+                lessonSnapshot: lessonSnapshot
+            )
+        }
+
+        let instruction = queueOutputInstruction(
+            for: outputType,
+            quizDifficulty: nil,
+            prompt: prompt,
+            notesSnapshot: notesSnapshot,
+            historySnapshot: historySnapshot,
+            workspaceMemorySnapshot: workspaceMemorySnapshot,
+            surveySnapshot: surveySnapshot,
+            lessonSnapshot: lessonSnapshot
+        )
+
+        let providerOrder = preferredInferenceProviders
+
+        for provider in providerOrder {
+            guard let raw = await requestLocalModelResponse(
+                prompt: instruction,
+                timeoutSeconds: 20,
+                domain: .structuredJSON,
+                providerOverride: provider,
+                modelOverride: provider.defaultModel
+            ) else {
+                continue
+            }
+
+            if let parsed: LocalModelQueueResponse = Self.decodeModelJSON(raw) {
+                if let output = queueOutputFromParsed(
+                    parsed: parsed,
+                    outputType: outputType,
+                    quizDifficulty: nil,
+                    modelLabel: "frontier-\(provider.defaultModel)"
+                ) {
+                    return output
+                }
+            }
+
+            if let loose = queueOutputFromLooseRaw(
+                raw: raw,
+                outputType: outputType,
+                quizDifficulty: nil,
+                modelLabel: "frontier-\(provider.defaultModel)"
+            ) {
+                return loose
+            }
+        }
+        return nil
+    }
+
+    private enum PodcastGenerationResult {
+        case success(LocalReasoningOutput)
+        case retryableFailure(String)
+        case terminalFailure(String)
+    }
+
+    private enum CloudQueueGenerationResult {
+        case success(LocalReasoningOutput)
+        case retryableFailure(String)
+        case terminalFailure(String)
+    }
+
+    private struct PodcastScriptPlanResponse: Decodable {
+        let outputType: String?
+        let summary: String
+        let nextAction: String
+        let confidence: Double?
+        let title: String?
+        let script: String
+        let voiceName: String?
+
+        enum CodingKeys: String, CodingKey {
+            case outputType = "output_type"
+            case summary
+            case nextAction = "next_action"
+            case confidence
+            case title
+            case script
+            case voiceName = "voice_name"
+        }
+    }
+
+    private func serverDrivenQueueOutput(
+        item: PromptQueueItem,
+        prompt: String,
+        notes: [UserNote],
+        outputType: PromptOutputType,
+        quizDifficulty: QuizDifficulty?,
+        workspaceMemorySnapshot: String,
+        surveySnapshot: String,
+        lessonHighlights: [String]
+    ) async -> CloudQueueGenerationResult {
+        let notesSnapshot = notes
+            .prefix(14)
+            .map { "- \($0.title): \(sanitizeModelInput($0.content, maxLength: 180))" }
+            .joined(separator: "\n")
+        let historySnapshot = promptQueue
+            .suffix(8)
+            .compactMap { item -> String? in
+                guard let output = item.output else { return nil }
+                let typeLabel = output.outputType?.title ?? item.outputType?.title ?? "Standard"
+                return "- [\(typeLabel)] \(output.summary)"
+            }
+            .joined(separator: "\n")
+        let lessonSnapshot = lessonHighlights.isEmpty
+            ? "- No explicit user lessons captured yet."
+            : lessonHighlights.map { "- \($0)" }.joined(separator: "\n")
+        let scopeLabel = item.workspaceLane?.title ?? "Concierge"
+        let scopeSession = item.workspaceSessionID ?? item.conciergeSessionID ?? "default"
+
+        let instruction = serverQueueInstruction(
+            outputType: outputType,
+            quizDifficulty: quizDifficulty,
+            prompt: prompt,
+            scopeLabel: scopeLabel,
+            scopeSession: scopeSession,
+            notesSnapshot: notesSnapshot.isEmpty ? "- No notes saved." : notesSnapshot,
+            historySnapshot: historySnapshot.isEmpty ? "- No prior outputs." : historySnapshot,
+            workspaceMemorySnapshot: workspaceMemorySnapshot,
+            surveySnapshot: surveySnapshot,
+            lessonSnapshot: lessonSnapshot
+        )
+        let locale = Locale.current.language.languageCode?.identifier ?? "en"
+        let sessionID = item.workspaceSessionID ?? item.conciergeSessionID
+
+        do {
+            let response = try await api.chat(
+                sessionID: sessionID,
+                text: instruction,
+                locale: locale,
+                preferredFormat: "structured_plan",
+                responseDepth: "deep",
+                responseTone: "executive",
+                includeProactive: false
+            )
+
+            let reply = response.replyText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !reply.isEmpty else {
+                return .retryableFailure("Cloud runtime returned an empty response.")
+            }
+
+            let modelLabel = "cloud-v1-chat"
+            if let parsed: LocalModelQueueResponse = Self.decodeModelJSON(reply),
+               let output = queueOutputFromParsed(
+                   parsed: parsed,
+                   outputType: outputType,
+                   quizDifficulty: quizDifficulty,
+                   modelLabel: modelLabel
+               )
+            {
+                return .success(output)
+            }
+
+            if let loose = queueOutputFromLooseRaw(
+                raw: reply,
+                outputType: outputType,
+                quizDifficulty: quizDifficulty,
+                modelLabel: modelLabel
+            ) {
+                return .success(loose)
+            }
+
+            if outputType == .standard {
+                let compact = Self.trimForDisplay(
+                    sanitizeWorkspaceMemoryValue(reply, maxLength: 8_000),
+                    maxChars: 8_000
+                )
+                let lines = compact
+                    .split(whereSeparator: \.isNewline)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                let summary = sanitizeWorkspaceMemoryValue(
+                    lines.first ?? String(compact.prefix(280)),
+                    maxLength: 420
+                )
+                let nextAction = lines
+                    .first(where: { $0.lowercased().contains("next action") })
+                    .flatMap { line -> String? in
+                        if let colonIndex = line.firstIndex(of: ":") {
+                            let action = String(line[line.index(after: colonIndex)...])
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            return action.isEmpty ? nil : action
+                        }
+                        return line.isEmpty ? nil : line
+                    }
+                    ?? "Execute the first concrete step from this response in the next 25 minutes."
+                return .success(
+                    LocalReasoningOutput(
+                        model: modelLabel,
+                        summary: summary,
+                        nextAction: sanitizeWorkspaceMemoryValue(nextAction, maxLength: 220),
+                        confidence: 0.67,
+                        generatedAt: Date(),
+                        outputType: .standard,
+                        quizDifficulty: nil,
+                        content: nil
+                    )
+                )
+            }
+
+            return .retryableFailure("Cloud runtime returned unexpected \(outputType.title) format.")
+        } catch let APIError.server(status, message) {
+            let sanitized = sanitizeWorkspaceMemoryValue(message, maxLength: 220)
+            switch status {
+            case 401:
+                return .terminalFailure("Cloud AI requires an active signed-in account session.")
+            case 402:
+                return .terminalFailure("Billing setup is required before cloud AI chat can run. Add a payment method in Plans.")
+            case 403:
+                return .terminalFailure("Cloud chat request was rejected by server policy. Verify session/origin settings.")
+            case 404:
+                return .terminalFailure("Cloud chat route /v1/chat is unavailable on the backend.")
+            case 429:
+                return .retryableFailure("Cloud runtime is rate-limited (429). Retrying.")
+            case 500 ... 599:
+                return .retryableFailure("Cloud runtime server error (\(status)). Retrying.")
+            default:
+                return .retryableFailure("Cloud runtime failed (\(status)): \(sanitized)")
+            }
+        } catch let apiError as APIError {
+            return .terminalFailure(apiError.localizedDescription)
+        } catch {
+            return .retryableFailure("Cloud runtime request failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func serverQueueInstruction(
+        outputType: PromptOutputType,
+        quizDifficulty: QuizDifficulty?,
+        prompt: String,
+        scopeLabel: String,
+        scopeSession: String,
+        notesSnapshot: String,
+        historySnapshot: String,
+        workspaceMemorySnapshot: String,
+        surveySnapshot: String,
+        lessonSnapshot: String
+    ) -> String {
+        switch outputType {
+        case .standard:
+            return """
+            You are Atlas cloud execution intelligence.
+            Produce concise, high-signal output for one queue request.
+
+            Output format:
+            Summary: <one sentence, max 220 chars>
+            Next action: <one sentence, max 160 chars>
+            Why now: <optional one sentence, max 160 chars>
+
+            Context:
+            Scope: \(scopeLabel) | Session: \(scopeSession)
+            Prompt: \(prompt)
+            Notes:
+            \(notesSnapshot)
+            Workspace memory:
+            \(workspaceMemorySnapshot)
+            Lesson signals:
+            \(lessonSnapshot)
+            Survey signals:
+            \(surveySnapshot)
+            Prior outputs:
+            \(historySnapshot)
+            """
+        case .quiz:
+            let difficulty = quizDifficulty ?? .medium
+            return """
+            You are Atlas cloud rehearsal intelligence.
+            Generate a 6-question quiz at \(difficulty.rawValue) difficulty.
+
+            Required format (plain text):
+            Q1: ...
+            Choices: A) ... | B) ... | C) ... | D) ...
+            Correct: A|B|C|D
+            Why it matters: ...
+            (repeat through Q6)
+
+            Rules:
+            - Exactly 6 questions.
+            - At least 2 questions must use lesson signals when available.
+            - Questions must reflect prompt + survey + workspace memory.
+            - Keep total output under 6000 chars.
+
+            Context:
+            Scope: \(scopeLabel) | Session: \(scopeSession)
+            Prompt: \(prompt)
+            Notes:
+            \(notesSnapshot)
+            Workspace memory:
+            \(workspaceMemorySnapshot)
+            Lesson signals:
+            \(lessonSnapshot)
+            Survey signals:
+            \(surveySnapshot)
+            Prior outputs:
+            \(historySnapshot)
+            """
+        case .podcast:
+            return """
+            You are Atlas cloud script intelligence.
+            Return concise show-notes text only with this format:
+            Summary: ...
+            Next action: ...
+            Script:
+            Opening:
+            Main Brief:
+            Action Drill:
+            Closing:
+
+            Context:
+            Scope: \(scopeLabel) | Session: \(scopeSession)
+            Prompt: \(prompt)
+            Notes:
+            \(notesSnapshot)
+            Workspace memory:
+            \(workspaceMemorySnapshot)
+            Lesson signals:
+            \(lessonSnapshot)
+            Survey signals:
+            \(surveySnapshot)
+            Prior outputs:
+            \(historySnapshot)
+            """
+        }
+    }
+
+    private func modelDrivenPodcastOutput(
+        prompt: String,
+        notes: [UserNote],
+        workspaceMemorySnapshot: String,
+        surveySnapshot: String,
+        lessonHighlights: [String]
+    ) async -> PodcastGenerationResult {
+        let notesSnapshot = notes
+            .prefix(16)
+            .map { "- \($0.title): \(sanitizeModelInput($0.content, maxLength: 180))" }
+            .joined(separator: "\n")
+        let historySnapshot = promptQueue
+            .suffix(8)
+            .compactMap { item -> String? in
+                guard let output = item.output else { return nil }
+                let typeLabel = output.outputType?.title ?? item.outputType?.title ?? "Standard"
+                return "- [\(typeLabel)] \(output.summary)"
+            }
+            .joined(separator: "\n")
+        let lessonSnapshot = lessonHighlights.isEmpty
+            ? "- No explicit user lessons captured yet."
+            : lessonHighlights.map { "- \($0)" }.joined(separator: "\n")
+        let instruction = podcastScriptInstruction(
+            prompt: prompt,
+            notesSnapshot: notesSnapshot,
+            historySnapshot: historySnapshot,
+            workspaceMemorySnapshot: workspaceMemorySnapshot,
+            surveySnapshot: surveySnapshot,
+            lessonSnapshot: lessonSnapshot
+        )
+
+        let stageOneProviders: [(provider: LocalInferenceProvider, model: String)] = [
+            (.gemini, Self.geminiReasoningModel),
+            (.openAICompatible, LocalInferenceProvider.openAICompatible.defaultModel),
+        ]
+
+        var stageOnePlan: PodcastScriptPlanResponse?
+        var stageOneModelLabel = ""
+        for stageOneProvider in stageOneProviders {
+            guard let raw = await requestLocalModelResponse(
+                prompt: instruction,
+                timeoutSeconds: 28,
+                domain: .structuredJSON,
+                providerOverride: stageOneProvider.provider,
+                modelOverride: stageOneProvider.model
+            ),
+            let parsed: PodcastScriptPlanResponse = Self.decodeModelJSON(raw)
+            else {
+                continue
+            }
+
+            let normalizedScript = parsed.script
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedSummary = parsed.summary
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedAction = parsed.nextAction
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedOutputType = parsed.outputType?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() ?? "podcast"
+
+            guard normalizedOutputType == "podcast",
+                  !normalizedScript.isEmpty,
+                  !normalizedSummary.isEmpty,
+                  !normalizedAction.isEmpty
+            else {
+                continue
+            }
+
+            stageOnePlan = PodcastScriptPlanResponse(
+                outputType: "podcast",
+                summary: normalizedSummary,
+                nextAction: normalizedAction,
+                confidence: parsed.confidence,
+                title: parsed.title,
+                script: normalizedScript,
+                voiceName: parsed.voiceName
+            )
+            stageOneModelLabel = stageOneProvider.model
+            break
+        }
+
+        guard let plan = stageOnePlan else {
+            return .retryableFailure(
+                "Podcast script stage failed (Gemini 3 Flash + GPT fallback unavailable)."
+            )
+        }
+
+        guard let geminiKey = localInferenceAPIKey(for: .gemini),
+              !geminiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return .terminalFailure(
+                "Gemini API key missing. Add a Gemini key in Account > Model runtime to render podcast audio."
+            )
+        }
+
+        let selectedVoice = plan.voiceName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == false ? plan.voiceName! : Self.geminiPodcastVoiceName
+        guard let rendered = await Self.runGeminiTTSPrompt(
+            model: Self.geminiPodcastTTSModel,
+            apiKey: geminiKey,
+            script: plan.script,
+            voiceName: selectedVoice
+        ) else {
+            return .retryableFailure(
+                "Podcast audio stage failed on \(Self.geminiPodcastTTSModel)."
+            )
+        }
+
+        guard let normalizedAudio = normalizePodcastAudioPayload(
+            audioData: rendered.data,
+            mimeType: rendered.mimeType
+        ) else {
+            return .retryableFailure("Podcast audio payload was invalid or empty.")
+        }
+
+        guard let artifact = persistPodcastAudioArtifact(
+            audioData: normalizedAudio.data,
+            mimeType: normalizedAudio.mimeType,
+            voiceName: selectedVoice,
+            rawPCMByteCount: normalizedAudio.rawPCMByteCount
+        ) else {
+            return .terminalFailure("Podcast audio could not be saved on device.")
+        }
+
+        let confidence = min(1.0, max(0.0, plan.confidence ?? 0.74))
+        return .success(
+            LocalReasoningOutput(
+                model: "podcast-pipeline[\(stageOneModelLabel) -> \(Self.geminiPodcastTTSModel)]",
+                summary: sanitizeWorkspaceMemoryValue(plan.summary, maxLength: 420),
+                nextAction: sanitizeWorkspaceMemoryValue(plan.nextAction, maxLength: 220),
+                confidence: confidence,
+                generatedAt: Date(),
+                outputType: .podcast,
+                quizDifficulty: nil,
+                content: nil,
+                podcastAudio: artifact
+            )
+        )
+    }
+
+    private func podcastScriptInstruction(
+        prompt: String,
+        notesSnapshot: String,
+        historySnapshot: String,
+        workspaceMemorySnapshot: String,
+        surveySnapshot: String,
+        lessonSnapshot: String
+    ) -> String {
+        """
+        You are Atlas Podcast Planning Engine.
+        Build a high-signal, concise podcast script from user context.
+
+        Return ONLY valid JSON with this exact schema:
+        {"output_type":"podcast","summary":"...","next_action":"...","confidence":0.0,"title":"...","voice_name":"Kore","script":"..."}
+
         Requirements:
+        - output_type must be "podcast"
         - summary <= 280 chars
         - next_action <= 180 chars
+        - confidence must be 0.0..1.0
+        - script must be 2-6 minutes when spoken, max 3200 chars
+        - script sections must be clearly labeled:
+          Opening
+          Main Brief
+          Action Drill
+          Closing
+        - make it specific to prompt + memory + survey + lessons.
+
+        Prompt:
+        \(prompt)
+
+        Notes:
+        \(notesSnapshot)
+
+        Workspace memory signals:
+        \(workspaceMemorySnapshot)
+
+        Lesson signals:
+        \(lessonSnapshot)
+
+        Survey signals:
+        \(surveySnapshot)
+
+        Prior memory outputs:
+        \(historySnapshot)
+        """
+    }
+
+    private func normalizePodcastAudioPayload(
+        audioData: Data,
+        mimeType: String
+    ) -> (data: Data, mimeType: String, rawPCMByteCount: Int)? {
+        guard !audioData.isEmpty else { return nil }
+        let normalizedMime = mimeType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalizedMime.contains("l16") || normalizedMime.contains("pcm") {
+            let wavData = Self.wrapPCM16MonoAsWAV(audioData, sampleRate: 24_000)
+            return (wavData, "audio/wav", audioData.count)
+        }
+        return (audioData, mimeType, 0)
+    }
+
+    private func persistPodcastAudioArtifact(
+        audioData: Data,
+        mimeType: String,
+        voiceName: String,
+        rawPCMByteCount: Int
+    ) -> PodcastAudioArtifact? {
+        let fm = FileManager.default
+        let baseDirectory: URL
+        if let support = try? fm.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) {
+            baseDirectory = support
+        } else {
+            baseDirectory = fm.temporaryDirectory
+        }
+        let artifactDirectory = baseDirectory
+            .appendingPathComponent("atlas-podcast-audio", isDirectory: true)
+        do {
+            try fm.createDirectory(
+                at: artifactDirectory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            return nil
+        }
+
+        let ext: String = {
+            let lower = mimeType.lowercased()
+            if lower.contains("wav") { return "wav" }
+            if lower.contains("mpeg") || lower.contains("mp3") { return "mp3" }
+            if lower.contains("ogg") { return "ogg" }
+            if lower.contains("aac") { return "aac" }
+            return "bin"
+        }()
+        let fileURL = artifactDirectory
+            .appendingPathComponent("podcast-\(UUID().uuidString)")
+            .appendingPathExtension(ext)
+
+        do {
+            try audioData.write(to: fileURL, options: [.atomic])
+        } catch {
+            return nil
+        }
+
+        let durationSeconds: Double = {
+            if rawPCMByteCount > 0 {
+                return max(1.0, Double(rawPCMByteCount) / (24_000.0 * 2.0))
+            }
+            return max(1.0, Double(audioData.count) / (24_000.0 * 2.0))
+        }()
+
+        return PodcastAudioArtifact(
+            filePath: fileURL.path,
+            mimeType: mimeType,
+            voiceName: voiceName,
+            bytes: audioData.count,
+            estimatedDurationSeconds: durationSeconds
+        )
+    }
+
+    nonisolated private static func wrapPCM16MonoAsWAV(_ pcmData: Data, sampleRate: Int) -> Data {
+        var data = Data()
+        let channels: UInt16 = 1
+        let bitsPerSample: UInt16 = 16
+        let byteRate: UInt32 = UInt32(sampleRate) * UInt32(channels) * UInt32(bitsPerSample / 8)
+        let blockAlign: UInt16 = channels * (bitsPerSample / 8)
+        let subchunk2Size: UInt32 = UInt32(pcmData.count)
+        let chunkSize: UInt32 = 36 + subchunk2Size
+
+        data.append("RIFF".data(using: .ascii)!)
+        data.append(contentsOf: chunkSize.littleEndianBytes)
+        data.append("WAVE".data(using: .ascii)!)
+        data.append("fmt ".data(using: .ascii)!)
+        data.append(contentsOf: UInt32(16).littleEndianBytes)
+        data.append(contentsOf: UInt16(1).littleEndianBytes) // PCM format
+        data.append(contentsOf: channels.littleEndianBytes)
+        data.append(contentsOf: UInt32(sampleRate).littleEndianBytes)
+        data.append(contentsOf: byteRate.littleEndianBytes)
+        data.append(contentsOf: blockAlign.littleEndianBytes)
+        data.append(contentsOf: bitsPerSample.littleEndianBytes)
+        data.append("data".data(using: .ascii)!)
+        data.append(contentsOf: subchunk2Size.littleEndianBytes)
+        data.append(pcmData)
+        return data
+    }
+
+    private func queueOutputInstruction(
+        for outputType: PromptOutputType,
+        quizDifficulty: QuizDifficulty?,
+        prompt: String,
+        notesSnapshot: String,
+        historySnapshot: String,
+        workspaceMemorySnapshot: String,
+        surveySnapshot: String,
+        lessonSnapshot: String
+    ) -> String {
+        let schemaInstruction: String
+        let typeRequirements: String
+
+        switch outputType {
+        case .standard:
+            schemaInstruction = #"{"output_type":"standard","summary":"...","next_action":"...","confidence":0.0}"#
+            typeRequirements = """
+            - output_type must be "standard"
+            - summary <= 280 chars
+            - next_action <= 180 chars
+            - no extra fields
+            """
+        case .podcast:
+            schemaInstruction = #"{"output_type":"podcast","summary":"...","next_action":"...","confidence":0.0,"content":"..."}"#
+            typeRequirements = """
+            - output_type must be "podcast"
+            - summary <= 280 chars
+            - next_action <= 180 chars
+            - content <= 2500 chars
+            - content must read like a short podcast script with sections:
+              Opening, Main Brief, Action Drill, Closing
+            """
+        case .quiz:
+            let difficulty = quizDifficulty ?? .medium
+            schemaInstruction = #"{"output_type":"quiz","quiz_difficulty":"easy|medium|hard","summary":"...","next_action":"...","confidence":0.0,"content":"..."}"#
+            typeRequirements = """
+            - output_type must be "quiz"
+            - quiz_difficulty must be "\(difficulty.rawValue)"
+            - summary <= 280 chars
+            - next_action <= 180 chars
+            - content <= 6000 chars
+            - content must include exactly 6 rehearsal questions in this exact style:
+              Q1: ...
+              Choices: A) ... | B) ... | C) ... | D) ...
+              Correct: A|B|C|D
+              Why it matters: ...
+            - each question must reflect the user's prompt plus available memory + lesson signals.
+            - at least 2 questions must directly test lessons from Lesson signals when lessons exist.
+            - quiz must explicitly incorporate relevant survey signals when available.
+            - if the prompt is travel/itinerary related, quiz questions must rehearse itinerary execution (timing, route, checkpoints, contingencies).
+            """
+        }
+
+        return """
+        You are Atlas AI reasoning engine.
+        Return ONLY valid JSON with this schema:
+        \(schemaInstruction)
+
+        Requirements:
+        \(typeRequirements)
         - concise, concrete, and personalized from prompt + memory context.
 
         Prompt:
@@ -2558,32 +5418,328 @@ final class SessionStore: ObservableObject {
         Notes:
         \(notesSnapshot)
 
+        Workspace memory signals:
+        \(workspaceMemorySnapshot)
+
+        Lesson signals:
+        \(lessonSnapshot)
+
+        Survey signals:
+        \(surveySnapshot)
+
         Prior memory outputs:
         \(historySnapshot)
         """
+    }
 
-        guard let raw = await requestLocalModelResponse(
-            prompt: instruction,
-            timeoutSeconds: 20,
-            domain: .structuredJSON
-        ),
-        let parsed: LocalModelQueueResponse = Self.decodeModelJSON(raw)
-        else {
-            return nil
+    private func modelDrivenFrontierQuizOutput(
+        prompt: String,
+        quizDifficulty: QuizDifficulty,
+        notesSnapshot: String,
+        historySnapshot: String,
+        workspaceMemorySnapshot: String,
+        surveySnapshot: String,
+        lessonSnapshot: String
+    ) async -> LocalReasoningOutput? {
+        let instruction = queueOutputInstruction(
+            for: .quiz,
+            quizDifficulty: quizDifficulty,
+            prompt: prompt,
+            notesSnapshot: notesSnapshot,
+            historySnapshot: historySnapshot,
+            workspaceMemorySnapshot: workspaceMemorySnapshot,
+            surveySnapshot: surveySnapshot,
+            lessonSnapshot: lessonSnapshot
+        )
+
+        for provider in preferredInferenceProviders {
+            guard let raw = await requestLocalModelResponse(
+                prompt: instruction,
+                timeoutSeconds: 24,
+                domain: .structuredJSON,
+                providerOverride: provider,
+                modelOverride: provider.defaultModel
+            ) else {
+                continue
+            }
+
+            if let parsed: LocalModelQueueResponse = Self.decodeModelJSON(raw) {
+                if let output = queueOutputFromParsed(
+                    parsed: parsed,
+                    outputType: .quiz,
+                    quizDifficulty: quizDifficulty,
+                    modelLabel: "frontier-\(provider.defaultModel)"
+                ) {
+                    return output
+                }
+            }
+
+            if let loose = queueOutputFromLooseRaw(
+                raw: raw,
+                outputType: .quiz,
+                quizDifficulty: quizDifficulty,
+                modelLabel: "frontier-\(provider.defaultModel)"
+            ) {
+                return loose
+            }
+        }
+        return nil
+    }
+
+    private func queueOutputFromParsed(
+        parsed: LocalModelQueueResponse,
+        outputType: PromptOutputType,
+        quizDifficulty: QuizDifficulty?,
+        modelLabel: String
+    ) -> LocalReasoningOutput? {
+        let confidence = min(1.0, max(0.0, parsed.confidence ?? 0.66))
+        let parsedDifficulty = parsed.quizDifficulty.flatMap { raw -> QuizDifficulty? in
+            let normalized = raw
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return QuizDifficulty(rawValue: normalized)
+        }
+        let resolvedQuizDifficulty = outputType == .quiz
+            ? (quizDifficulty ?? parsedDifficulty ?? .medium)
+            : nil
+        let sanitizedContent = sanitizeWorkspaceMemoryValue(parsed.content ?? "", maxLength: 8_000)
+
+        if outputType == .quiz {
+            let trimmedQuiz = sanitizedContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedQuiz.isEmpty else { return nil }
+            let lowered = trimmedQuiz.lowercased()
+            guard lowered.contains("q1:"), lowered.contains("correct:"), lowered.contains("why it matters:") else {
+                return nil
+            }
+            let questionCount = trimmedQuiz
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { $0.hasPrefix("q") && $0.contains(":") }
+                .count
+            let correctCount = lowered.components(separatedBy: "correct:").count - 1
+            guard questionCount >= 6, correctCount >= 6 else {
+                return nil
+            }
+        }
+        if outputType == .podcast {
+            let trimmedPodcast = sanitizedContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedPodcast.isEmpty else { return nil }
         }
 
-        let confidence = min(1.0, max(0.0, parsed.confidence ?? 0.66))
+        let normalizedContent: String?
+        if outputType == .standard {
+            normalizedContent = nil
+        } else {
+            let trimmedContent = sanitizedContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedContent.isEmpty else { return nil }
+            normalizedContent = Self.trimForDisplay(trimmedContent, maxChars: 8_000)
+        }
+
         return LocalReasoningOutput(
-            model: "\(localInferenceModelName)-local",
+            model: modelLabel,
             summary: sanitizeWorkspaceMemoryValue(parsed.summary, maxLength: 420),
             nextAction: sanitizeWorkspaceMemoryValue(parsed.nextAction, maxLength: 220),
             confidence: confidence,
-            generatedAt: Date()
+            generatedAt: Date(),
+            outputType: outputType,
+            quizDifficulty: resolvedQuizDifficulty,
+            content: normalizedContent
         )
     }
 
+    private func queueOutputFromLooseRaw(
+        raw: String,
+        outputType: PromptOutputType,
+        quizDifficulty: QuizDifficulty?,
+        modelLabel: String
+    ) -> LocalReasoningOutput? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        switch outputType {
+        case .standard:
+            let compact = Self.trimForDisplay(
+                sanitizeWorkspaceMemoryValue(trimmed.replacingOccurrences(of: "\n\n", with: "\n"), maxLength: 8_000),
+                maxChars: 8_000
+            )
+            let lines = compact
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            let summarySource = lines.first ?? String(compact.prefix(280))
+            let summary = sanitizeWorkspaceMemoryValue(String(summarySource), maxLength: 420)
+
+            let nextAction = lines
+                .first(where: { $0.lowercased().contains("next action") })
+                .map { line -> String in
+                    if let colonIndex = line.firstIndex(of: ":") {
+                        return String(line[line.index(after: colonIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    return line
+                }
+                .flatMap { $0.isEmpty ? nil : $0 }
+                ?? "Execute the first concrete step from this response in the next 25 minutes."
+
+            return LocalReasoningOutput(
+                model: modelLabel,
+                summary: summary,
+                nextAction: sanitizeWorkspaceMemoryValue(nextAction, maxLength: 220),
+                confidence: 0.58,
+                generatedAt: Date(),
+                outputType: .standard,
+                quizDifficulty: nil,
+                content: nil
+            )
+        case .quiz:
+            let lowered = trimmed.lowercased()
+            guard lowered.contains("q1:") || lowered.contains("choices:") || lowered.contains("question 1")
+            else {
+                return nil
+            }
+            let normalizedDifficulty = quizDifficulty ?? .medium
+            let content = Self.trimForDisplay(
+                sanitizeWorkspaceMemoryValue(trimmed, maxLength: 8_000),
+                maxChars: 8_000
+            )
+            return LocalReasoningOutput(
+                model: modelLabel,
+                summary: "Gemini quiz draft generated from your prompt.",
+                nextAction: "Answer the first two questions now, then request a harder follow-up drill.",
+                confidence: 0.55,
+                generatedAt: Date(),
+                outputType: .quiz,
+                quizDifficulty: normalizedDifficulty,
+                content: content
+            )
+        case .podcast:
+            let content = Self.trimForDisplay(
+                sanitizeWorkspaceMemoryValue(trimmed, maxLength: 8_000),
+                maxChars: 8_000
+            )
+            let lines = content
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            let summary = sanitizeWorkspaceMemoryValue(
+                lines.first ?? "Podcast script generated.",
+                maxLength: 420
+            )
+            let nextAction = lines
+                .first(where: { $0.lowercased().contains("next action") })
+                .flatMap { line -> String? in
+                    if let colonIndex = line.firstIndex(of: ":") {
+                        let action = String(line[line.index(after: colonIndex)...])
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        return action.isEmpty ? nil : action
+                    }
+                    return line.isEmpty ? nil : line
+                }
+                ?? "Play this briefing now, then execute the first action in the next 25 minutes."
+            return LocalReasoningOutput(
+                model: modelLabel,
+                summary: summary,
+                nextAction: sanitizeWorkspaceMemoryValue(nextAction, maxLength: 220),
+                confidence: 0.56,
+                generatedAt: Date(),
+                outputType: .podcast,
+                quizDifficulty: nil,
+                content: content
+            )
+        }
+    }
+
+    private func queueMemoryHighlights(
+        for lane: WorkspaceLane?,
+        sessionID: String?,
+        limit: Int
+    ) -> [String] {
+        workspaceMemoryRecords
+            .filter { record in
+                let laneMatch = lane == nil || record.lane == nil || record.lane == lane
+                let sessionMatch = sessionID == nil || record.sessionID == nil || record.sessionID == sessionID
+                return laneMatch && sessionMatch
+            }
+            .sorted { lhs, rhs in
+                let lhsScore = workspaceMemoryScore(lhs)
+                let rhsScore = workspaceMemoryScore(rhs)
+                if lhsScore == rhsScore {
+                    return lhs.updatedAtUTC > rhs.updatedAtUTC
+                }
+                return lhsScore > rhsScore
+            }
+            .prefix(max(1, limit))
+            .map { "\((workspaceSignalLabel(for: $0.key))): \(sanitizeWorkspaceMemoryValue($0.value, maxLength: 110))" }
+    }
+
+    private func lessonMemoryHighlights(limit: Int) -> [String] {
+        let cappedLimit = max(1, limit)
+        return workspaceMemoryRecords
+            .filter { $0.source == .lesson }
+            .sorted { lhs, rhs in
+                let lhsScore = workspaceMemoryScore(lhs)
+                let rhsScore = workspaceMemoryScore(rhs)
+                if lhsScore == rhsScore {
+                    return lhs.updatedAtUTC > rhs.updatedAtUTC
+                }
+                return lhsScore > rhsScore
+            }
+            .prefix(cappedLimit)
+            .map { "\((workspaceSignalLabel(for: $0.key))): \(sanitizeWorkspaceMemoryValue($0.value, maxLength: 110))" }
+    }
+
+    private func uniqueOrdered(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        var ordered: [String] = []
+        for value in values {
+            let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty, !seen.contains(clean) else { continue }
+            seen.insert(clean)
+            ordered.append(clean)
+        }
+        return ordered
+    }
+
+    private func queueSurveySnapshot(for lane: WorkspaceLane?, limit: Int) -> String {
+        let signals = surveyAnswers
+            .map { questionID, answer -> (laneScore: Int, questionID: String, answer: String) in
+                let indexedLane = surveyQuestionLaneIndex[questionID].flatMap(WorkspaceLane.init(rawValue:))
+                let laneScore: Int
+                if let lane {
+                    if indexedLane == lane {
+                        laneScore = 2
+                    } else if indexedLane == nil {
+                        laneScore = 1
+                    } else {
+                        laneScore = 0
+                    }
+                } else {
+                    laneScore = 1
+                }
+                return (laneScore: laneScore, questionID: questionID, answer: answer)
+            }
+            .sorted { lhs, rhs in
+                if lhs.laneScore != rhs.laneScore {
+                    return lhs.laneScore > rhs.laneScore
+                }
+                return lhs.questionID < rhs.questionID
+            }
+            .prefix(max(1, limit))
+
+        guard !signals.isEmpty else {
+            return "- No survey signals yet."
+        }
+
+        return signals
+            .map { signal in
+                let label = workspaceSignalLabel(for: signal.questionID)
+                let value = sanitizeWorkspaceMemoryValue(signal.answer, maxLength: 120)
+                return "- \(label): \(value)"
+            }
+            .joined(separator: "\n")
+    }
+
     private func modelDrivenFeedItems() async -> [FeedItem]? {
-        guard localInferenceEnabled else { return nil }
+        guard localInferenceEnabled, isModelAutofillUnlocked else { return nil }
 
         let actions = executionActions
             .prefix(8)
@@ -2597,9 +5753,12 @@ final class SessionStore: ObservableObject {
             .prefix(8)
             .map { "- \($0.title): \(sanitizeWorkspaceMemoryValue($0.content, maxLength: 120))" }
             .joined(separator: "\n")
+        let lessonSignals = lessonMemoryHighlights(limit: 5)
+            .map { "- \($0)" }
+            .joined(separator: "\n")
 
         let instruction = """
-        You are Atlas local execution planner.
+        You are Atlas AI execution planner.
         Return ONLY JSON in this schema:
         {"items":[{"title":"...","summary":"...","why_now":"...","priority":"High|Medium|Low"}]}
         Provide 3 items max.
@@ -2620,6 +5779,9 @@ final class SessionStore: ObservableObject {
 
         Notes:
         \(noteSignals)
+
+        Lessons to integrate:
+        \(lessonSignals.isEmpty ? "- No lesson signals yet." : lessonSignals)
         """
 
         guard let raw = await requestLocalModelResponse(
@@ -2648,12 +5810,33 @@ final class SessionStore: ObservableObject {
                 title: sanitizeWorkspaceMemoryValue(item.title, maxLength: 110),
                 summary: sanitizeWorkspaceMemoryValue(item.summary, maxLength: 260),
                 whyNow: sanitizeWorkspaceMemoryValue(item.whyNow, maxLength: 220),
-                priority: sanitizeWorkspaceMemoryValue(item.priority, maxLength: 24)
+                priority: sanitizeWorkspaceMemoryValue(item.priority, maxLength: 24),
+                checklistState: nil
             )
         }
     }
 
     private func refreshCommandModelBrief() async {
+        guard isModelAutofillUnlocked else {
+            commandModelBrief = "AI command brief unlocks after \(Self.minimumSurveyAnswersForModelAutofill) survey answers (\(modelAutofillSurveyAnswersRemaining) remaining)."
+            return
+        }
+
+        let signature = commandBriefSignature()
+        let now = Date()
+        if signature == lastCommandBriefSignature,
+           now.timeIntervalSince(lastCommandBriefRefreshAt) < Self.modelBriefRefreshWindowSeconds
+        {
+            return
+        }
+        defer {
+            lastCommandBriefSignature = signature
+            lastCommandBriefRefreshAt = Date()
+        }
+
+        let lessonSnapshot = lessonMemoryHighlights(limit: 4)
+            .map { "- \($0)" }
+            .joined(separator: "\n")
         let prompt = """
         Return one concise command-brief paragraph (< 500 chars) for this operator.
         Focus on immediate execution leverage and risk control.
@@ -2664,6 +5847,8 @@ final class SessionStore: ObservableObject {
         Blockers: \(checkInBlockers)
         Mood/Energy: \(checkInMood) / \(checkInEnergy)
         Actions: \(executionActions.prefix(6).map { "\($0.horizon): \($0.title)" }.joined(separator: " | "))
+        Lessons to integrate:
+        \(lessonSnapshot.isEmpty ? "- No explicit lessons yet." : lessonSnapshot)
         """
 
         if let text = await requestLocalModelResponse(
@@ -2673,19 +5858,38 @@ final class SessionStore: ObservableObject {
         ) {
             commandModelBrief = sanitizeWorkspaceMemoryValue(text, maxLength: 520)
         } else {
-            commandModelBrief = "Model inference unavailable. Focus on one immediate action, one weekly milestone, and one continuity guardrail."
+            commandModelBrief = "AI command brief unavailable. Restore model runtime access and retry."
         }
     }
 
     private func refreshWorkspaceModelBrief() async {
         let lane = activeWorkspaceLane
+        let signature = workspaceBriefSignature(for: lane)
+        let now = Date()
+        if let lastSignature = lastWorkspaceBriefSignatureByLane[lane],
+           lastSignature == signature,
+           let lastRefresh = lastWorkspaceBriefRefreshAtByLane[lane],
+           now.timeIntervalSince(lastRefresh) < Self.modelBriefRefreshWindowSeconds
+        {
+            return
+        }
+        defer {
+            lastWorkspaceBriefSignatureByLane[lane] = signature
+            lastWorkspaceBriefRefreshAtByLane[lane] = Date()
+        }
+
         let sessionIDs = sessions(for: lane).prefix(4).map(\.title).joined(separator: " | ")
+        let lessonSnapshot = lessonMemoryHighlights(limit: 4)
+            .map { "- \($0)" }
+            .joined(separator: "\n")
         let prompt = """
         Return one concise workspace brief (< 500 chars).
         Focus lane: \(lane.title)
         Active session names: \(sessionIDs)
         Workspace plan: \(workspacePlans.first(where: { $0.lane == lane })?.objective ?? "No objective yet.")
         Next action now: \(workspacePlans.first(where: { $0.lane == lane })?.nextActionNow ?? "No next action yet.")
+        Lessons to integrate:
+        \(lessonSnapshot.isEmpty ? "- No explicit lessons yet." : lessonSnapshot)
         """
 
         if let text = await requestLocalModelResponse(
@@ -2695,8 +5899,152 @@ final class SessionStore: ObservableObject {
         ) {
             workspaceModelBrief = sanitizeWorkspaceMemoryValue(text, maxLength: 520)
         } else {
-            workspaceModelBrief = "Model inference unavailable. Keep lane objective explicit, pick one next action, and log one memory signal."
+            workspaceModelBrief = "AI workspace brief unavailable. Restore model runtime access and retry."
         }
+    }
+
+    private func refreshJobOpportunityNarrativesIfNeeded(opportunities: [JobOpportunity]) async {
+        guard isJobRadarReady else {
+            jobOpportunityNarratives = [:]
+            return
+        }
+        let topOpportunities = Array(opportunities.prefix(4))
+        guard !topOpportunities.isEmpty else {
+            jobOpportunityNarratives = [:]
+            return
+        }
+
+        let signatureComponents = [
+            topOpportunities.map(\.id).joined(separator: "|"),
+            topOpportunities.map(\.salaryBandUSD).joined(separator: "|"),
+            surveyAnswers
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: "&"),
+            dailyPriority,
+            midTermGoal,
+            checkInBlockers,
+        ]
+        let signature = Self.sha256Hex(signatureComponents.joined(separator: "||"))
+        let now = Date()
+        if signature == lastJobNarrativeSignature,
+           now.timeIntervalSince(lastJobNarrativeRefreshAt) < Self.feedRefreshWindowSeconds,
+           topOpportunities.allSatisfy({ jobOpportunityNarratives[$0.id] != nil })
+        {
+            return
+        }
+        defer {
+            lastJobNarrativeSignature = signature
+            lastJobNarrativeRefreshAt = Date()
+        }
+
+        var updated = jobOpportunityNarratives
+        for opportunity in topOpportunities {
+            let prompt = """
+            Return a concise opportunity brief in 2 short lines:
+            Line 1 must start with "Why:"
+            Line 2 must start with "How:"
+            Keep the total under 220 characters.
+
+            Role: \(opportunity.title)
+            Location: \(opportunity.location)
+            Salary: \(opportunity.salaryBandUSD)
+            Track: \(opportunity.track)
+            Industry: \(opportunity.industryFocus)
+            Profile signals: goal=\(dailyPriority), blocker=\(checkInBlockers), priority=\(midTermGoal)
+            """
+
+            if let text = await requestLocalModelResponse(
+                prompt: prompt,
+                timeoutSeconds: 10,
+                domain: .briefing,
+                providerOverride: .gemini,
+                modelOverride: Self.geminiReasoningModel
+            ) {
+                let trimmed = sanitizeWorkspaceMemoryValue(text.replacingOccurrences(of: "\n\n", with: "\n"), maxLength: 240)
+                if !trimmed.isEmpty {
+                    updated[opportunity.id] = trimmed
+                    continue
+                }
+            }
+
+            let fallback = "Why: \(opportunity.whyHighlights.prefix(1).joined(separator: " "))\nHow: \(opportunity.capabilityPath.prefix(1).joined(separator: " "))"
+            updated[opportunity.id] = sanitizeWorkspaceMemoryValue(fallback, maxLength: 240)
+        }
+
+        let validIDs = Set(topOpportunities.map(\.id))
+        updated = updated.filter { validIDs.contains($0.key) }
+        jobOpportunityNarratives = updated
+    }
+
+    private func commandBriefSignature() -> String {
+        let components = [
+            dailyPriority,
+            midTermGoal,
+            longTermVision,
+            checkInBlockers,
+            checkInMood,
+            "\(checkInEnergy)",
+            executionActions
+                .prefix(6)
+                .map { "\($0.horizon):\($0.title)" }
+                .joined(separator: "|"),
+            workspacePlans
+                .prefix(4)
+                .map { "\($0.lane.rawValue):\($0.nextActionNow)" }
+                .joined(separator: "|"),
+            lessonMemoryHighlights(limit: 6).joined(separator: "|"),
+        ]
+        return Self.sha256Hex(components.joined(separator: "||").lowercased())
+    }
+
+    private func workspaceBriefSignature(for lane: WorkspaceLane) -> String {
+        let laneSessions = sessions(for: lane)
+            .prefix(5)
+            .map { "\($0.id):\($0.title):\($0.updatedAtUTC.timeIntervalSince1970)" }
+            .joined(separator: "|")
+        let lanePlan = workspacePlans.first(where: { $0.lane == lane })
+        let components = [
+            lane.rawValue,
+            laneSessions,
+            lanePlan?.objective ?? "",
+            lanePlan?.nextActionNow ?? "",
+            workspaceMode,
+            travelRegion,
+            annualDistanceKM,
+            lessonMemoryHighlights(limit: 5).joined(separator: "|"),
+        ]
+        return Self.sha256Hex(components.joined(separator: "||").lowercased())
+    }
+
+    private func feedInferenceSignature() -> String {
+        let executionSlice = executionActions
+            .prefix(10)
+            .map { "\($0.horizon):\($0.title):\($0.details)" }
+            .joined(separator: "|")
+        let workspaceSlice = workspacePlans
+            .prefix(8)
+            .map { "\($0.lane.rawValue):\($0.nextActionNow)" }
+            .joined(separator: "|")
+        let noteSlice = notes
+            .prefix(8)
+            .map { "\($0.noteID):\($0.title)" }
+            .joined(separator: "|")
+        let components = [
+            dailyPriority,
+            midTermGoal,
+            longTermVision,
+            checkInBlockers,
+            checkInMood,
+            "\(checkInEnergy)",
+            executionSlice,
+            workspaceSlice,
+            noteSlice,
+            lessonMemoryHighlights(limit: 6).joined(separator: "|"),
+            "\(surveyAnswers.count)",
+            "\(workspaceMemoryRecords.count)",
+        ]
+        return Self.sha256Hex(components.joined(separator: "||").lowercased())
     }
 
     private func localReasoningProfile(
@@ -2704,9 +6052,19 @@ final class SessionStore: ObservableObject {
         timeoutSeconds: Int
     ) -> LocalInferenceReasoningProfile {
         let constrained = isResourceConstrained()
-        let analysisPasses = constrained ? 2 : 3
-        let candidateTimeout = max(8, timeoutSeconds + (constrained ? 2 : 5))
-        let synthesisTimeout = max(candidateTimeout, timeoutSeconds + (constrained ? 4 : 8))
+        let analysisPasses: Int
+        switch domain {
+        case .structuredJSON:
+            analysisPasses = 1
+        case .briefing:
+            analysisPasses = constrained ? 2 : 3
+        case .coding:
+            analysisPasses = constrained ? 2 : 3
+        case .general:
+            analysisPasses = constrained ? 2 : 3
+        }
+        let candidateTimeout = max(8, timeoutSeconds + (constrained ? 1 : 3))
+        let synthesisTimeout = max(candidateTimeout, timeoutSeconds + (constrained ? 2 : 4))
 
         let candidateTokens: Int
         let synthesisTokens: Int
@@ -2762,6 +6120,18 @@ final class SessionStore: ObservableObject {
             .prefix(8)
             .map { "- \($0.title): \(sanitizeWorkspaceMemoryValue($0.content, maxLength: 120))" }
             .joined(separator: "\n")
+        let surveySlice = surveyAnswers
+            .sorted { $0.key < $1.key }
+            .prefix(18)
+            .map {
+                let label = workspaceSignalLabel(for: "survey:\($0.key)")
+                let value = sanitizeWorkspaceMemoryValue(
+                    $0.value.replacingOccurrences(of: "_", with: " "),
+                    maxLength: 96
+                )
+                return "- \(label): \(value)"
+            }
+            .joined(separator: "\n")
         let memorySlice = workspaceMemoryRecords
             .sorted { lhs, rhs in
                 let lhsScore = workspaceMemoryScore(lhs)
@@ -2773,6 +6143,9 @@ final class SessionStore: ObservableObject {
             }
             .prefix(10)
             .map { "- \(workspaceSignalLabel(for: $0.key)): \(sanitizeWorkspaceMemoryValue($0.value, maxLength: 96))" }
+            .joined(separator: "\n")
+        let lessonSlice = lessonMemoryHighlights(limit: 6)
+            .map { "- \($0)" }
             .joined(separator: "\n")
 
         let bundle = """
@@ -2795,8 +6168,14 @@ final class SessionStore: ObservableObject {
         NOTES
         \(noteSlice)
 
+        SURVEY SIGNALS
+        \(surveySlice)
+
         MEMORY SIGNALS
         \(memorySlice)
+
+        LESSONS TO INTEGRATE
+        \(lessonSlice)
         """
 
         return sanitizeModelInput(bundle, maxLength: maxLength)
@@ -2806,11 +6185,13 @@ final class SessionStore: ObservableObject {
         taskPrompt: String,
         domain: LocalInferenceReasoningDomain
     ) -> String {
-        let contextBlock = domain.includeGlobalContext ? globalReasoningContextDigest() : ""
+        let contextBlock = domain.includeGlobalContext
+            ? globalReasoningContextDigest(maxLength: domain.contextMaxLength)
+            : ""
         let contextSection = contextBlock.isEmpty ? "" : "\n\(contextBlock)\n"
 
         return """
-        You are Atlas local inference core running in extra-high reasoning depth mode.
+        You are Atlas inference core running in extra-high reasoning depth mode.
         Think deeply and compare alternatives internally before responding.
         Never reveal internal chain-of-thought.
         \(domain.styleInstruction)
@@ -2823,7 +6204,9 @@ final class SessionStore: ObservableObject {
     private func requestLocalModelResponse(
         prompt: String,
         timeoutSeconds: Int,
-        domain: LocalInferenceReasoningDomain = .general
+        domain: LocalInferenceReasoningDomain = .general,
+        providerOverride: LocalInferenceProvider? = nil,
+        modelOverride: String? = nil
     ) async -> String? {
         guard localInferenceEnabled else { return nil }
         let profile = localReasoningProfile(for: domain, timeoutSeconds: timeoutSeconds)
@@ -2845,7 +6228,9 @@ final class SessionStore: ObservableObject {
                 prompt: passPrompt,
                 timeoutSeconds: profile.candidateTimeoutSeconds,
                 temperature: temperature,
-                maxTokens: profile.candidateMaxTokens
+                maxTokens: profile.candidateMaxTokens,
+                providerOverride: providerOverride,
+                modelOverride: modelOverride
             ) {
                 let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
@@ -2881,7 +6266,9 @@ final class SessionStore: ObservableObject {
             prompt: synthesisPrompt,
             timeoutSeconds: profile.synthesisTimeoutSeconds,
             temperature: synthesisTemperature,
-            maxTokens: profile.synthesisMaxTokens
+            maxTokens: profile.synthesisMaxTokens,
+            providerOverride: providerOverride,
+            modelOverride: modelOverride
         ) {
             let trimmed = synthesis.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
@@ -2914,36 +6301,288 @@ final class SessionStore: ObservableObject {
         prompt: String,
         timeoutSeconds: Int,
         temperature: Double,
-        maxTokens: Int
+        maxTokens: Int,
+        providerOverride: LocalInferenceProvider? = nil,
+        modelOverride: String? = nil
     ) async -> String? {
-        let systemPrompt = "You are Atlas local reasoning engine. Operate at extra-high depth and return only final answers."
-        let apiKey = localInferenceAPIKey
+        let systemPrompt = "You are Atlas AI reasoning engine. Operate at extra-high depth and return only final answers."
+        let requestedModel = modelOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let providers = providerOverride.map { [$0] } ?? preferredInferenceProviders
 
-        switch localInferenceProvider {
-        case .openAICompatible:
-            guard let endpoint = localInferenceOpenAIEndpointURL else { return nil }
-            return await Self.runOpenAICompatiblePrompt(
-                endpoint: endpoint,
-                model: localInferenceModelName,
-                apiKey: apiKey,
-                prompt: prompt,
-                timeoutSeconds: timeoutSeconds,
-                temperature: temperature,
-                maxTokens: maxTokens,
-                systemPrompt: systemPrompt
-            )
-        case .gemini:
-            guard let apiKey, !apiKey.isEmpty else { return nil }
-            return await Self.runGeminiPrompt(
-                model: localInferenceModelName,
-                apiKey: apiKey,
-                prompt: prompt,
-                timeoutSeconds: timeoutSeconds,
-                temperature: temperature,
-                maxTokens: maxTokens,
-                systemPrompt: systemPrompt
-            )
+        for provider in providers {
+            let modelName: String
+            if let requestedModel, !requestedModel.isEmpty {
+                modelName = requestedModel
+            } else {
+                modelName = provider.defaultModel
+            }
+            let apiKey = localInferenceAPIKey(for: provider)
+
+            var response: String?
+            switch provider {
+            case .openAICompatible:
+                guard let endpoint = localInferenceOpenAIEndpointURL else {
+                    continue
+                }
+                response = await Self.runOpenAICompatiblePrompt(
+                    endpoint: endpoint,
+                    model: modelName,
+                    apiKey: apiKey,
+                    prompt: prompt,
+                    timeoutSeconds: timeoutSeconds,
+                    temperature: temperature,
+                    maxTokens: maxTokens,
+                    systemPrompt: systemPrompt
+                )
+            case .gemini:
+                guard let apiKey, !apiKey.isEmpty else {
+                    continue
+                }
+                response = await Self.runGeminiPrompt(
+                    model: modelName,
+                    apiKey: apiKey,
+                    prompt: prompt,
+                    timeoutSeconds: timeoutSeconds,
+                    temperature: temperature,
+                    maxTokens: maxTokens,
+                    systemPrompt: systemPrompt
+                )
+            }
+
+            if let response, !response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return response
+            }
         }
+        return nil
+    }
+
+    private func requestGuidedLearningOllama(prompt: String, timeoutSeconds: Int) async -> String? {
+        guard let endpoint = guidedLearningOllamaEndpointURL else { return nil }
+        return await Self.runOpenAICompatiblePrompt(
+            endpoint: endpoint,
+            model: guidedLearningOllamaModelName,
+            apiKey: nil,
+            prompt: prompt,
+            timeoutSeconds: timeoutSeconds,
+            temperature: 0.22,
+            maxTokens: 1300,
+            systemPrompt: "You are Atlas guided learning copilot. Ground responses in provided Kiwix snippets and personalize to user context."
+        )
+    }
+
+    private func fetchKiwixGroundingSnapshot(for query: String) async -> KiwixGroundingSnapshot? {
+        let candidateURLs = kiwixSearchCandidateURLs(for: query)
+        guard !candidateURLs.isEmpty else { return nil }
+
+        for url in candidateURLs {
+            guard let html = await Self.fetchKiwixHTML(url: url, timeoutSeconds: 12) else { continue }
+            let snippets = Self.extractKiwixSnippets(from: html, query: query)
+            if !snippets.isEmpty {
+                return KiwixGroundingSnapshot(sourceURL: url, snippets: snippets)
+            }
+        }
+        return nil
+    }
+
+    private func kiwixSearchCandidateURLs(for query: String) -> [URL] {
+        guard let baseURL = guidedLearningKiwixBaseURL else { return [] }
+
+        let querySets: [(suffix: String, items: [URLQueryItem])] = [
+            ("search", [URLQueryItem(name: "pattern", value: query)]),
+            ("search", [URLQueryItem(name: "content", value: query)]),
+            ("search", [URLQueryItem(name: "query", value: query)]),
+            ("", [URLQueryItem(name: "search", value: query)]),
+            ("", [URLQueryItem(name: "q", value: query)]),
+        ]
+
+        var built: [URL] = []
+        var seen = Set<String>()
+        for candidate in querySets {
+            guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else { continue }
+
+            let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if candidate.suffix.isEmpty {
+                components.path = basePath.isEmpty ? "/" : "/\(basePath)"
+            } else if basePath.isEmpty {
+                components.path = "/\(candidate.suffix)"
+            } else {
+                components.path = "/\(basePath)/\(candidate.suffix)"
+            }
+            components.queryItems = candidate.items
+
+            guard let url = components.url else { continue }
+            if seen.insert(url.absoluteString).inserted {
+                built.append(url)
+            }
+        }
+        return built
+    }
+
+    nonisolated private static func fetchKiwixHTML(url: URL, timeoutSeconds: Int) async -> String? {
+        await Task.detached(priority: .utility) {
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = TimeInterval(max(4, timeoutSeconds))
+            request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+            request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+
+            let config = URLSessionConfiguration.ephemeral
+            config.waitsForConnectivity = false
+            config.timeoutIntervalForRequest = request.timeoutInterval
+            config.timeoutIntervalForResource = request.timeoutInterval + 4
+            let session = URLSession(configuration: config)
+            defer { session.invalidateAndCancel() }
+
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse,
+                      (200 ... 299).contains(http.statusCode)
+                else {
+                    return nil
+                }
+                if let utf8 = String(data: data, encoding: .utf8), !utf8.isEmpty {
+                    return utf8
+                }
+                let latin1 = String(decoding: data, as: Unicode.UTF8.self)
+                return latin1.isEmpty ? nil : latin1
+            } catch {
+                return nil
+            }
+        }.value
+    }
+
+    nonisolated private static func extractKiwixSnippets(from html: String, query: String) -> [String] {
+        let plain = normalizeWhitespace(decodeHTMLEntities(stripHTML(html)))
+        guard !plain.isEmpty else { return [] }
+
+        let tokens = query
+            .lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .filter { $0.count >= 3 }
+        let tokenSet = Set(tokens)
+        let fragments = plain
+            .components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+            .map { normalizeWhitespace($0) }
+            .filter { $0.count >= 28 }
+
+        var ranked: [String] = []
+        for fragment in fragments {
+            let lowered = fragment.lowercased()
+            let hasQueryToken = tokenSet.isEmpty || tokenSet.contains(where: { lowered.contains($0) })
+            if hasQueryToken {
+                ranked.append(trimForDisplay(fragment, maxChars: 240))
+            }
+            if ranked.count >= 8 {
+                break
+            }
+        }
+
+        if ranked.isEmpty {
+            ranked = fragments.prefix(5).map { trimForDisplay($0, maxChars: 240) }
+        }
+
+        var deduped: [String] = []
+        var seen = Set<String>()
+        for line in ranked {
+            let key = line.lowercased()
+            if seen.insert(key).inserted {
+                deduped.append(line)
+            }
+        }
+        return deduped
+    }
+
+    nonisolated private static func stripHTML(_ raw: String) -> String {
+        var output = raw
+        output = output.replacingOccurrences(
+            of: "(?is)<script[^>]*>.*?</script>",
+            with: " ",
+            options: .regularExpression
+        )
+        output = output.replacingOccurrences(
+            of: "(?is)<style[^>]*>.*?</style>",
+            with: " ",
+            options: .regularExpression
+        )
+        output = output.replacingOccurrences(
+            of: "(?is)<[^>]+>",
+            with: " ",
+            options: .regularExpression
+        )
+        return output
+    }
+
+    nonisolated private static func decodeHTMLEntities(_ text: String) -> String {
+        var output = text
+        let replacements: [(String, String)] = [
+            ("&nbsp;", " "),
+            ("&amp;", "&"),
+            ("&quot;", "\""),
+            ("&#39;", "'"),
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+        ]
+        for replacement in replacements {
+            output = output.replacingOccurrences(of: replacement.0, with: replacement.1)
+        }
+        return output
+    }
+
+    nonisolated private static func normalizeWhitespace(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func normalizeEndpointURL(
+        _ raw: String,
+        defaultPath: String,
+        allowPrivateNetworkHTTP: Bool
+    ) -> URL? {
+        var normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        if !normalized.contains("://") {
+            normalized = "http://\(normalized)"
+        }
+        guard var url = URL(string: normalized) else { return nil }
+
+        if (url.path.isEmpty || url.path == "/"),
+           !defaultPath.isEmpty,
+           var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        {
+            components.path = defaultPath
+            if let rebuilt = components.url {
+                url = rebuilt
+            }
+        }
+
+        guard let scheme = url.scheme?.lowercased() else { return nil }
+        if scheme == "http" {
+            let host = (url.host ?? "").lowercased()
+            let loopbackHosts = Set(["localhost", "127.0.0.1", "::1"])
+            if !loopbackHosts.contains(host) {
+                guard allowPrivateNetworkHTTP, Self.isPrivateNetworkHost(host) else {
+                    return nil
+                }
+            }
+        } else if scheme != "https" {
+            return nil
+        }
+        return url
+    }
+
+    nonisolated private static func isPrivateNetworkHost(_ host: String) -> Bool {
+        if host.hasPrefix("10.") || host.hasPrefix("192.168.") {
+            return true
+        }
+        if host.hasPrefix("172.") {
+            let parts = host.split(separator: ".")
+            if parts.count >= 2, let second = Int(parts[1]), (16 ... 31).contains(second) {
+                return true
+            }
+        }
+        return false
     }
 
     nonisolated private static func runOpenAICompatiblePrompt(
@@ -2956,55 +6595,55 @@ final class SessionStore: ObservableObject {
         maxTokens: Int,
         systemPrompt: String
     ) async -> String? {
-        await Task.detached(priority: .userInitiated) {
+        let cleanModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanModel.isEmpty else { return nil }
+
+        let normalizedTemperature = min(0.95, max(0.0, temperature))
+        let normalizedMaxTokens = max(220, maxTokens)
+        let cacheKey = localInferenceCacheKey(
+            providerID: "openai_compatible",
+            model: cleanModel,
+            endpointID: endpoint.absoluteString,
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            temperature: normalizedTemperature,
+            maxTokens: normalizedMaxTokens
+        )
+
+        return await localInferenceResponseCache.resolve(
+            key: cacheKey,
+            ttl: SessionStore.localInferenceCacheTTLSeconds
+        ) {
             var request = URLRequest(url: endpoint)
             request.httpMethod = "POST"
             request.timeoutInterval = TimeInterval(max(4, timeoutSeconds))
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+            request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
             if let apiKey, !apiKey.isEmpty {
                 request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             }
 
             let payload = OpenAIChatRequest(
-                model: model,
+                model: cleanModel,
                 messages: [
                     OpenAIChatMessage(role: "system", content: systemPrompt),
                     OpenAIChatMessage(role: "user", content: prompt)
                 ],
-                temperature: min(0.95, max(0.0, temperature)),
-                maxTokens: max(220, maxTokens),
+                temperature: normalizedTemperature,
+                maxTokens: normalizedMaxTokens,
+                reasoningEffort: cleanModel.lowercased().hasPrefix("gpt-5") ? "high" : nil,
                 stream: false
             )
             guard let body = try? JSONEncoder().encode(payload) else { return nil }
             request.httpBody = body
 
-            let config = URLSessionConfiguration.ephemeral
-            config.waitsForConnectivity = false
-            config.timeoutIntervalForRequest = request.timeoutInterval
-            config.timeoutIntervalForResource = request.timeoutInterval + 6
-            let session = URLSession(configuration: config)
-            defer { session.invalidateAndCancel() }
-
-            do {
-                let (data, response) = try await session.data(for: request)
-                guard let http = response as? HTTPURLResponse,
-                      (200 ... 299).contains(http.statusCode),
-                      let decoded = try? JSONDecoder().decode(OpenAIChatResponse.self, from: data)
-                else {
-                    return nil
-                }
-
-                let content = decoded.choices.first?.message?.content?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    ?? decoded.choices.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    ?? ""
-                guard !content.isEmpty else { return nil }
-                return Self.trimForDisplay(content, maxChars: 18_000)
-            } catch {
+            guard let data = await localInferenceTransport.requestData(for: request, maxRetries: 2) else {
                 return nil
             }
-        }.value
+            return parseOpenAIResponseContent(data)
+        }
     }
 
     nonisolated private static func runGeminiPrompt(
@@ -3016,28 +6655,44 @@ final class SessionStore: ObservableObject {
         maxTokens: Int,
         systemPrompt: String
     ) async -> String? {
-        await Task.detached(priority: .userInitiated) {
-            let normalizedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalizedModel.isEmpty else { return nil }
-            let cleanModel = normalizedModel.hasPrefix("models/")
-                ? String(normalizedModel.dropFirst("models/".count))
-                : normalizedModel
+        let normalizedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedModel.isEmpty else { return nil }
+        let cleanModel = normalizedModel.hasPrefix("models/")
+            ? String(normalizedModel.dropFirst("models/".count))
+            : normalizedModel
 
-            var allowedModelChars = CharacterSet.urlPathAllowed
-            allowedModelChars.remove(charactersIn: "/")
-            let encodedModel = cleanModel.addingPercentEncoding(withAllowedCharacters: allowedModelChars) ?? cleanModel
+        var allowedModelChars = CharacterSet.urlPathAllowed
+        allowedModelChars.remove(charactersIn: "/")
+        let encodedModel = cleanModel.addingPercentEncoding(withAllowedCharacters: allowedModelChars) ?? cleanModel
 
-            guard let endpoint = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(encodedModel):generateContent")
-            else {
-                return nil
-            }
+        guard let endpoint = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(encodedModel):generateContent")
+        else {
+            return nil
+        }
 
+        let normalizedTemperature = min(0.95, max(0.0, temperature))
+        let normalizedMaxTokens = max(220, maxTokens)
+        let cacheKey = localInferenceCacheKey(
+            providerID: "gemini",
+            model: cleanModel,
+            endpointID: endpoint.absoluteString,
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            temperature: normalizedTemperature,
+            maxTokens: normalizedMaxTokens
+        )
+
+        return await localInferenceResponseCache.resolve(
+            key: cacheKey,
+            ttl: SessionStore.localInferenceCacheTTLSeconds
+        ) {
             var request = URLRequest(url: endpoint)
             request.httpMethod = "POST"
             request.timeoutInterval = TimeInterval(max(4, timeoutSeconds))
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+            request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
             request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
 
             let cleanSystemPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3052,43 +6707,126 @@ final class SessionStore: ObservableObject {
                     ),
                 ],
                 generationConfig: GeminiGenerationConfig(
-                    temperature: min(0.95, max(0.0, temperature)),
-                    maxOutputTokens: max(220, maxTokens)
+                    temperature: normalizedTemperature,
+                    maxOutputTokens: normalizedMaxTokens
                 )
             )
 
             guard let body = try? JSONEncoder().encode(payload) else { return nil }
             request.httpBody = body
 
-            let config = URLSessionConfiguration.ephemeral
-            config.waitsForConnectivity = false
-            config.timeoutIntervalForRequest = request.timeoutInterval
-            config.timeoutIntervalForResource = request.timeoutInterval + 6
-            let session = URLSession(configuration: config)
-            defer { session.invalidateAndCancel() }
-
-            do {
-                let (data, response) = try await session.data(for: request)
-                guard let http = response as? HTTPURLResponse,
-                      (200 ... 299).contains(http.statusCode),
-                      let decoded = try? JSONDecoder().decode(GeminiGenerateResponse.self, from: data)
-                else {
-                    return nil
-                }
-
-                let content = decoded.candidates?
-                    .first?
-                    .content?
-                    .parts
-                    .compactMap(\.text)
-                    .joined(separator: "\n")
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                guard !content.isEmpty else { return nil }
-                return Self.trimForDisplay(content, maxChars: 18_000)
-            } catch {
+            guard let data = await localInferenceTransport.requestData(for: request, maxRetries: 2) else {
                 return nil
             }
-        }.value
+            return parseGeminiResponseContent(data)
+        }
+    }
+
+    nonisolated private static func runGeminiTTSPrompt(
+        model: String,
+        apiKey: String,
+        script: String,
+        voiceName: String
+    ) async -> (data: Data, mimeType: String)? {
+        let normalizedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedModel.isEmpty else { return nil }
+        let cleanModel = normalizedModel.hasPrefix("models/")
+            ? String(normalizedModel.dropFirst("models/".count))
+            : normalizedModel
+
+        var allowedModelChars = CharacterSet.urlPathAllowed
+        allowedModelChars.remove(charactersIn: "/")
+        let encodedModel = cleanModel.addingPercentEncoding(withAllowedCharacters: allowedModelChars) ?? cleanModel
+
+        guard let endpoint = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(encodedModel):generateContent")
+        else {
+            return nil
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 45
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+
+        let payload = GeminiTTSGenerateRequest(
+            contents: [
+                GeminiMessageContent(
+                    role: "user",
+                    parts: [GeminiTextPart(text: script)]
+                ),
+            ],
+            generationConfig: GeminiTTSGenerationConfig(
+                responseModalities: ["AUDIO"],
+                speechConfig: GeminiSpeechConfig(
+                    voiceConfig: GeminiSpeechVoiceConfig(
+                        prebuiltVoiceConfig: GeminiSpeechVoiceConfig.PrebuiltVoiceConfig(
+                            voiceName: voiceName
+                        )
+                    )
+                )
+            )
+        )
+
+        guard let body = try? JSONEncoder().encode(payload) else { return nil }
+        request.httpBody = body
+
+        guard let data = await localInferenceTransport.requestData(for: request, maxRetries: 2) else {
+            return nil
+        }
+        return parseGeminiTTSAudioContent(data)
+    }
+
+    nonisolated private static func parseOpenAIResponseContent(_ data: Data) -> String? {
+        guard let decoded = try? JSONDecoder().decode(OpenAIChatResponse.self, from: data) else {
+            return nil
+        }
+        let content = decoded.choices.first?.message?.content?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? decoded.choices.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        guard !content.isEmpty else { return nil }
+        return trimForDisplay(content, maxChars: 18_000)
+    }
+
+    nonisolated private static func parseGeminiResponseContent(_ data: Data) -> String? {
+        guard let decoded = try? JSONDecoder().decode(GeminiGenerateResponse.self, from: data) else {
+            return nil
+        }
+        let content = decoded.candidates?
+            .first?
+            .content?
+            .parts
+            .compactMap(\.text)
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !content.isEmpty else { return nil }
+        return trimForDisplay(content, maxChars: 18_000)
+    }
+
+    nonisolated private static func parseGeminiTTSAudioContent(
+        _ data: Data
+    ) -> (data: Data, mimeType: String)? {
+        guard let decoded = try? JSONDecoder().decode(GeminiGenerateResponse.self, from: data) else {
+            return nil
+        }
+        guard let parts = decoded.candidates?.first?.content?.parts else { return nil }
+        for part in parts {
+            guard let inlineData = part.inlineData,
+                  let mimeType = inlineData.mimeType?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !mimeType.isEmpty,
+                  let encoded = inlineData.data?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !encoded.isEmpty,
+                  let decodedAudio = Data(base64Encoded: encoded, options: [.ignoreUnknownCharacters]),
+                  !decodedAudio.isEmpty
+            else {
+                continue
+            }
+            return (decodedAudio, mimeType)
+        }
+        return nil
     }
 
     nonisolated private static func decodeModelJSON<T: Decodable>(_ raw: String) -> T? {
@@ -3316,7 +7054,7 @@ final class SessionStore: ObservableObject {
                 || lower.hasPrefix("python ")
                 || lower.hasPrefix("pytest")
             {
-                return (127, "Process execution is unavailable in iOS runtime. Use /grep, /open, /scan, and local model guidance.")
+                return (127, "Process execution is unavailable in iOS runtime. Use /grep, /open, /scan, and model guidance.")
             }
 
             return (127, "Unsupported iOS command. Supported: pwd, ls, cat <path>, grep <pattern>.")
@@ -3457,68 +7195,6 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    private func composeLocalCodingReply(for prompt: String) -> String {
-        let tokens = prompt
-            .lowercased()
-            .split { !$0.isLetter && !$0.isNumber && $0 != "_" && $0 != "." }
-            .map(String.init)
-            .filter { $0.count >= 2 }
-        let uniqueTokens = Array(Set(tokens))
-
-        let rankedFiles = codingWorkspaceFiles
-            .map { path -> (path: String, score: Int) in
-                let lower = codingRelativePath(path).lowercased()
-                let score = uniqueTokens.reduce(0) { partial, token in
-                    partial + (lower.contains(token) ? 1 : 0)
-                }
-                return (path, score)
-            }
-            .filter { $0.score > 0 }
-            .sorted { lhs, rhs in
-                if lhs.score == rhs.score {
-                    return lhs.path < rhs.path
-                }
-                return lhs.score > rhs.score
-            }
-            .prefix(6)
-            .map(\.path)
-
-        let memoryMatches = rankedCodingMemoryMatches(tokens: uniqueTokens, limit: 4)
-        let suggestedCommands = codingCommandSuggestions()
-
-        var lines: [String] = []
-        lines.append("Local coding mode active: no cloud calls, all context stays on-device.")
-
-        if let selected = codingSelectedFilePath {
-            let lineCount = codingEditorText.split(whereSeparator: \.isNewline).count
-            lines.append("Current file: \(codingRelativePath(selected)) (\(lineCount) lines).")
-        } else {
-            lines.append("No file open yet. Use /open <path> after /scan.")
-        }
-
-        if !rankedFiles.isEmpty {
-            lines.append("Likely relevant files:")
-            for file in rankedFiles {
-                lines.append("- \(codingRelativePath(file))")
-            }
-        }
-
-        if !memoryMatches.isEmpty {
-            lines.append("Recovered memory context:")
-            for memory in memoryMatches {
-                lines.append("- \(memory.summary)")
-            }
-        }
-
-        lines.append("Suggested next commands:")
-        for suggestion in suggestedCommands {
-            lines.append("- \(suggestion)")
-        }
-
-        lines.append("Slash commands: /help, /scan, /open, /save, /run, /grep, /remember.")
-        return lines.joined(separator: "\n")
-    }
-
     private func composeOllamaPrompt(for prompt: String) -> String {
         let activeFile = codingSelectedFilePath.map(codingRelativePath) ?? "none"
         let fileSnapshot = String(codingEditorText.prefix(9_000))
@@ -3555,50 +7231,6 @@ final class SessionStore: ObservableObject {
         USER REQUEST:
         \(prompt)
         """
-    }
-
-    private func rankedCodingMemoryMatches(tokens: [String], limit: Int) -> [CodingMemoryRecord] {
-        guard !tokens.isEmpty else {
-            return Array(codingMemoryRecords.suffix(limit).reversed())
-        }
-
-        let now = Date()
-        return codingMemoryRecords
-            .map { record -> (record: CodingMemoryRecord, score: Double) in
-                let haystack = "\(record.summary) \(record.detail)".lowercased()
-                let overlap = tokens.reduce(0) { partial, token in
-                    partial + (haystack.contains(token) ? 1 : 0)
-                }
-                let ageHours = max(1.0, now.timeIntervalSince(record.createdAtUTC) / 3600.0)
-                let recencyBoost = 24.0 / ageHours
-                return (record, Double(overlap) * 3.0 + recencyBoost)
-            }
-            .filter { $0.score > 0.5 }
-            .sorted { lhs, rhs in
-                if lhs.score == rhs.score {
-                    return lhs.record.createdAtUTC > rhs.record.createdAtUTC
-                }
-                return lhs.score > rhs.score
-            }
-            .prefix(limit)
-            .map(\.record)
-    }
-
-    private func codingCommandSuggestions() -> [String] {
-        let roots = Set(codingWorkspaceFiles.map { URL(fileURLWithPath: $0).lastPathComponent.lowercased() })
-        if roots.contains("package.swift") {
-            return ["swift test", "swift build", "grep SessionStore"]
-        }
-        if roots.contains("package.json") {
-            return ["npm test", "npm run build", "grep TODO"]
-        }
-        if roots.contains("cargo.toml") {
-            return ["cargo test", "cargo check", "grep unwrap"]
-        }
-        if roots.contains("pyproject.toml") || roots.contains("requirements.txt") {
-            return ["pytest", "python -m pip list", "grep import"]
-        }
-        return ["pwd", "ls -la", "grep TODO"]
     }
 
     private func grepCodingWorkspace(_ pattern: String, limit: Int) -> [String] {
@@ -3640,12 +7272,85 @@ final class SessionStore: ObservableObject {
         persistPromptQueueToDisk()
     }
 
+    private var shouldPauseQueueForInternetReconnect: Bool {
+        inferencePipelineRequiresInternetConnection() && !isInternetConnectionAvailable
+    }
+
+    private func runtimeAccessBlockingIssue() -> String? {
+        if !isSignedIn {
+            return "Cloud AI is locked. Sign in or sign up to continue."
+        }
+        if !billingAccessEnabled {
+            return "Cloud AI is locked until billing is active. Add a payment method in Plans."
+        }
+        return nil
+    }
+
+    private func markQueueItemWaitingForInternetReconnect(at index: Int) {
+        guard promptQueue.indices.contains(index) else { return }
+        promptQueue[index].status = .queued
+        promptQueue[index].completedAt = nil
+        promptQueue[index].lastCheckpointAt = Date()
+        let currentProgress = promptQueue[index].progress ?? 0.08
+        promptQueue[index].progress = max(0.04, min(0.4, currentProgress * 0.92))
+        promptQueue[index].checkpointNote = "No internet connection. Waiting to reconnect."
+        promptQueue[index].errorMessage = nil
+        persistPromptQueueToDisk()
+    }
+
+    private func logQueueReconnectWaitIfNeeded(for outputType: PromptOutputType) {
+        guard !hasLoggedQueueReconnectWait else { return }
+        hasLoggedQueueReconnectWait = true
+        appendOutput("No internet connection. Waiting to reconnect before generating \(outputType.title).")
+    }
+
     private func queueCheckpointIntervalNanoseconds() -> UInt64 {
         isResourceConstrained() ? 3_500_000_000 : 2_000_000_000
     }
 
     private func queueCooldownNanoseconds() -> UInt64 {
         isResourceConstrained() ? 1_600_000_000 : 300_000_000
+    }
+
+    private func queueReconnectWaitNanoseconds() -> UInt64 {
+        isResourceConstrained() ? 4_500_000_000 : 2_500_000_000
+    }
+
+    private func queueRuntimeRetryNanoseconds(for attempt: Int) -> UInt64 {
+        let base: UInt64 = isResourceConstrained() ? 2_200_000_000 : 1_100_000_000
+        let clampedAttempt = max(1, min(6, attempt))
+        return UInt64(clampedAttempt) * base
+    }
+
+    private func inferencePipelineRequiresInternetConnection() -> Bool {
+        true
+    }
+
+    private func configureNetworkPathMonitor() {
+        let monitor = NWPathMonitor()
+        networkPathMonitor = monitor
+        let queue = DispatchQueue(label: "com.atlasmasa.ios.network-path")
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let isAvailable = path.status == .satisfied
+                guard self.isInternetConnectionAvailable != isAvailable else { return }
+
+                self.isInternetConnectionAvailable = isAvailable
+                if isAvailable {
+                    self.hasLoggedQueueReconnectWait = false
+                    if self.promptQueue.contains(where: { $0.status == .queued }) {
+                        self.appendOutput("Internet connection restored. Resuming queued AI requests.")
+                        self.startPromptQueueWorker()
+                    }
+                } else if self.inferencePipelineRequiresInternetConnection(),
+                          self.promptQueue.contains(where: { $0.status == .queued || $0.status == .running })
+                {
+                    self.appendOutput("Internet connection lost. Waiting to reconnect before continuing cloud AI requests.")
+                }
+            }
+        }
+        monitor.start(queue: queue)
     }
 
     private func isResourceConstrained() -> Bool {
@@ -3668,6 +7373,7 @@ final class SessionStore: ObservableObject {
     }
 
     private func rebuildInsightsAndExecutionPlan() {
+        ensureConciergeSessionsSeeded()
         ensureWorkspaceSessionsSeeded()
         let keyNotes = notes.prefix(3)
         var insights: [MemoryInsight] = []
@@ -3760,10 +7466,13 @@ final class SessionStore: ObservableObject {
         tailoredOffers = buildTailoredOffers(jobOpportunities: jobOpportunities)
         researchStreams = buildResearchExecutionStreams()
         syncWorkspaceMemoryRecords()
+        refreshConciergeSessionSnapshots()
         refreshWorkspaceSessionSnapshots()
         workspacePlans = buildWorkspacePlans(from: researchStreams, memoryRecords: workspaceMemoryRecords)
         refreshAdaptiveLearningPackageIfNeeded()
-        feedItems = localFeedFromExecutionPlan()
+        Task {
+            await refreshJobOpportunityNarrativesIfNeeded(opportunities: jobOpportunities)
+        }
     }
 
     private func buildExecutionActions(jobOpportunities: [JobOpportunity]) -> [ExecutionAction] {
@@ -4130,24 +7839,6 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    private func localFeedFromExecutionPlan() -> [FeedItem] {
-        if executionActions.isEmpty {
-            return []
-        }
-
-        let intelligenceContext = "data graph: \(workspaceSessions.count) notebooks · \(workspaceMemoryRecords.count) memory records · \(surveyAnswers.count) survey answers"
-
-        return executionActions.prefix(4).map { action in
-            FeedItem(
-                id: action.id,
-                title: action.title,
-                summary: action.details,
-                whyNow: "\(action.horizon) travel design alignment · \(selectedTier.title) · \(intelligenceContext)",
-                priority: action.priority == 1 ? "critical" : (action.priority == 2 ? "high" : "normal")
-            )
-        }
-    }
-
     private func buildTailoredOffers(jobOpportunities: [JobOpportunity]) -> [TailoredOffer] {
         var offers: [TailoredOffer] = []
         let combinedIntent = combinedIntentText()
@@ -4416,8 +8107,8 @@ final class SessionStore: ObservableObject {
                     category: .localIntelligence,
                     type: .membership,
                     title: "Cloud Reasoning Upgrade",
-                    summary: "Keep local reasoning as default and unlock cloud depth only when needed for heavier workloads.",
-                    rationale: "You are currently operating on local-only tier.",
+                    summary: "Keep default AI depth active and unlock extra cloud depth when workloads get heavier.",
+                    rationale: "You are currently operating on the default tier.",
                     priority: 3,
                     callToAction: "Compare plans"
                 )
@@ -4735,7 +8426,8 @@ final class SessionStore: ObservableObject {
         tags: [String],
         now: Date
     ) {
-        let cleanedValue = sanitizeWorkspaceMemoryValue(rawValue, maxLength: 180)
+        let maxValueLength = source == .lesson ? 420 : 180
+        let cleanedValue = sanitizeWorkspaceMemoryValue(rawValue, maxLength: maxValueLength)
         guard !cleanedValue.isEmpty else { return }
         let cleanedKey = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !cleanedKey.isEmpty else { return }
@@ -4847,6 +8539,7 @@ final class SessionStore: ObservableObject {
         let stripped = key
             .replacingOccurrences(of: "survey:", with: "")
             .replacingOccurrences(of: "note:", with: "note ")
+            .replacingOccurrences(of: "lesson:", with: "lesson ")
             .replacingOccurrences(of: "execution:", with: "execution ")
             .replacingOccurrences(of: "_", with: " ")
         return stripped.capitalized
@@ -5050,6 +8743,103 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    private func ensureConciergeSessionsSeeded() {
+        let now = Date()
+        if conciergeSessions.isEmpty {
+            conciergeSessions = [
+                ConciergeChatSession(
+                    id: UUID().uuidString,
+                    title: "Concierge Chat 1",
+                    createdAtUTC: now,
+                    updatedAtUTC: now,
+                    summary: "Primary concierge chat.",
+                    isPinned: true
+                )
+            ]
+        }
+        if activeConciergeSessionID == nil
+            || conciergeSessions.contains(where: { $0.id == activeConciergeSessionID }) == false
+        {
+            activeConciergeSessionID = allConciergeSessions().first?.id
+        }
+    }
+
+    private func resolvedActiveConciergeSessionID() -> String {
+        ensureConciergeSessionsSeeded()
+        return activeConciergeSessionID ?? conciergeSessions.first?.id ?? "concierge-default"
+    }
+
+    private func reconcileSessionIDsForLegacyPromptQueue() {
+        ensureConciergeSessionsSeeded()
+        let activeID = resolvedActiveConciergeSessionID()
+        for index in promptQueue.indices {
+            if promptQueue[index].workspaceLane == nil,
+               promptQueue[index].conciergeSessionID == nil
+            {
+                promptQueue[index].conciergeSessionID = activeID
+            }
+        }
+    }
+
+    private func touchConciergeSession(id: String, summary: String) {
+        guard let index = conciergeSessions.firstIndex(where: { $0.id == id }) else { return }
+        let existing = conciergeSessions[index]
+        conciergeSessions[index] = ConciergeChatSession(
+            id: existing.id,
+            title: existing.title,
+            createdAtUTC: existing.createdAtUTC,
+            updatedAtUTC: Date(),
+            summary: sanitizeWorkspaceMemoryValue(summary, maxLength: 180),
+            isPinned: existing.isPinned
+        )
+    }
+
+    private func refreshConciergeSessionSnapshots() {
+        conciergeSessions = conciergeSessions.map { session in
+            let items = promptQueue.filter { item in
+                item.workspaceLane == nil && item.conciergeSessionID == session.id
+            }
+            let latestOutput = items
+                .sorted { $0.createdAt > $1.createdAt }
+                .compactMap { $0.output?.summary }
+                .first
+                .map { sanitizeWorkspaceMemoryValue($0, maxLength: 130) }
+
+            let summary: String
+            if let latestOutput, !latestOutput.isEmpty {
+                summary = latestOutput
+            } else if let firstPrompt = items.last?.prompt {
+                summary = sanitizeWorkspaceMemoryValue(firstPrompt, maxLength: 130)
+            } else {
+                summary = "Fresh chat. Atlas will preload personalized opportunities."
+            }
+
+            let updatedAt = items.map(\.createdAt).max() ?? session.updatedAtUTC
+            return ConciergeChatSession(
+                id: session.id,
+                title: session.title,
+                createdAtUTC: session.createdAtUTC,
+                updatedAtUTC: updatedAt,
+                summary: summary,
+                isPinned: session.isPinned
+            )
+        }
+
+        conciergeSessions.sort { lhs, rhs in
+            if lhs.updatedAtUTC == rhs.updatedAtUTC {
+                return lhs.createdAtUTC > rhs.createdAtUTC
+            }
+            return lhs.updatedAtUTC > rhs.updatedAtUTC
+        }
+
+        if let activeConciergeSessionID,
+           conciergeSessions.contains(where: { $0.id == activeConciergeSessionID })
+        {
+            return
+        }
+        activeConciergeSessionID = conciergeSessions.first?.id
+    }
+
     private func ensureWorkspaceSessionsSeeded() {
         let now = Date()
         for lane in WorkspaceLane.allCases {
@@ -5137,6 +8927,9 @@ final class SessionStore: ObservableObject {
         if sessions(for: activeWorkspaceLane).isEmpty {
             activeWorkspaceLane = WorkspaceLane.allCases.first ?? .mobilityOps
         }
+        if sessions(for: executionSelectedLane).isEmpty {
+            executionSelectedLane = activeWorkspaceLane
+        }
 
         // Rebuild a concise session-line for system output sparingly.
         if !workspaceSessions.isEmpty, workspaceMemoryRecords.count % 12 == 0 {
@@ -5155,6 +8948,9 @@ final class SessionStore: ObservableObject {
         let sessionText = workspaceSessions
             .map { "\($0.lane.rawValue) \($0.title) \($0.summary)" }
             .joined(separator: " ")
+        let conciergeText = conciergeSessions
+            .map { "\($0.title) \($0.summary)" }
+            .joined(separator: " ")
         let memoryText = workspaceMemoryRecords
             .prefix(120)
             .map { "\($0.key) \($0.value)" }
@@ -5172,6 +8968,7 @@ final class SessionStore: ObservableObject {
             surveyText,
             noteText,
             sessionText,
+            conciergeText,
             memoryText
         ]
         .joined(separator: " ")
@@ -5585,6 +9382,9 @@ final class SessionStore: ObservableObject {
     }
 
     private func buildJobMarketOpportunities() -> [JobOpportunity] {
+        guard isPrimarySurveyComplete else {
+            return []
+        }
         let track = surveyAnswers["high_paying_job_track"] ?? "none"
         let industry = surveyAnswers["industry_focus"] ?? "software_ai"
         let wealthVehicle = surveyAnswers["wealth_vehicle"] ?? "hybrid"
@@ -5833,10 +9633,21 @@ final class SessionStore: ObservableObject {
             let resolvedName = me.user.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? me.user.email
                 : me.user.name
-            markSignedIn(provider: provider, accountName: resolvedName)
+            markSignedIn(provider: provider, accountName: resolvedName, email: me.user.email)
             memoryCollectionEnabled = me.user.memoryOptIn
+            let cloudEnabled = me.subscription?.cloudComputeEnabled ?? false
+            billingAccessEnabled = cloudEnabled
+            selectedTier = cloudEnabled ? .cloudPro : .localTrial
+            billingStatusMessage = cloudEnabled
+                ? "Billing is active. Cloud AI unlocked."
+                : "Billing setup required. Add a payment method to unlock cloud AI."
             if !memoryCollectionEnabled {
                 appendOutput("Server profile is set to memory opt-out. Local long-term memory persistence is disabled.")
+            }
+            if cloudEnabled {
+                appendOutput("Billing access verified. Cloud AI unlocked.")
+            } else {
+                appendOutput("Billing setup required before cloud AI usage.")
             }
             appendOutput("Secure account session verified with API.")
         } catch {
@@ -6687,11 +10498,101 @@ final class SessionStore: ObservableObject {
         )
     }
 
-    private func markSignedIn(provider: AuthProvider, accountName: String) {
+    private func markSignedIn(provider: AuthProvider, accountName: String, email: String?) {
         isSignedIn = true
         accountProvider = provider
-        accountLabel = accountName
+        seedAccountIdentityIfNeeded(accountName: accountName, email: email)
+        accountLabel = resolvedAccountLabel(fallback: accountName)
+        billingAccessEnabled = false
+        billingStatusMessage = "Add a payment method to unlock cloud AI."
+        selectedTier = .localTrial
         persistStateToDisk()
+    }
+
+    private func seedAccountIdentityIfNeeded(accountName: String, email: String?) {
+        let needsSeed = accountFirstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && accountMiddleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && accountLastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && accountUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard needsSeed else { return }
+
+        let parts = accountName
+            .split(separator: " ")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if let first = parts.first {
+            accountFirstName = sanitizeNameComponent(first, maxLength: 40)
+        }
+        if parts.count > 2 {
+            accountMiddleName = sanitizeNameComponent(parts[1], maxLength: 40)
+        }
+        if parts.count >= 2, let last = parts.last {
+            accountLastName = sanitizeNameComponent(last, maxLength: 40)
+        }
+
+        if let email {
+            let emailLocalPart = email.split(separator: "@").first.map(String.init) ?? ""
+            accountUsername = sanitizeUsername(emailLocalPart, maxLength: 32)
+        }
+    }
+
+    private func sanitizeNameComponent(_ value: String, maxLength: Int) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return String(trimmed.prefix(maxLength))
+    }
+
+    private func sanitizeUsername(_ value: String, maxLength: Int) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return "" }
+
+        let replaced = trimmed.replacingOccurrences(of: "[^a-z0-9._-]+", with: "_", options: .regularExpression)
+        let collapsed = replaced
+            .replacingOccurrences(of: "__+", with: "_", options: .regularExpression)
+        return String(collapsed.prefix(maxLength))
+    }
+
+    private func resolvedAccountLabel(fallback: String) -> String {
+        let first = accountFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let middle = accountMiddleName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = accountLastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let username = accountUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let fullName = [first, middle, last]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !fullName.isEmpty {
+            return fullName
+        }
+        if !username.isEmpty {
+            return "@\(username)"
+        }
+
+        let cleanFallback = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanFallback.isEmpty ? "Atlas Operator" : cleanFallback
+    }
+
+    private static func normalizeProfilePhotoImage(_ image: UIImage) -> UIImage {
+        let targetMaxDimension: CGFloat = 2_000
+        let sourceSize = image.size
+        let maxDimension = max(sourceSize.width, sourceSize.height)
+        let resizeScale = maxDimension > targetMaxDimension
+            ? (targetMaxDimension / maxDimension)
+            : 1.0
+        let targetSize = CGSize(
+            width: max(1, sourceSize.width * resizeScale),
+            height: max(1, sourceSize.height * resizeScale)
+        )
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
     }
 
     private func persistPromptQueueToDisk() {
@@ -6737,31 +10638,40 @@ final class SessionStore: ObservableObject {
     private func loadPromptQueueFromDisk() {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
+        var loaded = false
 
         if let primaryURL = promptQueueFileURL(fileName: queueFileName),
            let data = try? Data(contentsOf: primaryURL),
            let restored = try? decodePromptQueuePayload(data, decoder: decoder)
         {
             promptQueue = restored
-            return
+            loaded = true
         }
 
-        if let backupURL = promptQueueFileURL(fileName: queueBackupFileName),
+        if !loaded,
+           let backupURL = promptQueueFileURL(fileName: queueBackupFileName),
            let data = try? Data(contentsOf: backupURL),
            let restored = try? decodePromptQueuePayload(data, decoder: decoder)
         {
             promptQueue = restored
             persistPromptQueueToDisk()
-            return
+            loaded = true
         }
 
-        // Legacy migration from UserDefaults v2 storage.
-        if let legacy = UserDefaults.standard.data(forKey: queueStorageLegacyKey),
+        if !loaded,
+           let legacy = UserDefaults.standard.data(forKey: queueStorageLegacyKey),
            let restored = try? decoder.decode([PromptQueueItem].self, from: legacy)
         {
             promptQueue = restored
             persistPromptQueueToDisk()
             UserDefaults.standard.removeObject(forKey: queueStorageLegacyKey)
+            loaded = true
+        }
+
+        if loaded {
+            reconcileSessionIDsForLegacyPromptQueue()
+            refreshConciergeSessionSnapshots()
+            persistPromptQueueToDisk()
         }
     }
 
@@ -6810,6 +10720,79 @@ final class SessionStore: ObservableObject {
             .appendingPathComponent(fileName, isDirectory: false)
     }
 
+    private func persistProfilePhotoToDisk() {
+        guard let primaryURL = stateFileURL(fileName: profilePhotoFileName) else { return }
+        let backupURL = stateFileURL(fileName: profilePhotoBackupFileName)
+        let fileManager = FileManager.default
+
+        do {
+            let dir = primaryURL.deletingLastPathComponent()
+            if !fileManager.fileExists(atPath: dir.path) {
+                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+            }
+
+            guard let profilePhotoData else {
+                _ = try? fileManager.removeItem(at: primaryURL)
+                if let backupURL {
+                    _ = try? fileManager.removeItem(at: backupURL)
+                }
+                return
+            }
+
+            let encrypted = try SecurePersistence.encrypt(
+                profilePhotoData,
+                context: "profile_photo",
+                appNamespace: "AtlasMasaIOS"
+            )
+
+            if let backupURL, fileManager.fileExists(atPath: primaryURL.path) {
+                _ = try? fileManager.removeItem(at: backupURL)
+                try? fileManager.copyItem(at: primaryURL, to: backupURL)
+            }
+
+            let tempURL = primaryURL.appendingPathExtension("tmp")
+            var writeOptions: Data.WritingOptions = [.atomic]
+#if os(iOS)
+            writeOptions.insert(.completeFileProtection)
+#endif
+            try encrypted.write(to: tempURL, options: writeOptions)
+            if fileManager.fileExists(atPath: primaryURL.path) {
+                _ = try fileManager.replaceItemAt(primaryURL, withItemAt: tempURL)
+            } else {
+                try fileManager.moveItem(at: tempURL, to: primaryURL)
+            }
+        } catch {
+            return
+        }
+    }
+
+    private func restoreProfilePhotoFromDisk() {
+        let fileManager = FileManager.default
+        let urls = [stateFileURL(fileName: profilePhotoFileName), stateFileURL(fileName: profilePhotoBackupFileName)]
+
+        for url in urls.compactMap({ $0 }) {
+            guard fileManager.fileExists(atPath: url.path),
+                  let stored = try? Data(contentsOf: url)
+            else {
+                continue
+            }
+
+            let decoded = (try? SecurePersistence.decrypt(
+                stored,
+                context: "profile_photo",
+                appNamespace: "AtlasMasaIOS"
+            )) ?? stored
+
+            guard UIImage(data: decoded) != nil else { continue }
+            profilePhotoData = decoded
+
+            if url.lastPathComponent == profilePhotoBackupFileName {
+                persistProfilePhotoToDisk()
+            }
+            return
+        }
+    }
+
     private func persistStateToDisk() {
         let persistedNotes = memoryCollectionEnabled ? notes : []
         let persistedSurveyAnswers = memoryCollectionEnabled ? surveyAnswers : [:]
@@ -6817,6 +10800,7 @@ final class SessionStore: ObservableObject {
         let persistedWorkspaceMemoryRecords = memoryCollectionEnabled ? workspaceMemoryRecords : []
         let persistedCodingMessages = memoryCollectionEnabled ? codingMessages : []
         let persistedCodingMemoryRecords = memoryCollectionEnabled ? codingMemoryRecords : []
+        let persistedConciergeSessions = conciergeSessions
         let persistedWorkspaceSessions = workspaceSessions
         let persistedLearningVersion = memoryCollectionEnabled
             ? learningVersion
@@ -6832,6 +10816,10 @@ final class SessionStore: ObservableObject {
             isSignedIn: isSignedIn,
             accountProvider: accountProvider,
             accountLabel: accountLabel,
+            accountFirstName: accountFirstName,
+            accountMiddleName: accountMiddleName,
+            accountLastName: accountLastName,
+            accountUsername: accountUsername,
             selectedTier: selectedTier,
             trialDaysRemaining: trialDaysRemaining,
             dailyPriority: dailyPriority,
@@ -6855,9 +10843,12 @@ final class SessionStore: ObservableObject {
             noteSessionIndex: noteSessionIndex,
             noteLaneIndex: noteLaneIndex,
             workspaceMemoryRecords: persistedWorkspaceMemoryRecords,
+            conciergeSessions: persistedConciergeSessions,
+            activeConciergeSessionID: activeConciergeSessionID,
             workspaceSessions: persistedWorkspaceSessions,
             activeWorkspaceLane: activeWorkspaceLane.rawValue,
             activeWorkspaceSessionByLane: persistedActiveSessionMap,
+            executionSelectedLane: executionSelectedLane.rawValue,
             codingWorkspaceRootPath: codingWorkspaceRootPath,
             codingWorkspaceFiles: codingWorkspaceFiles,
             codingSelectedFilePath: codingSelectedFilePath,
@@ -6875,7 +10866,8 @@ final class SessionStore: ObservableObject {
             learningPackage: persistedLearningPackage,
             learningVersion: persistedLearningVersion,
             learningFingerprint: persistedLearningFingerprint,
-            memoryCollectionEnabled: memoryCollectionEnabled
+            memoryCollectionEnabled: memoryCollectionEnabled,
+            guidedLearningActivated: guidedLearningActivated
         )
 
         let encoder = JSONEncoder()
@@ -6956,6 +10948,13 @@ final class SessionStore: ObservableObject {
         isSignedIn = state.isSignedIn
         accountProvider = state.accountProvider
         accountLabel = state.accountLabel
+        accountFirstName = state.accountFirstName ?? ""
+        accountMiddleName = state.accountMiddleName ?? ""
+        accountLastName = state.accountLastName ?? ""
+        accountUsername = state.accountUsername ?? ""
+        if isSignedIn {
+            accountLabel = resolvedAccountLabel(fallback: accountLabel)
+        }
         selectedTier = state.selectedTier
         trialDaysRemaining = max(0, min(state.trialDaysRemaining, SessionStore.localTrialDurationDays))
         dailyPriority = state.dailyPriority
@@ -6979,6 +10978,8 @@ final class SessionStore: ObservableObject {
         noteSessionIndex = state.noteSessionIndex ?? [:]
         noteLaneIndex = state.noteLaneIndex ?? [:]
         workspaceMemoryRecords = state.workspaceMemoryRecords ?? []
+        conciergeSessions = state.conciergeSessions ?? []
+        activeConciergeSessionID = state.activeConciergeSessionID
         workspaceSessions = state.workspaceSessions ?? []
         if let rawLane = state.activeWorkspaceLane,
            let lane = WorkspaceLane(rawValue: rawLane)
@@ -6990,6 +10991,13 @@ final class SessionStore: ObservableObject {
                 guard let lane = WorkspaceLane(rawValue: next.key) else { return }
                 partial[lane] = next.value
             }
+        }
+        if let rawExecutionLane = state.executionSelectedLane,
+           let lane = WorkspaceLane(rawValue: rawExecutionLane)
+        {
+            executionSelectedLane = lane
+        } else {
+            executionSelectedLane = activeWorkspaceLane
         }
         codingWorkspaceRootPath = normalizeCodingPath(state.codingWorkspaceRootPath ?? defaultCodingWorkspaceRootPath())
         codingWorkspaceFiles = state.codingWorkspaceFiles ?? []
@@ -7009,6 +11017,8 @@ final class SessionStore: ObservableObject {
         learningVersion = state.learningVersion ?? (learningPackage?.version ?? 0)
         learningFingerprint = state.learningFingerprint ?? ""
         memoryCollectionEnabled = state.memoryCollectionEnabled ?? true
+        guidedLearningActivated = state.guidedLearningActivated ?? false
+        ensureConciergeSessionsSeeded()
         ensureWorkspaceSessionsSeeded()
     }
 
@@ -7027,6 +11037,10 @@ private struct PersistedState: Codable {
     var isSignedIn: Bool
     var accountProvider: AuthProvider?
     var accountLabel: String
+    var accountFirstName: String?
+    var accountMiddleName: String?
+    var accountLastName: String?
+    var accountUsername: String?
     var selectedTier: AccountTier
     var trialDaysRemaining: Int
     var dailyPriority: String
@@ -7050,9 +11064,12 @@ private struct PersistedState: Codable {
     var noteSessionIndex: [String: String]?
     var noteLaneIndex: [String: String]?
     var workspaceMemoryRecords: [WorkspaceMemoryRecord]?
+    var conciergeSessions: [ConciergeChatSession]?
+    var activeConciergeSessionID: String?
     var workspaceSessions: [WorkspaceNotebookSession]?
     var activeWorkspaceLane: String?
     var activeWorkspaceSessionByLane: [String: String]?
+    var executionSelectedLane: String?
     var codingWorkspaceRootPath: String?
     var codingWorkspaceFiles: [String]?
     var codingSelectedFilePath: String?
@@ -7071,6 +11088,7 @@ private struct PersistedState: Codable {
     var learningVersion: Int?
     var learningFingerprint: String?
     var memoryCollectionEnabled: Bool?
+    var guidedLearningActivated: Bool?
 }
 
 private enum SecurePersistenceError: Error {
@@ -7285,5 +11303,12 @@ private extension String {
     func trimmedNil() -> String? {
         let value = trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
+    }
+}
+
+private extension FixedWidthInteger {
+    var littleEndianBytes: [UInt8] {
+        var value = self.littleEndian
+        return withUnsafeBytes(of: &value) { Array($0) }
     }
 }

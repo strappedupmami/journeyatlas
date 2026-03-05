@@ -55,9 +55,9 @@ actor LocalReasoningEngine {
     func modelStatusLine() -> String {
         switch attestationStatus {
         case .verified:
-            return "Local model active: \(model.modelName) · samples \(model.sampleCount) · trained \(model.trainedAtUTC) · attestation verified"
+            return "Atlas model runtime active: \(model.modelName) · samples \(model.sampleCount) · trained \(model.trainedAtUTC) · attestation verified"
         case .rejected(let reason):
-            return "Local model fallback active: \(model.modelName) · attestation failed (\(reason))"
+            return "Atlas fallback runtime active: \(model.modelName) · attestation failed (\(reason))"
         }
     }
 

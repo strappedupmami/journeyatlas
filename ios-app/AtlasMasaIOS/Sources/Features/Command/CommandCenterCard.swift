@@ -7,11 +7,11 @@ struct CommandCenterCard: View {
     var body: some View {
         AtlasScreen(
             title: "Atlas Life OS",
-            subtitle: "Swift-native command center for daily, mid-term, and long-horizon execution"
+            subtitle: "Command brief, execution planning, and orchestration controls"
         ) {
             AtlasPanel(
                 heading: "Safety + rehabilitation guardrails",
-                caption: "Atlas actively de-escalates suspicious patterns and redirects toward safe, pro-social progress"
+                caption: "Safety checks for risky patterns"
             ) {
                 HStack(spacing: 10) {
                     AtlasPill(title: session.safetyModeActive ? "Intervention active" : "Monitoring")
@@ -34,20 +34,14 @@ struct CommandCenterCard: View {
             }
 
             AtlasPanel(
-                heading: "AI transparency (quick)",
-                caption: "Why Atlas exists and how this plan is generated"
-            ) {
-                Text("Atlas is built for financial mobility, healthier cognitive execution, and resilient travel/work operations. This command plan is generated from your check-in + survey + notes + workspace memory, then prioritized into immediate, mid-term, and long-horizon actions.")
-                    .foregroundStyle(AtlasTheme.textSecondary)
-                Text("Open AI Guide from the More menu for full training, workflow, and privacy details.")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AtlasTheme.accentWarm)
-            }
-
-            AtlasPanel(
                 heading: "Model Inference Brief",
-                caption: "Always-on local model synthesis for command decisions"
+                caption: "Current command synthesis"
             ) {
+                if !session.isModelAutofillUnlocked {
+                    Text("AI command brief unlock: \(session.modelAutofillMinimumSurveyAnswers) survey answers (\(session.modelAutofillSurveyAnswersRemaining) remaining).")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AtlasTheme.accentWarm)
+                }
                 ResponseFeedbackCard(
                     source: "ios_concierge_command_brief",
                     prompt: conciergePromptSnapshot,
@@ -56,10 +50,10 @@ struct CommandCenterCard: View {
             }
 
             AtlasPanel(
-                heading: "Concierge Prompt Studio",
-                caption: "Choose output type like NotebookLM: Standard, Podcast, or Quiz (great for itinerary rehearsal)"
+                heading: "Command Prompt Studio",
+                caption: "Text-first queue controls for command operations"
             ) {
-                Text("Write a prompt for local reasoning")
+                Text("Write a prompt for Atlas AI")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(AtlasTheme.textPrimary)
 
@@ -75,9 +69,14 @@ struct CommandCenterCard: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text(session.pendingPromptOutputType.subtitle)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AtlasTheme.accentWarm)
+                if session.pendingPromptOutputType == .quiz {
+                    Picker("Quiz difficulty", selection: $session.pendingPromptQuizDifficulty) {
+                        ForEach(QuizDifficulty.allCases) { difficulty in
+                            Text(difficulty.title).tag(difficulty)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
 
                 HStack(spacing: 10) {
                     Button("Send") {
@@ -88,13 +87,13 @@ struct CommandCenterCard: View {
 
                     Button("Clear") {
                         conciergePromptFocused = false
-                        session.clearPromptQueue()
+                        session.clearConciergePromptQueue()
                     }
                     .buttonStyle(AtlasSecondaryButtonStyle())
                 }
 
                 if recentConciergeItems.isEmpty {
-                    Text("No concierge prompts yet. Send one to generate a standard reply, podcast, or rehearsal quiz.")
+                    Text("No command prompts yet. Send one to generate a standard reply, podcast, or rehearsal quiz.")
                         .foregroundStyle(AtlasTheme.textSecondary)
                 } else {
                     ForEach(recentConciergeItems) { item in
@@ -104,7 +103,13 @@ struct CommandCenterCard: View {
                             if let output = item.output {
                                 AtlasChatBubble(text: queueFeedbackResponseText(output), isUser: false)
                                 HStack(spacing: 8) {
-                                    AtlasPill(title: (output.outputType ?? item.outputType ?? .standard).title)
+                                    let outputType = output.outputType ?? item.outputType ?? .standard
+                                    AtlasPill(title: outputType.title)
+                                    if outputType == .quiz,
+                                       let difficulty = output.quizDifficulty ?? item.quizDifficulty
+                                    {
+                                        AtlasPill(title: difficulty.title.uppercased())
+                                    }
                                     AtlasPill(title: item.status.rawValue.uppercased())
                                 }
                                 ResponseFeedbackCard(
@@ -115,8 +120,12 @@ struct CommandCenterCard: View {
                             } else if let error = item.errorMessage {
                                 AtlasChatBubble(text: "Error: \(error)", isUser: false)
                             } else {
+                                let outputType = item.outputType ?? .standard
+                                let descriptor = outputType == .quiz
+                                    ? "\(outputType.title.lowercased()) (\((item.quizDifficulty ?? .medium).title.lowercased()))"
+                                    : outputType.title.lowercased()
                                 AtlasChatBubble(
-                                    text: "\(item.status.rawValue.capitalized)... generating \((item.outputType ?? .standard).title.lowercased()) output.",
+                                    text: "\(item.status.rawValue.capitalized)... generating \(descriptor) output.",
                                     isUser: false
                                 )
                             }
@@ -271,15 +280,18 @@ struct CommandCenterCard: View {
     }
 
     private var recentConciergeItems: [PromptQueueItem] {
-        Array(session.promptQueue.suffix(6))
+        Array(session.promptQueue.filter { $0.workspaceLane == nil }.suffix(6))
     }
 
     private func queueFeedbackResponseText(_ output: LocalReasoningOutput) -> String {
         var lines = [
             "Type: \((output.outputType ?? .standard).title)",
+            (output.outputType == .quiz || output.quizDifficulty != nil)
+                ? "Difficulty: \((output.quizDifficulty ?? .medium).title)"
+                : nil,
             "Summary: \(output.summary)",
             "Next action: \(output.nextAction)",
-        ]
+        ].compactMap { $0 }
         let body = (output.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !body.isEmpty {
             lines.append("")

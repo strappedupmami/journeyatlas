@@ -1,97 +1,691 @@
 import SwiftUI
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct PromptQueueCard: View {
     @EnvironmentObject private var session: SessionStore
-    @FocusState private var queuePromptFocused: Bool
+    @FocusState private var composerFocused: Bool
+    @State private var processingChoicePresented = false
+    @State private var chatSessionsPresented = false
+    private let threadBottomID = "atlas-concierge-thread-bottom"
+    private let maxRuntimeRetries = 3
 
     var body: some View {
-        AtlasScreen(
-            title: "Prompt Queue",
-            subtitle: "Queue prompts and run local reasoning in managed background passes"
-        ) {
-            AtlasPanel(heading: "How queued reasoning works", caption: "Local processing model + purpose") {
-                Text("Queued prompts are processed by Atlas local reasoning workers to produce execution-focused outputs. The queue is part of the app's practical mission: keep users moving forward on money, health, and operations under real constraints.")
-                    .foregroundStyle(AtlasTheme.textSecondary)
-                Text("Open AI Guide for full details on training domains, system limits, and personalization behavior.")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AtlasTheme.accentWarm)
-            }
+        ZStack {
+            AtlasTheme.backgroundGradient
+                .ignoresSafeArea()
+            AtlasTheme.glowGradient
+                .ignoresSafeArea()
+            AtlasTheme.ambientGradient
+                .ignoresSafeArea()
 
-            AtlasPanel(heading: "Queue controls", caption: "Designed for on-the-go execution under limited attention") {
-                TextField("Write a prompt for local reasoning", text: $session.pendingPrompt, axis: .vertical)
-                    .lineLimit(3 ... 8)
-                    .atlasFieldStyle()
-                    .focused($queuePromptFocused)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        if commandThreadItems.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                if let starter = session.starterMessageForConciergeSession(sessionID: currentConciergeSessionID) {
+                                    AtlasChatBubble(text: starter, isUser: false)
+                                } else {
+                                    Text("Start with a mission request. Queueing is embedded in this chat flow, so each message runs directly from the thread.")
+                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                        .foregroundStyle(AtlasTheme.textSecondary)
+                                }
 
-                HStack {
-                    Button("Add to queue") {
-                        queuePromptFocused = false
-                        session.enqueuePrompt()
-                    }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
-
-                    Button("Run worker") {
-                        queuePromptFocused = false
-                        session.startPromptQueueWorker()
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-
-                    Button("Clear") {
-                        queuePromptFocused = false
-                        session.clearPromptQueue()
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-                }
-            }
-
-            AtlasPanel(heading: "Queued jobs", caption: "Local-only reasoning outputs with next-action recommendations") {
-                if session.promptQueue.isEmpty {
-                    Text("No queued prompts yet.")
-                        .foregroundStyle(AtlasTheme.textSecondary)
-                } else {
-                    ForEach(session.promptQueue) { item in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(item.prompt)
-                                    .font(.system(size: 16, weight: .semibold, design: .default))
-                                    .foregroundStyle(AtlasTheme.textPrimary)
-                                Spacer()
-                                Text(item.status.rawValue.uppercased())
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(AtlasTheme.accentWarm)
+                                HStack(spacing: 8) {
+                                    AtlasPill(title: "TACTICAL")
+                                    AtlasPill(title: "MEMORY-AWARE")
+                                    AtlasPill(title: runtimeModelPillTitle)
+                                }
                             }
-
-                            if let output = item.output {
-                                Text("Summary: \(output.summary)")
-                                    .foregroundStyle(AtlasTheme.textSecondary)
-                                Text("Next action: \(output.nextAction)")
-                                    .foregroundStyle(AtlasTheme.textPrimary)
-                            }
-
-                            if let error = item.errorMessage {
-                                Text(error)
-                                    .foregroundStyle(.orange)
+                            .padding(14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [AtlasTheme.assistantBubble, Color.white.opacity(0.02)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(AtlasTheme.border.opacity(0.9), lineWidth: 1)
+                            )
+                        } else {
+                            ForEach(commandThreadItems) { item in
+                                commandThreadMessage(item)
                             }
                         }
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.black.opacity(0.2))
-                        )
+
+                        Color.clear
+                            .frame(height: 4)
+                            .id(threadBottomID)
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, 10)
+                }
+                .onAppear {
+                    if session.allConciergeSessions().isEmpty {
+                        session.createConciergeSession()
+                    }
+                    scrollThreadToBottom(proxy, animated: false)
+                }
+                .onChange(of: chatTimelineSignature) { _, _ in
+                    scrollThreadToBottom(proxy, animated: true)
                 }
             }
         }
+        .safeAreaInset(edge: .top) {
+            commandHeader
+        }
+        .safeAreaInset(edge: .bottom) {
+            commandComposer
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                dismissChatKeyboard()
+            }
+        )
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Done") {
-                    queuePromptFocused = false
+                    composerFocused = false
                 }
             }
         }
+        .confirmationDialog(
+            "AI is still processing. Choose how Atlas should handle this next message.",
+            isPresented: $processingChoicePresented,
+            titleVisibility: .visible
+        ) {
+            Button("Steer") {
+                session.steerPrompt()
+            }
+            Button("Queue") {
+                session.enqueuePrompt()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Steer prioritizes this message after the current run. Queue keeps normal order.")
+        }
+        .sheet(isPresented: $chatSessionsPresented) {
+            conciergeSessionsSheet
+        }
+    }
+
+    private var commandHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Atlas Concierge")
+                    .font(AtlasTheme.brandDisplayFont(size: 27))
+                    .tracking(0.4)
+                    .foregroundStyle(AtlasTheme.textPrimary)
+                Text(session.activeConciergeSessionTitle())
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textSecondary)
+            }
+
+            Spacer()
+
+            AtlasPill(title: activeRunPillTitle)
+
+            Menu {
+                Button("Chats") {
+                    chatSessionsPresented = true
+                }
+                Button("New chat") {
+                    session.createConciergeSession()
+                }
+                if let activeID = currentConciergeSessionID {
+                    Button("Delete current chat", role: .destructive) {
+                        session.deleteConciergeSession(activeID)
+                    }
+                }
+                Divider()
+                Button("Clear conversation", role: .destructive) {
+                    session.clearConciergePromptQueue()
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(AtlasTheme.textPrimary)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle()
+                            .fill(AtlasTheme.cardStrong)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(AtlasTheme.border, lineWidth: 1)
+                    )
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 11)
+        .padding(.bottom, 9)
+        .background(
+            ZStack {
+                AtlasTheme.chromeSurface
+                AtlasTheme.chromeGradient
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(AtlasTheme.chromeEdge)
+                    .frame(height: 1)
+            }
+            .shadow(color: Color.black.opacity(0.2), radius: 12, x: 0, y: 6)
+        )
+    }
+
+    private var composerContainerBackground: some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [AtlasTheme.chromeSurface, Color.black.opacity(0.42)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(AtlasTheme.chromeEdge, lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.26), radius: 14, x: 0, y: 8)
+    }
+
+    private var sendButtonLabel: some View {
+        let enabled = !trimmedPendingPrompt.isEmpty
+        return Image(systemName: "arrow.up")
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 38, height: 38)
+            .background(
+                Circle()
+                    .fill(
+                        enabled
+                            ? AnyShapeStyle(
+                                LinearGradient(
+                                    colors: [AtlasTheme.accent, AtlasTheme.accentWarm],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            : AnyShapeStyle(Color.white.opacity(0.18))
+                    )
+            )
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(enabled ? 0.18 : 0.1), lineWidth: 1)
+            )
+    }
+
+    private var commandComposer: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                AtlasPill(title: activeRunPillTitle)
+                AtlasPill(title: runtimeModelPillTitle)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 8) {
+                Menu {
+                    ForEach(PromptOutputType.allCases) { outputType in
+                        Button {
+                            session.pendingPromptOutputType = outputType
+                        } label: {
+                            Label(outputType.title, systemImage: outputTypeSymbol(outputType))
+                        }
+                    }
+                } label: {
+                    AtlasPill(title: selectedOutputPillTitle)
+                }
+                .buttonStyle(.plain)
+
+                if session.pendingPromptOutputType == .quiz {
+                    Menu {
+                        ForEach(QuizDifficulty.allCases) { difficulty in
+                            Button {
+                                session.pendingPromptQuizDifficulty = difficulty
+                            } label: {
+                                Text(difficulty.title)
+                            }
+                        }
+                    } label: {
+                        AtlasPill(title: session.pendingPromptQuizDifficulty.title.uppercased())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Message concierge...", text: $session.pendingPrompt, axis: .vertical)
+                    .lineLimit(1 ... 8)
+                    .atlasFieldStyle()
+                    .focused($composerFocused)
+
+                Button {
+                    composerFocused = false
+                    if session.pendingPromptOutputType == .podcast {
+                        session.enqueuePrompt()
+                    } else if session.conciergeHasActiveProcessing() {
+                        processingChoicePresented = true
+                    } else {
+                        session.enqueuePrompt()
+                    }
+                } label: {
+                    sendButtonLabel
+                }
+                .buttonStyle(.plain)
+                .disabled(trimmedPendingPrompt.isEmpty)
+            }
+        }
+        .padding(12)
+        .background(composerContainerBackground)
+        .padding(.horizontal, 10)
+        .padding(.top, 7)
+        .padding(.bottom, 8)
+        .background(
+            Rectangle()
+                .fill(Color.black.opacity(0.22))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AtlasTheme.chromeEdge.opacity(0.9))
+                        .frame(height: 1)
+                }
+        )
+    }
+
+    @ViewBuilder
+    private func commandThreadMessage(_ item: PromptQueueItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AtlasChatBubble(text: item.prompt, isUser: true)
+
+            if let output = item.output {
+                let outputType = output.outputType ?? item.outputType ?? .standard
+                if outputType == .podcast, let artifact = output.podcastAudio {
+                    PodcastAudioBubble(
+                        artifact: artifact,
+                        summary: output.summary
+                    )
+                } else {
+                    AtlasChatBubble(text: assistantMessageText(for: output), isUser: false)
+                }
+                HStack(spacing: 8) {
+                    AtlasPill(title: outputType.title.uppercased())
+                    if outputType == .quiz,
+                       let difficulty = output.quizDifficulty ?? item.quizDifficulty
+                    {
+                        AtlasPill(title: difficulty.title.uppercased())
+                    }
+                }
+            } else if let error = item.errorMessage, !error.isEmpty {
+                AtlasChatBubble(text: "Runtime notice: \(error)", isUser: false)
+            } else {
+                AtlasChatBubble(text: pendingAssistantStatusText(for: item), isUser: false)
+            }
+        }
+    }
+
+    private var commandThreadItems: [PromptQueueItem] {
+        guard let activeID = currentConciergeSessionID else {
+            return []
+        }
+        return session.promptQueue
+            .filter { item in
+                guard item.workspaceLane == nil else { return false }
+                return item.conciergeSessionID == nil || item.conciergeSessionID == activeID
+            }
+            .sorted { lhs, rhs in
+                if lhs.createdAt == rhs.createdAt {
+                    return lhs.id < rhs.id
+                }
+                return lhs.createdAt < rhs.createdAt
+            }
+    }
+
+    private var currentConciergeSessionID: String? {
+        session.activeConciergeSessionID ?? session.allConciergeSessions().first?.id
+    }
+
+    private var activeRunPillTitle: String {
+        let active = commandThreadItems.filter { $0.status == .running || $0.status == .queued }.count
+        return active == 0 ? "READY" : "\(active) ACTIVE"
+    }
+
+    private var runtimeModelPillTitle: String {
+        session.inferenceSettingsSnapshot().model.uppercased()
+    }
+
+    private var selectedOutputPillTitle: String {
+        let type = session.pendingPromptOutputType
+        if type == .quiz {
+            return "\(type.title.uppercased()) · \(session.pendingPromptQuizDifficulty.title.uppercased())"
+        }
+        return type.title.uppercased()
+    }
+
+    private var trimmedPendingPrompt: String {
+        session.pendingPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var chatTimelineSignature: String {
+        commandThreadItems.map { item in
+            let outputStamp = item.output?.generatedAt.timeIntervalSince1970 ?? 0
+            return "\(item.id)|\(item.status.rawValue)|\(item.retryCount ?? 0)|\(item.errorMessage ?? "")|\(outputStamp)"
+        }.joined(separator: ";")
+    }
+
+    private func assistantMessageText(for output: LocalReasoningOutput) -> String {
+        let body = (output.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !body.isEmpty {
+            return body
+        }
+        return """
+        \(output.summary)
+
+        Next action: \(output.nextAction)
+        """
+    }
+
+    private func pendingAssistantStatusText(for item: PromptQueueItem) -> String {
+        let outputType = (item.outputType ?? .standard).title.lowercased()
+        let isPodcast = (item.outputType ?? .standard) == .podcast
+        switch item.status {
+        case .running:
+            if isPodcast {
+                return "Generating your podcast-style briefing in cloud runtime..."
+            }
+            return "Analyzing context and drafting your \(outputType) response..."
+        case .queued:
+            if let checkpoint = item.checkpointNote?.lowercased(),
+               checkpoint.contains("waiting to reconnect") || checkpoint.contains("no internet")
+            {
+                return "Waiting to reconnect to the internet. Your \(outputType) response will resume automatically."
+            }
+            if let retry = item.retryCount, retry > 0 {
+                if isPodcast {
+                    return "Runtime reconnect in progress (\(retry)/\(maxRuntimeRetries)). Continuing podcast audio rendering..."
+                }
+                return "Runtime reconnect in progress (\(retry)/\(maxRuntimeRetries)). Continuing your \(outputType) response..."
+            }
+            if isPodcast {
+                return "Queued for podcast briefing generation."
+            }
+            return "Preparing your \(outputType) response..."
+        case .failed:
+            if isPodcast {
+                return "Podcast generation failed. Tap retry."
+            }
+            return "AI runtime unavailable. No response was generated. Tap retry."
+        case .done:
+            return isPodcast ? "Podcast ready." : "Response ready."
+        }
+    }
+
+    private func outputTypeSymbol(_ outputType: PromptOutputType) -> String {
+        switch outputType {
+        case .standard:
+            return "text.bubble"
+        case .podcast:
+            return "waveform"
+        case .quiz:
+            return "checklist"
+        }
+    }
+
+    private func scrollThreadToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+        let action = {
+            proxy.scrollTo(threadBottomID, anchor: .bottom)
+        }
+        if animated {
+            withAnimation(.easeOut(duration: 0.22), action)
+        } else {
+            action()
+        }
+    }
+
+    private var conciergeSessionsSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Concierge chats")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(AtlasTheme.textPrimary)
+                    Spacer()
+                    Button("Done") {
+                        chatSessionsPresented = false
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+
+                Button("New chat") {
+                    session.createConciergeSession()
+                }
+                .buttonStyle(AtlasPrimaryButtonStyle())
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(session.allConciergeSessions()) { chat in
+                            Button {
+                                session.activateConciergeSession(chat.id)
+                                chatSessionsPresented = false
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text(chat.title)
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(AtlasTheme.textPrimary)
+                                        Spacer()
+                                        if chat.id == currentConciergeSessionID {
+                                            AtlasPill(title: "ACTIVE")
+                                        }
+                                    }
+                                    Text(chat.summary)
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundStyle(AtlasTheme.textSecondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color.black.opacity(0.2))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(16)
+            .background(AtlasTheme.backgroundGradient.ignoresSafeArea())
+        }
     }
 }
+
+private struct PodcastAudioBubble: View {
+    let artifact: PodcastAudioArtifact
+    let summary: String
+
+#if canImport(AVFoundation)
+    @State private var player: AVAudioPlayer?
+    @State private var isPlaying = false
+    @State private var elapsedSeconds: Double = 0
+    @State private var timer: Timer?
+#endif
+    @State private var loadError: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Podcast Audio")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(AtlasTheme.textSecondary)
+            Text(summary)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(AtlasTheme.textPrimary)
+
+#if canImport(AVFoundation)
+            if let loadError {
+                Text(loadError)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.orange.opacity(0.95))
+            } else {
+                HStack(spacing: 10) {
+                    Button {
+                        togglePlayback()
+                    } label: {
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(
+                                Circle()
+                                    .fill(AtlasTheme.accentWarm.opacity(0.92))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(player == nil)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(formatDuration(elapsedSeconds)) / \(formatDuration(durationSeconds))")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AtlasTheme.textPrimary)
+                        Text("\(artifact.voiceName) · \(artifact.mimeType)")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(AtlasTheme.textSecondary)
+                    }
+                    Spacer()
+                }
+            }
+#else
+            Text("Audio playback is unavailable on this platform build.")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(AtlasTheme.textSecondary)
+#endif
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(AtlasTheme.cardStrong)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AtlasTheme.border, lineWidth: 1)
+        )
+#if canImport(AVFoundation)
+        .onAppear {
+            configurePlayerIfNeeded()
+        }
+        .onDisappear {
+            stopPlayback()
+        }
+#endif
+    }
+
+#if canImport(AVFoundation)
+    private var durationSeconds: Double {
+        if let player {
+            return max(1, player.duration)
+        }
+        return max(1, artifact.estimatedDurationSeconds)
+    }
+
+    private func configurePlayerIfNeeded() {
+        guard player == nil else { return }
+        let audioURL = URL(fileURLWithPath: artifact.filePath)
+        guard FileManager.default.fileExists(atPath: audioURL.path) else {
+            loadError = "Audio file missing. Re-run podcast generation."
+            return
+        }
+        do {
+            let loaded = try AVAudioPlayer(contentsOf: audioURL)
+            loaded.prepareToPlay()
+            player = loaded
+            elapsedSeconds = 0
+            loadError = nil
+        } catch {
+            loadError = "Could not load audio for playback."
+        }
+    }
+
+    private func togglePlayback() {
+        guard let player else { return }
+        if player.isPlaying {
+            player.pause()
+            isPlaying = false
+            stopTimer()
+            return
+        }
+        if player.currentTime >= player.duration {
+            player.currentTime = 0
+            elapsedSeconds = 0
+        }
+        isPlaying = player.play()
+        if isPlaying {
+            startTimer()
+        }
+    }
+
+    private func stopPlayback() {
+        player?.stop()
+        player = nil
+        isPlaying = false
+        elapsedSeconds = 0
+        stopTimer()
+    }
+
+    private func startTimer() {
+        stopTimer()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
+            guard let player else { return }
+            elapsedSeconds = max(0, player.currentTime)
+            if !player.isPlaying {
+                isPlaying = false
+                stopTimer()
+            }
+        }
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func formatDuration(_ seconds: Double) -> String {
+        let clamped = Int(max(0, round(seconds)))
+        let minutes = clamped / 60
+        let remainder = clamped % 60
+        return String(format: "%d:%02d", minutes, remainder)
+    }
+#endif
+}
+
+#if canImport(UIKit)
+private func dismissChatKeyboard() {
+    UIApplication.shared.sendAction(
+        #selector(UIResponder.resignFirstResponder),
+        to: nil,
+        from: nil,
+        for: nil
+    )
+}
+#else
+private func dismissChatKeyboard() {}
+#endif
 
 struct CodingWorkspaceCard: View {
     @EnvironmentObject private var session: SessionStore
@@ -136,10 +730,6 @@ struct CodingWorkspaceCard: View {
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(AtlasTheme.textSecondary)
                 }
-
-                Text("Model inference is default and always-on for coding replies and workspace intelligence.")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AtlasTheme.accentWarm)
             }
 
             AtlasPanel(
@@ -236,9 +826,17 @@ struct CodingWorkspaceCard: View {
                                     Text(roleLabel(message.role))
                                         .font(.system(size: 10, weight: .bold, design: .rounded))
                                         .foregroundStyle(roleColor(message.role))
-                                    Text(message.content)
-                                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        .foregroundStyle(AtlasTheme.textPrimary)
+                                    if message.role == .assistant {
+                                        ResponseFeedbackCard(
+                                            source: "ios_coding_workspace",
+                                            prompt: priorUserPrompt(for: message.id),
+                                            response: message.content
+                                        )
+                                    } else {
+                                        Text(message.content)
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                                            .foregroundStyle(AtlasTheme.textPrimary)
+                                    }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(10)
@@ -385,6 +983,20 @@ struct CodingWorkspaceCard: View {
         case .system: return AtlasTheme.textSecondary
         case .command: return Color.green.opacity(0.9)
         }
+    }
+
+    private func priorUserPrompt(for messageID: String) -> String {
+        guard let index = session.codingMessages.firstIndex(where: { $0.id == messageID }) else {
+            return ""
+        }
+        guard index > 0 else { return "" }
+        for scan in stride(from: index - 1, through: 0, by: -1) {
+            let message = session.codingMessages[scan]
+            if message.role == .user {
+                return message.content
+            }
+        }
+        return ""
     }
 }
 

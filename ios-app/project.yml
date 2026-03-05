@@ -4,6 +4,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.10
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
 packages: {}
@@ -19,7 +20,7 @@ targets:
     info:
       path: AtlasMasaIOS/Info.plist
       properties:
-        CFBundleDisplayName: Atlas Masa
+        CFBundleDisplayName: Atlas
         CFBundleIconName: AppIcon
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -32,7 +33,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
           - UIInterfaceOrientationPortraitUpsideDown
-        NSFaceIDUsageDescription: Use Face ID to authenticate passkeys and protect your Atlas Masa account.
+        NSFaceIDUsageDescription: Use Face ID to authenticate passkeys and protect your Atlas account.
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: AtlasMasaIOS/AtlasMasaIOS.entitlements

@@ -2,13 +2,14 @@ import SwiftUI
 
 struct SubscriptionCard: View {
     @EnvironmentObject private var session: SessionStore
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         AtlasScreen(
             title: "Plans + Billing",
-            subtitle: "Every account starts with a 2-month free trial, then Pro continues at ₪20/month."
+            subtitle: "Cloud AI is locked until billing is active. No guest usage and no unpaid debt mode."
         ) {
-            AtlasPanel(heading: "Active plan", caption: "Switch between local-first and cloud reasoning modes") {
+            AtlasPanel(heading: "Active plan", caption: "Cloud access follows billing state") {
                 Picker("Plan", selection: $session.selectedTier) {
                     ForEach(AccountTier.allCases) { tier in
                         Text(tier.title).tag(tier)
@@ -23,12 +24,41 @@ struct SubscriptionCard: View {
                     .foregroundStyle(AtlasTheme.textSecondary)
 
                 if session.selectedTier == .localTrial {
-                    Text("Trial pricing: free for 60 days, then choose Pro at ₪20/month.")
+                    Text("Status: Locked until payment method is active.")
                         .foregroundStyle(AtlasTheme.accentWarm)
                 } else {
-                    Text("Pro pricing: ₪20/month after the 2-month trial window.")
+                    Text("Status: Cloud AI unlocked for this account.")
                         .foregroundStyle(AtlasTheme.accentWarm)
                 }
+            }
+
+            AtlasPanel(heading: "Payment method", caption: "Choose how to activate billing") {
+                Button("In-App Purchase / Apple Pay (Recommended)") {
+                    session.startInAppPurchaseFlow()
+                }
+                .buttonStyle(AtlasPrimaryButtonStyle())
+                .disabled(!session.isSignedIn)
+
+                Button("Manual card setup (Stripe)") {
+                    Task {
+                        await session.startManualCardSetup { url in
+                            openURL(url)
+                        }
+                    }
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .disabled(!session.isSignedIn)
+
+                Button("Refresh billing status") {
+                    Task { await session.refreshBillingStatus() }
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+                .disabled(!session.isSignedIn)
+
+                Text(session.billingStatusMessage)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(session.billingAccessEnabled ? .green : AtlasTheme.textSecondary)
             }
 
             AtlasPanel(heading: "Billing capability", caption: "Read from API health when available") {
@@ -50,8 +80,8 @@ struct SubscriptionCard: View {
 
             AtlasPanel(heading: "Revenue path", caption: "Economic model alignment") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("• Free trial: 2 months for every new account")
-                    Text("• Paid plan: ₪20/month after trial")
+                    Text("• No unpaid usage: cloud compute is blocked until billing is active")
+                    Text("• Billing model: charge user payment method, not app owner debt")
                     Text("• Mobility: van rental as parallel revenue stream")
                     Text("• Team/business: fleet pricing with SLA")
                 }

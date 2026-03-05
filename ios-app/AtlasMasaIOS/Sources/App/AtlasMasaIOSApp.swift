@@ -16,6 +16,7 @@ struct AtlasMasaIOSApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active || phase == .background {
                         session.startPromptQueueWorker()
+                        session.startAgenticBusinessRuntime()
                     }
                     if phase == .active {
                         Task {

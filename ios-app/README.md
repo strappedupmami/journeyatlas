@@ -22,11 +22,11 @@ Native Swift Life OS app for movement-based living/work execution.
 ## Project generation
 ```bash
 brew install xcodegen
-cd /Users/avrohom/Downloads/journeyatlas/ios-app
+cd /Users/avrohom/Downloads/BlackHaven/ios-app
 xcodegen generate
 ```
 
-Then open `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj` in Xcode.
+Then open `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj` in Xcode.
 
 ## Build note
 `xcodebuild` requires full Xcode.app (not only Command Line Tools).
@@ -37,25 +37,28 @@ Default API base: `https://api.atlasmasa.com`
 Override at runtime via `UserDefaults` key:
 - `atlas.api.base`
 
-## Local LLM bridge (optional, local-first)
-Queue reasoning can use:
-- an OpenAI-compatible local/hosted endpoint, or
-- Gemini cloud inference using a Gemini API key,
+## Local inference runtime (core, always-on)
+Queue reasoning uses:
+- an OpenAI-compatible local/hosted endpoint,
 then fallback to deterministic local reasoning when unavailable.
 
+Gemini/OpenAI cloud provider keys remain server-side on `api.atlasmasa.com`.
+iOS should call backend endpoints for cloud reasoning and must not embed provider keys in app config.
+
 Runtime keys (UserDefaults):
-- `atlas.local.llm.provider` (`openai_compatible` by default, or `gemini`)
+- `atlas.local.llm.provider` (`openai_compatible` only on iOS)
 - `atlas.local.llm.endpoint` (default: `http://127.0.0.1:8080/v1/chat/completions`)
-- `atlas.local.llm.model` (default depends on provider: `atlas-local-3b` for OpenAI-compatible, `gemini-2.0-flash` for Gemini)
+- `atlas.local.llm.model` (provider-locked default: `gpt-5.2`)
 
 Runtime secret (Keychain, not UserDefaults):
 - service: `com.atlasmasa.local.llm`
-- account: `provider_api_key`
-- value: provider API key (Gemini key for `gemini`, optional bearer token for OpenAI-compatible endpoints)
+- account prefix: `provider_api_key.<provider_id>`
+- value: optional bearer token for OpenAI-compatible endpoints
 
 In-app configuration:
 - Open `More` → `Account` → `Model runtime`
-- Select provider, set model/endpoint, and save API key securely.
+- Set OpenAI-compatible endpoint/API key for local bridge access when needed.
+- Model target is fixed to enforce stable runtime behavior.
 
 Notes:
 - Plain `http` is accepted only for `localhost` / `127.0.0.1`.
@@ -65,25 +68,25 @@ Notes:
 Shared runtime launcher:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ATLAS_LLM_HF_REPO=unsloth/Qwen2.5-3B-Instruct-GGUF:q4_k_m \
-ATLAS_LLM_MODEL_ALIAS=atlas-local-3b \
+ATLAS_LLM_MODEL_ALIAS=gpt-5.2 \
 ./scripts/start-local-llm-runtime.sh
 ```
 
-See `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md` for cross-platform rollout details.
+See `/Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md` for cross-platform rollout details.
 
 ## Local model training
 Train/update the on-device travel-design local model from project data:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ./scripts/train-local-model-loop.sh
 ```
 
 Continuous retraining loop:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 RUN_FOREVER=1 INTERVAL_SECONDS=1800 ./scripts/train-local-model-loop.sh
 ```

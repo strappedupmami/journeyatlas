@@ -32,6 +32,10 @@ struct JobOpportunity: Codable, Identifiable, Hashable {
     let industryFocus: String
     let remoteFriendly: Bool
     let links: [JobPlatformLink]
+    let whyHighlights: [String]
+    let capabilityPath: [String]
+    let benefitsHighlights: [String]
+    let narrativeSummary: String
 }
 
 enum JobMarketRadar {
@@ -82,7 +86,19 @@ enum JobMarketRadar {
                     track: entry.role.track,
                     industryFocus: entry.role.industryTags.first ?? "general",
                     remoteFriendly: entry.role.remoteFriendly,
-                    links: buildPlatformLinks(title: entry.role.title, location: entry.role.location)
+                    links: buildPlatformLinks(title: entry.role.title, location: entry.role.location),
+                    whyHighlights: entry.role.whyHighlights.isEmpty
+                        ? defaultWhyHighlights(for: entry.role)
+                        : entry.role.whyHighlights,
+                    capabilityPath: entry.role.capabilityPath.isEmpty
+                        ? defaultCapabilityPath(for: entry.role)
+                        : entry.role.capabilityPath,
+                    benefitsHighlights: entry.role.benefitsHighlights.isEmpty
+                        ? defaultBenefitsHighlights(for: entry.role)
+                        : entry.role.benefitsHighlights,
+                    narrativeSummary: entry.role.narrativeSummary.isEmpty
+                        ? defaultNarrativeSummary(for: entry.role)
+                        : entry.role.narrativeSummary
                 )
             }
     }
@@ -199,6 +215,42 @@ enum JobMarketRadar {
         let salaryBandUSD: String
         let salaryCeilingKUSD: Int
         let remoteFriendly: Bool
+        let whyHighlights: [String] = []
+        let capabilityPath: [String] = []
+        let benefitsHighlights: [String] = []
+        let narrativeSummary: String = ""
+    }
+
+    private static func defaultWhyHighlights(for role: RoleTemplate) -> [String] {
+        [
+            "Compensation ceiling aligns with high-wealth route targets.",
+            "Role demand remains resilient in \(humanizedIndustry(role.industryTags.first ?? "general")).",
+            role.remoteFriendly ? "Remote-compatible flexibility can reduce friction and burnout risk." : "On-site leverage path can accelerate promotions and network density."
+        ]
+    }
+
+    private static func defaultCapabilityPath(for role: RoleTemplate) -> [String] {
+        [
+            "Map the top 10 role requirements into a 6-week capability sprint.",
+            "Create two proof assets (portfolio project, case study, or quantified execution memo).",
+            "Run interview rehearsal + compensation negotiation scripts before applications."
+        ]
+    }
+
+    private static func defaultBenefitsHighlights(for role: RoleTemplate) -> [String] {
+        [
+            "Location signal: \(role.location)",
+            "Compensation band: \(role.salaryBandUSD)",
+            role.remoteFriendly ? "Workstyle benefit: remote/hybrid flexibility." : "Workstyle benefit: in-person visibility and leadership exposure."
+        ]
+    }
+
+    private static func defaultNarrativeSummary(for role: RoleTemplate) -> String {
+        "This role blends compensation upside with a clear skill-to-income progression in \(humanizedIndustry(role.industryTags.first ?? "general"))."
+    }
+
+    private static func humanizedIndustry(_ raw: String) -> String {
+        raw.replacingOccurrences(of: "_", with: " ").capitalized
     }
 
     private static let roleCatalog: [RoleTemplate] = [

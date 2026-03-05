@@ -65,6 +65,17 @@ struct AdaptiveSurveyCard: View {
                     } else {
                         Text("Survey complete. Proactive engine now uses full profile depth. Start another pass any time to add new data without repeating previous questions.")
                             .foregroundStyle(AtlasTheme.accentWarm)
+
+                        if session.isGuidedLearningRuntimeActive {
+                            Text("Guided learning is active. Open AI Guide for Kiwix + Ollama personalized learning.")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AtlasTheme.textSecondary)
+                        } else {
+                            Button("I'm done with initialization and want to start using Atlas") {
+                                session.activateGuidedLearningAfterSurvey()
+                            }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
+                        }
                     }
                 } else {
                     Text("Survey unavailable.")

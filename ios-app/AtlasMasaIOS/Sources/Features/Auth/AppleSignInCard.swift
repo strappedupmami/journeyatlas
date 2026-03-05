@@ -2,11 +2,15 @@ import SwiftUI
 
 struct AppleSignInCard: View {
     @EnvironmentObject private var session: SessionStore
-    @State private var inferenceProviderID = "openai_compatible"
+    @State private var inferenceProviderID = "gemini"
     @State private var inferenceModel = ""
     @State private var inferenceEndpoint = ""
     @State private var inferenceAPIKeyDraft = ""
     @State private var inferenceSnapshot: SessionStore.InferenceSettingsSnapshot?
+    @State private var firstNameDraft = ""
+    @State private var middleNameDraft = ""
+    @State private var lastNameDraft = ""
+    @State private var usernameDraft = ""
 
     var body: some View {
         AtlasScreen(
@@ -83,6 +87,52 @@ struct AppleSignInCard: View {
                 }
             }
 
+            AtlasPanel(
+                heading: "Profile identity",
+                caption: "Editable once signed in"
+            ) {
+                TextField("First name", text: $firstNameDraft)
+                    .atlasFieldStyle()
+                    .disabled(!session.isSignedIn)
+
+                TextField("Middle name", text: $middleNameDraft)
+                    .atlasFieldStyle()
+                    .disabled(!session.isSignedIn)
+
+                TextField("Last name", text: $lastNameDraft)
+                    .atlasFieldStyle()
+                    .disabled(!session.isSignedIn)
+
+                TextField("Username (letters, numbers, ., _, -)", text: $usernameDraft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .atlasFieldStyle()
+                    .disabled(!session.isSignedIn)
+
+                HStack(spacing: 10) {
+                    Button("Save profile identity") {
+                        session.saveAccountIdentity(
+                            firstName: firstNameDraft,
+                            middleName: middleNameDraft,
+                            lastName: lastNameDraft,
+                            username: usernameDraft
+                        )
+                        loadAccountIdentityDraft()
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                    .disabled(!session.isSignedIn)
+
+                    Button("Reset") {
+                        loadAccountIdentityDraft()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+
+                Text(session.isSignedIn ? "Displayed account name updates everywhere in the app after saving." : "Sign in to edit account identity.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textSecondary)
+            }
+
             AtlasPanel(heading: "Provider status", caption: "Live capability check from Rust API when available") {
                 if let health = session.health {
                     capabilityRow("Apple", available: health.capabilities.appleOAuth)
@@ -102,7 +152,7 @@ struct AppleSignInCard: View {
 
             AtlasPanel(
                 heading: "Model runtime",
-                caption: "Configure local OpenAI-compatible endpoints or Gemini cloud reasoning"
+                caption: "Configure model keys and runtime routes used by queue + podcast pipeline"
             ) {
                 Picker("Model provider", selection: $inferenceProviderID) {
                     ForEach(session.inferenceProviderOptions()) { option in
@@ -117,8 +167,13 @@ struct AppleSignInCard: View {
                         .foregroundStyle(AtlasTheme.textSecondary)
                 }
 
-                TextField("Model name (for example gemini-2.0-flash)", text: $inferenceModel)
+                TextField("Model target (locked by provider)", text: $inferenceModel)
                     .atlasFieldStyle()
+                    .disabled(true)
+
+                Text("OpenAI-Compatible is locked to gpt-5.2. Gemini is locked to gemini-3-flash-preview for reasoning plus gemini-2.5-pro-preview-tts for podcast audio.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textSecondary)
 
                 if inferenceProviderID == "openai_compatible" {
                     TextField("Endpoint URL", text: $inferenceEndpoint)
@@ -172,6 +227,15 @@ struct AppleSignInCard: View {
         }
         .onAppear {
             loadInferenceSnapshot()
+            loadAccountIdentityDraft()
+        }
+        .onChange(of: session.isSignedIn) { _, _ in
+            loadAccountIdentityDraft()
+        }
+        .onChange(of: session.accountLabel) { _, _ in
+            if session.isSignedIn {
+                loadAccountIdentityDraft()
+            }
         }
     }
 
@@ -191,6 +255,13 @@ struct AppleSignInCard: View {
         inferenceProviderID = snapshot.providerID
         inferenceModel = snapshot.model
         inferenceEndpoint = snapshot.endpoint
+    }
+
+    private func loadAccountIdentityDraft() {
+        firstNameDraft = session.accountFirstName
+        middleNameDraft = session.accountMiddleName
+        lastNameDraft = session.accountLastName
+        usernameDraft = session.accountUsername
     }
 }
 
