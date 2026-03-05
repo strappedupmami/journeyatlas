@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request_target:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  authorize:
+    # sets environment based on origin of PR: internal (non-existent) for own-repo or external (requires reviewer to run) for external repos
+    environment: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository && 'external' || 'internal' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - run: true
+  build:
+    needs: authorize
+    runs-on: macos-15
+    env:
+      EXTRA_XCODEBUILD: ""
+      APPLE_STORE_AUTH_KEY_PATH: /tmp/authkey.p8
+      APPLE_AUTH_PARAMS: "-authenticationKeyPath /tmp/authkey.p8 -authenticationKeyID ${{ secrets.APPLE_STORE_AUTH_KEY_ID }} -authenticationKeyIssuerID ${{ secrets.APPLE_STORE_AUTH_KEY_ISSUER_ID }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macOS, iOS]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # /!\ important: this checks out code from the HEAD of the PR instead of the main branch (for pull_request_target)
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Validate localizations
+        run: python localizations.py validate
+
+      - name: Add Apple Store Key
+        run: echo "${{ secrets.APPLE_STORE_AUTH_KEY }}" | base64 --decode -o ${{ env.APPLE_STORE_AUTH_KEY_PATH}}
+
+      - name: Set EXTRA_XCODEBUILD for iOS
+        if: matrix.platform == 'iOS'
+        run: echo "EXTRA_XCODEBUILD=-sdk iphoneos26.1 ${{ env.APPLE_AUTH_PARAMS }}" >> $GITHUB_ENV
+
+      - name: Set EXTRA_XCODEBUILD for macOS
+        if: matrix.platform == 'macOS'
+        run: echo "EXTRA_XCODEBUILD=${{ env.APPLE_AUTH_PARAMS }}" >> $GITHUB_ENV
+
+      - name: Remove in-app-payments capability for unit tests on macOS
+        if: matrix.platform == 'macOS'
+        run: |
+          sed -i '' '/in-app-payments/d' project.yml
+
+      - name: Build
+        uses: ./.github/actions/xcbuild
+        with:
+          action: build
+          xc-destination: generic/platform=${{ matrix.platform }}
+          version: CI
+          APPLE_DEVELOPMENT_SIGNING_CERTIFICATE: ${{ secrets.APPLE_DEVELOPMENT_SIGNING_CERTIFICATE }}
+          APPLE_DEVELOPMENT_SIGNING_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPMENT_SIGNING_P12_PASSWORD }}
+          EXTRA_XCODEBUILD: ${{ env.EXTRA_XCODEBUILD }}
+
+      - name: Run Unit Tests on iOS
+        if: matrix.platform == 'iOS'
+        run: xcodebuild clean test -scheme Kiwix -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+
+      - name: Run Unit Tests on macOS
+        if: matrix.platform == 'macOS'
+        run: xcodebuild clean test -scheme Kiwix -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload code coverage
+        uses: codecov/codecov-action@v4.2.0
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Run UI Tests on macOS
+        if: matrix.platform == 'macOS'
+        run: xcodebuild test -scheme UITests_macOS -destination 'platform=macOS'
+
+      # - name: Run UI Tests on iPhone
+      #   if: matrix.platform == 'iOS'
+      #   env:
+      #     DEVICE_NAME: "iPhone 16 Pro Max"
+      #   run: xcodebuild test -scheme UITests_iPhone -destination "platform=iOS Simulator,name=$DEVICE_NAME"
+
+      # - name: Run UI Tests on iPad
+      #   if: matrix.platform == 'iOS'
+      #   env:
+      #     DEVICE_NAME: "iPad Pro 13-inch (M4)"
+      #   run: xcodebuild test -scheme UITests_iPad -destination "platform=iOS Simulator,name=$DEVICE_NAME"
+

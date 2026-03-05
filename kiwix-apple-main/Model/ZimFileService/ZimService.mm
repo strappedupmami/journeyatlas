@@ -1,0 +1,354 @@
+// This file is part of Kiwix for iOS & macOS.
+//
+// Kiwix is free software; you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 3 of the License, or
+// any later version.
+//
+// Kiwix is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Kiwix; If not, see https://www.gnu.org/licenses/.
+
+#include <unordered_map>
+#include <filesystem>
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdocumentation"
+#include "kiwix/book.h"
+#include "kiwix/kiwix_config.h"
+#include "zim/archive.h"
+#include "zim/entry.h"
+#include "zim/error.h"
+#include "zim/item.h"
+#include "kiwix/spelling_correction.h"
+#pragma clang diagnostic pop
+
+#import "ZimService.h"
+#import "ZimFileMetaData.h"
+#import "xapian.h"
+
+@interface ZimService ()
+
+@property (assign) std::unordered_map<std::string, zim::Archive> *archives; // (NSUUID_c: Archive)
+@property (strong) NSMutableDictionary *fileURLs; // [NSUUID: URL]
+
+@end
+
+@implementation ZimService
+
+#pragma mark - init
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        // 16*1024*1024
+        // as of:
+        // https://github.com/kiwix/libkiwix/issues/1265#issuecomment-3817993025
+        zim::setClusterCacheMaxSize(16777216);
+        self.archives = new std::unordered_map<std::string, zim::Archive>();
+        self.fileURLs = [[NSMutableDictionary alloc] init];
+        self.libzimVersion = [[NSString alloc] initWithUTF8String:LIBZIM_VERSION];
+        self.libkiwixVersion = [[NSString alloc] initWithUTF8String:LIBKIWIX_VERSION];
+    }
+    return self;
+}
+
++ (ZimService *)sharedInstance {
+    static ZimService *sharedInstance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedInstance = [[ZimService alloc] init];
+    });
+    return sharedInstance;
+}
+
+- (void)dealloc {
+    delete self.archives;
+    for (NSUUID *zimFileID in self.fileURLs) {
+        [self.fileURLs[zimFileID] stopAccessingSecurityScopedResource];
+    }
+}
+
+#pragma mark - Reader Management
+
+- (void)store:(NSURL *)url with:(NSUUID *)zimFileID {
+    try {
+        // if url does not ends with "zim", skip it
+        NSString *pathExtension = [[url pathExtension] lowercaseString];
+        if (![pathExtension isEqualToString:@"zim"]) {
+            return;
+        }
+        self.fileURLs[zimFileID] = url;
+    } catch (std::exception) {
+        NSLog(@"Error opening zim file.");
+    }
+}
+
+- (NSUUID *_Nullable)open:(NSUUID *)zimFileID {
+    if ([self archiveBy:zimFileID] == nil) {
+        return nil;
+    }
+    return zimFileID;
+}
+
+- (void)close:(NSUUID *)zimFileID {
+    self.archives->erase([self zimfileID_C: zimFileID]);
+    [self.fileURLs[zimFileID] stopAccessingSecurityScopedResource];
+    [self.fileURLs removeObjectForKey:zimFileID];
+}
+
+- (NSArray *)getReaderIdentifiers {
+    return [self.fileURLs allKeys];
+}
+
+- (nonnull void *) getArchives {
+    NSLog(@"archives: %zu",  self.archives->size());
+    return self.archives;
+}
+
+# pragma mark - Spelling
+- (SpellingsDBWrapper *_Nullable)spellingsDBFor:(NSUUID *)zimFileID cachePath:(NSString *)contentPath {
+    
+    zim::Archive *archive = [self archiveBy: zimFileID];
+    if (archive == nil) {
+        NSLog(@"cannot find ZIM by ID: %@ (%@)", zimFileID.UUIDString, contentPath);
+        return nil;
+    }
+    try {
+        @synchronized (self) {
+            NSLog(@"createSpellingIndex for:%@, in: %@", zimFileID.UUIDString, contentPath);
+            // this should be safe for utf-8, it comes from swift URL.path(percentEncoded=True)
+            std::filesystem::path path = std::filesystem::path([contentPath cStringUsingEncoding: NSUTF8StringEncoding]);
+            auto db = std::make_unique<kiwix::SpellingsDB>(*archive, path);
+            SpellingsDBWrapper *wrapper = [[SpellingsDBWrapper alloc] initWithDB: std::move(db)];
+            return wrapper;
+        }
+    } catch (std::exception e) {
+        NSLog(@"create spelling index exception: %s", e.what());
+        return nil;
+    } catch (Xapian::DatabaseError e) {
+        NSLog(@"create spelling index exception no database found: %s", e.get_description().c_str());
+        return nil;
+    }
+}
+
+- (void) createSpellingIndex:(NSUUID *)zimFileID cachePath:(NSString *)contentPath {
+    [self spellingsDBFor:zimFileID cachePath:contentPath];
+}
+
+# pragma mark - Metadata
+
++ (ZimFileMetaData *_Nullable)getMetaDataWithFileURL:(NSURL *)url {
+    ZimFileMetaData *metaData = nil;
+    [url startAccessingSecurityScopedResource];
+    try {
+        kiwix::Book book = kiwix::Book();
+        book.update(zim::Archive([url fileSystemRepresentation]));
+        // since we do have the ZIM file locally, we wan't the favicon as well
+        metaData = [[ZimFileMetaData alloc] initWithBook: &book fetchFavicon: true];
+    } catch (std::exception e) {
+        [url stopAccessingSecurityScopedResource];
+        return nil;
+    }
+    [url stopAccessingSecurityScopedResource];
+    return metaData;
+}
+
+# pragma mark - URL Handling
+
+- (NSURL *)getFileURL:(NSUUID *)zimFileID {
+    return self.fileURLs[zimFileID];
+}
+
+- (NSString *_Nullable) getRedirectedPath:(NSUUID *_Nonnull)zimFileID contentPath:(NSString *_Nonnull)contentPath {
+    zim::Archive *archive = [self archiveBy: zimFileID];
+    if (archive == nil) { return nil; }
+    try {
+        const char *_Nullable contentPathC = [contentPath cStringUsingEncoding:NSUTF8StringEncoding];
+        if (contentPathC != nil) {
+            zim::Item item = archive->getEntryByPath(contentPathC).getRedirect();
+            return [NSString stringWithUTF8String: item.getPath().c_str()];
+        } else {
+            return nil;
+        }
+    } catch (std::exception) {
+        return nil;
+    }
+}
+
+- (NSString *_Nullable)getMainPagePath:(NSUUID *)zimFileID {
+    zim::Archive *archive = [self archiveBy: zimFileID];
+    if (archive == nil) { return nil; }
+    try {
+        zim::Entry entry = archive->getMainEntry();
+        zim::Item item = entry.getItem(entry.isRedirect());
+        NSString *_Nullable pagePath = [NSString stringWithCString:item.getPath().c_str() encoding:NSUTF8StringEncoding];
+        return pagePath;
+    } catch (std::exception) {
+        return nil;
+    }
+}
+
+- (NSString *_Nullable)getRandomPagePath:(NSUUID *)zimFileID {
+    zim::Archive *archive = [self archiveBy: zimFileID];
+    if (archive == nil) { return nil; }
+    try {
+        zim::Entry entry = archive->getRandomEntry();
+        zim::Item item = entry.getItem(entry.isRedirect());
+        NSString *_Nullable pagePath = [NSString stringWithCString:item.getPath().c_str() encoding:NSUTF8StringEncoding];
+        return pagePath;
+    } catch (std::exception) {
+        return nil;
+    }
+}
+
+- (NSNumber* _Nullable)getContentSize:(NSUUID *)zimFileID contentPath:(NSString *)contentPath {
+    try {
+        zim::Item item = [self itemIn:zimFileID contentPath:contentPath];
+        return [NSNumber numberWithUnsignedLongLong:item.getSize()];
+    } catch (std::exception) {
+        return nil;
+    }
+}
+
+- (NSDictionary *)getMetaData:(NSUUID *)zimFileID contentPath:(NSString *)contentPath {
+    try {
+        zim::Item item = [self itemIn:zimFileID contentPath:contentPath];
+        NSDate *modificationDate = [self getModificationDateOf: zimFileID];
+        if(modificationDate == nil) {
+            return nil;
+        }
+        return @{
+            @"mime": [NSString stringWithUTF8String:item.getMimetype().c_str()],
+            @"size": [NSNumber numberWithUnsignedLongLong:item.getSize()],
+            @"title": [NSString stringWithUTF8String:item.getTitle().c_str()],
+            @"zimFileDate": modificationDate
+        };
+    } catch (zim::EntryNotFound(EntryNotFound)) {
+        return nil;
+    } catch (std::exception) {
+        return nil;
+    }
+}
+
+- (NSDictionary *)getContent:(NSUUID *)zimFileID contentPath:(NSString *)contentPath
+                       start:(NSUInteger)start end:(NSUInteger)end {
+    try {
+        zim::Item item = [self itemIn:zimFileID contentPath:contentPath];
+        zim::Blob blob;
+        if (start == 0 && end == 0) {
+            blob = item.getData();
+        } else if (end == 0) {
+            blob = item.getData(start, item.getSize() - start);
+        } else {
+            blob = item.getData(start, fmin(item.getSize() - start, end - start + 1));
+        }
+        return @{
+            @"data": [NSData dataWithBytes: blob.data() length:blob.size()],
+            @"start": [NSNumber numberWithUnsignedLongLong:start],
+            @"end": [NSNumber numberWithUnsignedLongLong:start + blob.size() - 1]
+        };
+    } catch (std::exception) {
+        return nil;
+    }
+}
+
+- (NSDictionary *_Nullable) getDirectAccess: (NSUUID *)zimFileID contentPath:(NSString *)contentPath {
+    try {
+        zim::Item item = [self itemIn:zimFileID contentPath: contentPath];
+        zim::ItemDataDirectAccessInfo info = item.getDirectAccessInformation();
+        return @{
+            @"path": [NSString stringWithUTF8String: info.filename.c_str()],
+            @"offset": [NSNumber numberWithUnsignedLong: info.offset]
+        };
+    } catch(std::exception) {
+        return nil;
+    }
+}
+
+# pragma mark - ZIM integrity check
+- (Boolean) checkIntegrity: (NSUUID *_Nonnull) zimFileID {
+    zim::Archive *archive = [self archiveBy: zimFileID];
+    if (archive == nil) { return false; }
+    return archive->checkIntegrity(zim::IntegrityCheck::CHECKSUM);
+}
+
+# pragma mark - private
+
+/// Converts the UUID to a C representation
+- (std::string) zimfileID_C: (NSUUID *_Nonnull) zimFileID {
+    // should be safe for utf-8 encoding
+    return [[[zimFileID UUIDString] lowercaseString] cStringUsingEncoding:NSUTF8StringEncoding];
+}
+
+/// Find or insert and return the archive by zimFileID
+- (zim::Archive *_Nullable) archiveBy: (NSUUID *_Nonnull) zimFileID {
+    zim::Archive *found = [self findArchiveBy:zimFileID];
+    if(found == nil) {
+        NSURL *url = self.fileURLs[zimFileID];
+        if (url == nil) {
+            return nil;
+        }
+        [self insertIntoArchives:url with:zimFileID];
+        return [self findArchiveBy: zimFileID];
+    } else {
+        return found;
+    }
+}
+
+/// Only find (no insertion of) the archive by zimFileID
+- (zim::Archive *_Nullable) findArchiveBy: (NSUUID *_Nonnull) zimFileID {
+    std::string zimFileID_C = [self zimfileID_C: zimFileID];
+    auto found = self.archives->find(zimFileID_C);
+    if (found == self.archives->end()) {
+        return nil;
+    }
+    return &(found->second);
+}
+
+- (void) insertIntoArchives: (NSURL *_Nonnull) url with: (NSUUID *_Nonnull) zimFileID {
+    try {
+        [url startAccessingSecurityScopedResource];
+        zim::Archive archive = zim::Archive([url fileSystemRepresentation]); // takes the longest time
+        self.archives->insert(std::make_pair(std::string(archive.getUuid()), archive));
+    } catch (std::exception) {
+        NSLog(@"cannot insert archive with: %@, %@", url.absoluteString, zimFileID.UUIDString);
+    }
+}
+
+- (zim::Item) itemIn: (NSUUID *)zimFileID contentPath:(NSString *)contentPath {
+    if ([contentPath hasPrefix:@"/"]) {
+        contentPath = [contentPath substringFromIndex:1];
+    }
+    zim::Archive *archive = [self archiveBy: zimFileID];
+    if (archive == nil) { throw std::exception(); }
+    
+    const char *_Nullable contentPath_c = [contentPath cStringUsingEncoding:NSUTF8StringEncoding];
+    if (contentPath_c == nil) {
+        throw std::exception();
+    }
+    zim::Entry entry = archive->getEntryByPath(contentPath_c);
+    return entry.getItem(entry.isRedirect());
+}
+
+/// get the modification date of the ZIM file itself
+- (NSDate *_Nullable) getModificationDateOf: (NSUUID *_Nonnull) zimFileID {
+    NSURL *fileURL = [self getFileURL: zimFileID];
+    if (fileURL == nil) {
+        return nil;
+    }
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSError *error = nil;
+    NSDictionary *fileAttributes = [fileManager attributesOfItemAtPath:[fileURL path] error:&error];
+    if (fileAttributes) {
+        return [fileAttributes objectForKey:NSFileModificationDate];
+    } else {
+        NSLog(@"Error retrieving file modification date: %@", [error localizedDescription]);
+        return nil;
+    }
+}
+
+@end

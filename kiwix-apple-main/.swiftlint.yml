@@ -1,0 +1,12 @@
+disabled_rules:
+  - trailing_whitespace
+included:
+  - Views/Settings/
+excluded:
+  - Support/LocalString.swift
+  - UITests_iPhone
+  - UITests_iPad
+  - UITests_macOS
+  - Tests
+identifier_name:
+  excluded: ["i", "k", "x", "y", "id"]

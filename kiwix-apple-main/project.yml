@@ -1,0 +1,249 @@
+name: Kiwix
+options:
+  xcodeVersion: 26.0
+  deploymentTarget: # the three latest major versions should be supported
+    iOS: 17.6
+    macOS: 14.6
+  generateEmptyDirectories: true
+  useTabs: false
+  groupSortPosition: top
+  postGenCommand: cp IDETemplateMacros.plist Kiwix.xcodeproj/xcshareddata/
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: L7HWM3SP3L
+    GENERATE_INFOPLIST_FILE: YES
+    CURRENT_PROJECT_VERSION: 250
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    ENABLE_MODULE_VERIFIER: YES
+    MODULE_VERIFIER_SUPPORTED_LANGUAGES: "objective-c objective-c++"
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
+    ENABLE_PREVIEWS: YES
+    INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.reference
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+    INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Kiwix needs permission to saves images to your photos app."
+    INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+    INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+    SWIFT_OBJC_INTEROP_MODE: objcxx
+    SWIFT_OBJC_BRIDGING_HEADER: $(PROJECT_DIR)/Support/Kiwix-Bridging-Header.h
+    GCC_C_LANGUAGE_STANDARD: c11
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+    ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+    APP_STORE_ID: $(APP_STORE_ID)
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    SWIFT_VERSION: 6
+
+  configs:
+    debug:
+      DEAD_CODE_STRIPPING: YES
+      MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS: "gnu11 gnu14++"
+    release:
+      DEAD_CODE_STRIPPING: YES
+      MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS: "gnu11 gnu14++"
+      VALIDATE_PRODUCT: YES
+
+packages:
+  Defaults:
+    url: https://github.com/sindresorhus/Defaults
+    majorVersion: 8.2.0
+  StripeApplePay:
+    url: https://github.com/CodeLikeW/stripe-apple-pay
+    majorVersion: 24.23.0
+  SwiftSystem:
+    url: https://github.com/apple/swift-system
+    revision: b083113aef646d9d35403ca17e9789b750e42d1d
+
+targetTemplates:
+  ApplicationTemplate:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    entitlements:
+      path: Support/Kiwix.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.network.client: true
+        com.apple.security.network.server: true
+        com.apple.security.print: true
+    dependencies:
+      - framework: CoreKiwix.xcframework
+        embed: false
+        codeSign: true
+      - sdk: SwiftUI.framework
+      - sdk: MapKit.framework
+      - sdk: WebKit.framework
+      - sdk: NotificationCenter.framework
+      - sdk: QuickLook.framework
+      - sdk: PassKit.framework
+      - sdk: SystemConfiguration.framework
+      - package: Defaults
+      - package: StripeApplePay
+      - package: SwiftSystem
+        product: SystemPackage
+        destinationFilters: 
+          - macOS
+    sources:
+      - path: App
+      - path: Model
+      - path: SwiftUI
+      - path: ViewModel
+      - path: Views
+      - path: PrivacyInfo.xcprivacy
+        destinationFilters:
+          - iOS
+      - path: Contents
+        includes:
+          - Resources
+          - Resources/PrivacyInfo.xcprivacy
+        destinationFilters:
+          - macOS
+
+targets:
+  Kiwix:
+    templates:
+      - ApplicationTemplate
+    entitlements:
+      properties:
+        com.apple.security.files.downloads.read-write: true
+        com.apple.developer.in-app-payments: [merchant.org.kiwix.apple] # this line is removed for macOS FTP
+    settings:
+      base:
+        MARKETING_VERSION: "3.14.0"
+        PRODUCT_BUNDLE_IDENTIFIER: self.Kiwix
+        INFOPLIST_KEY_CFBundleDisplayName: Kiwix
+        INFOPLIST_FILE: Support/Info.plist
+        INFOPLIST_KEY_UILaunchStoryboardName: SplashScreenKiwix.storyboard
+    sources:
+      - path: Support
+        excludes:
+          - "**/qqq.lproj"
+          - "**/igl.lproj"
+          - "**/dag.lproj"
+      - path: Kiwix/SplashScreenKiwix.storyboard
+        destinationFilters:
+          - iOS
+  UnitTests:
+    type: bundle.unit-test
+    supportedDestinations: [iOS, macOS]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: self.kiwix.Tests
+      TEST_HOST: $(BUILT_PRODUCTS_DIR)/Kiwix.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Kiwix
+      BUNDLE_LOADER: $(TEST_HOST)
+    entitlements:
+      path: Support/Kiwix-unitTest.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        # from macOS 14, sandbox and unit test are not working together on CI
+        # a pop up appears that needs user acceptance
+        # see: https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Kiwix
+
+  UITests_macOS:
+    type: bundle.ui-testing
+    supportedDestinations: [macOS]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: self.Kiwix.UITests.macOS
+      # TEST_HOST: $(BUILT_PRODUCTS_DIR)/Kiwix.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Kiwix
+      BUNDLE_LOADER: $(TEST_HOST)
+    entitlements:
+      path: Support/Kiwix-unitTest.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        # from macOS 14, sandbox and unit test are not working together on CI
+        # a pop up appears that needs user acceptance
+        # see: https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox
+    sources:
+      - path: UITests_macOS
+    dependencies:
+      - target: Kiwix
+
+  UITests_iPhone:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    settings:
+      # https://developer.apple.com/documentation/xcode/build-settings-reference#Targeted-Device-Families
+      TARGETED_DEVICE_FAMILY: 1
+      SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+      SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+      PRODUCT_BUNDLE_IDENTIFIER: self.Kiwix.UITests.iPhone
+      BUNDLE_LOADER: $(TEST_HOST)
+    entitlements:
+      path: Support/Kiwix-unitTest.entitlements
+    sources:
+      - path: UITests_iPhone
+      - path: UITests_common
+    dependencies:
+      - target: Kiwix
+
+  UITests_iPad:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    settings:
+      SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+      SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+      # https://developer.apple.com/documentation/xcode/build-settings-reference#Targeted-Device-Families
+      TARGETED_DEVICE_FAMILY: 2
+      PRODUCT_BUNDLE_IDENTIFIER: self.Kiwix.UITests.iPad
+      BUNDLE_LOADER: $(TEST_HOST)
+    entitlements:
+      path: Support/Kiwix-unitTest.entitlements
+    sources:
+      - path: UITests_iPad
+      - path: UITests_common
+    dependencies:
+      - target: Kiwix
+
+schemes:
+  Kiwix:
+    build:
+      targets:
+        Kiwix: all
+    test:
+      targets:
+        - UnitTests
+      commandLineArguments:
+        testing: true
+      gatherCoverageData: true
+      coverageTargets:
+        - Kiwix
+      preActions:
+        - script: xcrun simctl uninstall booted self.Kiwix
+          settingsTarget: Kiwix
+  UITests_macOS:
+    build:
+      targets:
+        Kiwix: all
+    test:
+      targets:
+        - UITests_macOS
+      commandLineArguments:
+        testing: true
+  UITests_iPhone:
+    build:
+      targets:
+        Kiwix: all
+    test:
+      targets:
+        - UITests_iPhone
+      commandLineArguments:
+        testing: true
+      preActions:
+        - script: xcrun simctl uninstall booted self.Kiwix
+          settingsTarget: Kiwix
+  UITests_iPad:
+    build:
+      targets:
+        Kiwix: all
+    test:
+      targets:
+        - UITests_iPad
+      commandLineArguments:
+        testing: true
+      preActions:
+        - script: xcrun simctl uninstall booted self.Kiwix
+          settingsTarget: Kiwix
