@@ -4,11 +4,13 @@ import SwiftUI
 struct AtlasMasaIOSApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var session = SessionStore()
+    @StateObject private var remote = DesktopRemoteControlStore()
 
     var body: some Scene {
         WindowGroup {
             RootDashboardView()
                 .environmentObject(session)
+                .environmentObject(remote)
                 .preferredColorScheme(.dark)
                 .task {
                     await session.bootstrap()

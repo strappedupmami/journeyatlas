@@ -13,53 +13,75 @@ struct AdaptiveSurveyCard: View {
             title: "Adaptive Deep Survey",
             subtitle: "Calibrating your long-term operational profile"
         ) {
-            HStack(alignment: .top, spacing: 32) {
-                // MARK: - LEFT COLUMN: Status & Context
-                VStack(spacing: 24) {
-                    surveyStatusPanel
-
-                    if let hints = session.survey?.profileHints, !hints.isEmpty {
-                        profileHintsPanel(hints: hints)
-                    }
-
-                    explanationPanel
-                }
-                .frame(width: 320) // Fixed width for the sidebar
-
-                // MARK: - RIGHT COLUMN: The Stage (Hinge-Style Focus)
-                VStack {
-                    Spacer(minLength: 40)
-
-                    if let survey = session.survey {
-                        if let question = survey.question {
-                            // Active Question Card
-                            Group {
-                                if question.kind == "multi_choice" {
-                                    multiChoiceQuestionCard(for: question)
-                                } else {
-                                    questionCard(for: question)
-                                }
+            VStack(alignment: .leading, spacing: 20) {
+                if session.canViewRuntimeDiagnostics && session.shouldShowLocalRuntimeProgressUI {
+                    AtlasPanel(heading: session.runtimeHealthHeadline, caption: "Survey uses the same local AI runtime as Command and Concierge") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let statusMessage = session.localAIChatStatusMessage {
+                                Text(statusMessage)
+                                    .font(.subheadline)
+                                    .foregroundStyle(AtlasTheme.textSecondary)
                             }
-                                .transition(AnyTransition.asymmetric(
-                                    insertion: AnyTransition.opacity.combined(with: AnyTransition.move(edge: .trailing)),
-                                    removal: AnyTransition.opacity.combined(with: AnyTransition.move(edge: .leading))
-                                ))
-                        } else {
-                            // Completion State
-                            completionCard
-                                .transition(AnyTransition.opacity.combined(with: AnyTransition.scale))
+                            AtlasModelRuntimeProgressStrip(
+                                progress: session.localModelRuntimeProgress,
+                                busy: session.localModelRuntimeIsBusy,
+                                title: "Local Runtime",
+                                sizeText: session.localModelDownloadSizeText,
+                                etaText: session.localModelDownloadETAText,
+                                compact: false
+                            )
                         }
-                    } else {
-                        // Loading State
-                        ProgressView("Synthesizing survey data...")
-                            .controlSize(.large)
-                            .foregroundStyle(AtlasTheme.textSecondary)
                     }
-
-                    Spacer(minLength: 40)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: session.survey?.question?.title)
+
+                HStack(alignment: .top, spacing: 32) {
+                // MARK: - LEFT COLUMN: Status & Context
+                    VStack(spacing: 24) {
+                        surveyStatusPanel
+
+                        if let hints = session.survey?.profileHints, !hints.isEmpty {
+                            profileHintsPanel(hints: hints)
+                        }
+
+                        explanationPanel
+                    }
+                    .frame(width: 320) // Fixed width for the sidebar
+
+                    // MARK: - RIGHT COLUMN: The Stage (Hinge-Style Focus)
+                    VStack {
+                        Spacer(minLength: 40)
+
+                        if let survey = session.survey {
+                            if let question = survey.question {
+                                // Active Question Card
+                                Group {
+                                    if question.kind == "multi_choice" {
+                                        multiChoiceQuestionCard(for: question)
+                                    } else {
+                                        questionCard(for: question)
+                                    }
+                                }
+                                    .transition(AnyTransition.asymmetric(
+                                        insertion: AnyTransition.opacity.combined(with: AnyTransition.move(edge: .trailing)),
+                                        removal: AnyTransition.opacity.combined(with: AnyTransition.move(edge: .leading))
+                                    ))
+                            } else {
+                                // Completion State
+                                completionCard
+                                    .transition(AnyTransition.opacity.combined(with: AnyTransition.scale))
+                            }
+                        } else {
+                            // Loading State
+                            ProgressView("Synthesizing survey data...")
+                                .controlSize(.large)
+                                .foregroundStyle(AtlasTheme.textSecondary)
+                        }
+
+                        Spacer(minLength: 40)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: session.survey?.question?.title)
+                }
             }
         }
     }

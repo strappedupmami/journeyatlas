@@ -110,6 +110,14 @@ final class SessionStore: ObservableObject {
     @Published var travelRegion = "Israel"
     @Published var annualDistanceKM = "70000"
     @Published var workspaceMode = "Business mobility"
+    @Published var savedTravelLocations: [SavedTravelLocation] = []
+    @Published var selectedTravelLocationID: String?
+    @Published var activeTravelItinerary = TravelItineraryDraft(
+        id: "default-travel-itinerary",
+        title: "Travel itinerary",
+        locationIDs: [],
+        updatedAt: ISO8601DateFormatter().string(from: Date())
+    )
     @Published var jobMarketOpportunities: [JobOpportunity] = []
     @Published var jobOpportunityNarratives: [String: String] = [:]
 
@@ -3873,6 +3881,96 @@ final class SessionStore: ObservableObject {
 
     var isGuidedLearningRuntimeActive: Bool {
         guidedLearningActivated && isPrimarySurveyComplete
+    }
+
+    var selectedTravelLocation: SavedTravelLocation? {
+        guard let selectedTravelLocationID else { return nil }
+        return savedTravelLocations.first(where: { $0.id == selectedTravelLocationID })
+    }
+
+    var activeTravelItineraryLocations: [SavedTravelLocation] {
+        activeTravelItinerary.locationIDs.compactMap { id in
+            savedTravelLocations.first(where: { $0.id == id })
+        }
+    }
+
+    func addSavedTravelLocation(name: String, query: String, notes: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !trimmedQuery.isEmpty else { return }
+        let location = SavedTravelLocation(
+            id: UUID().uuidString,
+            name: trimmedName,
+            googleMapsQuery: trimmedQuery,
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+            createdAt: isoTimestamp()
+        )
+        savedTravelLocations.insert(location, at: 0)
+        selectedTravelLocationID = location.id
+        persistStateToDisk()
+        appendOutput("Saved travel location: \(trimmedName)")
+    }
+
+    func updateSavedTravelLocation(id: String, name: String, query: String, notes: String) {
+        guard let index = savedTravelLocations.firstIndex(where: { $0.id == id }) else { return }
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !trimmedQuery.isEmpty else { return }
+        savedTravelLocations[index].name = trimmedName
+        savedTravelLocations[index].googleMapsQuery = trimmedQuery
+        savedTravelLocations[index].notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        persistStateToDisk()
+        appendOutput("Updated travel location: \(trimmedName)")
+    }
+
+    func removeSavedTravelLocation(id: String) {
+        savedTravelLocations.removeAll { $0.id == id }
+        activeTravelItinerary.locationIDs.removeAll { $0 == id }
+        activeTravelItinerary.updatedAt = isoTimestamp()
+        if selectedTravelLocationID == id {
+            selectedTravelLocationID = savedTravelLocations.first?.id
+        }
+        persistStateToDisk()
+        appendOutput("Removed travel location from the saved list.")
+    }
+
+    func addLocationToTravelItinerary(_ id: String) {
+        guard activeTravelItinerary.locationIDs.contains(id) == false else { return }
+        activeTravelItinerary.locationIDs.append(id)
+        activeTravelItinerary.updatedAt = isoTimestamp()
+        persistStateToDisk()
+        appendOutput("Added location to itinerary.")
+    }
+
+    func removeLocationFromTravelItinerary(_ id: String) {
+        activeTravelItinerary.locationIDs.removeAll { $0 == id }
+        activeTravelItinerary.updatedAt = isoTimestamp()
+        persistStateToDisk()
+        appendOutput("Removed location from itinerary.")
+    }
+
+    func moveTravelItineraryLocations(fromOffsets: IndexSet, toOffset: Int) {
+        var reordered = activeTravelItinerary.locationIDs
+        let moving = fromOffsets.map { reordered[$0] }
+        for index in fromOffsets.sorted(by: >) {
+            reordered.remove(at: index)
+        }
+        reordered.insert(contentsOf: moving, at: min(toOffset, reordered.count))
+        activeTravelItinerary.locationIDs = reordered
+        activeTravelItinerary.updatedAt = isoTimestamp()
+        persistStateToDisk()
+    }
+
+    func updateTravelItineraryTitle(_ title: String) {
+        activeTravelItinerary.title = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Travel itinerary"
+            : title.trimmingCharacters(in: .whitespacesAndNewlines)
+        activeTravelItinerary.updatedAt = isoTimestamp()
+        persistStateToDisk()
+    }
+
+    private func isoTimestamp() -> String {
+        ISO8601DateFormatter().string(from: Date())
     }
 
     func appendOutput(_ line: String) {
@@ -10836,6 +10934,9 @@ final class SessionStore: ObservableObject {
             travelRegion: travelRegion,
             annualDistanceKM: annualDistanceKM,
             workspaceMode: workspaceMode,
+            savedTravelLocations: savedTravelLocations,
+            selectedTravelLocationID: selectedTravelLocationID,
+            activeTravelItinerary: activeTravelItinerary,
             notes: persistedNotes,
             surveyAnswers: persistedSurveyAnswers,
             surveyQuestionSessionIndex: surveyQuestionSessionIndex,
@@ -10971,6 +11072,15 @@ final class SessionStore: ObservableObject {
         travelRegion = state.travelRegion
         annualDistanceKM = state.annualDistanceKM
         workspaceMode = state.workspaceMode
+        savedTravelLocations = state.savedTravelLocations ?? []
+        selectedTravelLocationID = state.selectedTravelLocationID
+        activeTravelItinerary = state.activeTravelItinerary
+            ?? TravelItineraryDraft(
+                id: "default-travel-itinerary",
+                title: "Travel itinerary",
+                locationIDs: [],
+                updatedAt: isoTimestamp()
+            )
         notes = state.notes
         surveyAnswers = state.surveyAnswers ?? [:]
         surveyQuestionSessionIndex = state.surveyQuestionSessionIndex ?? [:]
@@ -11057,6 +11167,9 @@ private struct PersistedState: Codable {
     var travelRegion: String
     var annualDistanceKM: String
     var workspaceMode: String
+    var savedTravelLocations: [SavedTravelLocation]?
+    var selectedTravelLocationID: String?
+    var activeTravelItinerary: TravelItineraryDraft?
     var notes: [UserNote]
     var surveyAnswers: [String: String]?
     var surveyQuestionSessionIndex: [String: String]?

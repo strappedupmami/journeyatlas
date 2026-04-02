@@ -6,7 +6,7 @@
 
 ## Windows packaging
 Project:
-- `/Users/avrohom/Downloads/journeyatlas/windows-app/AtlasMasaWindows/AtlasMasaWindows.csproj`
+- `/Users/avrohom/Downloads/BlackHaven/windows-app/AtlasMasaWindows/AtlasMasaWindows.csproj`
 
 Publish commands (from Windows PowerShell):
 - `.\windows-app\scripts\publish-windows.ps1 -Arch x64 -Configuration Release`
@@ -19,7 +19,7 @@ Performance profile behavior:
 
 ## Android packaging
 Project:
-- `/Users/avrohom/Downloads/journeyatlas/android-app`
+- `/Users/avrohom/Downloads/BlackHaven/android-app`
 
 Flavors:
 - `yosef`

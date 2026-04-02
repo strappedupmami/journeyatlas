@@ -1,8 +1,8 @@
 # Swift AI Scientific Corpus Pipeline (Atlas/אטלס)
 
 This pipeline powers the **Swift local AI** in:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS`
 
 Goal: produce research-backed execution streams and tailored service recommendations.
 Design lens: **Travel Design** (execution, journey ops, resilience, recovery, strategy, revenue, systems).
@@ -34,7 +34,7 @@ Required practical fields:
 ## One-shot build
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ./scripts/build_swift_research_corpus.py --input atlas-concierge/kb/training/scientific_papers_seed.jsonl --merge-into-base
 ./scripts/train_swift_travel_design_model.py
 ```
@@ -42,7 +42,7 @@ cd /Users/avrohom/Downloads/journeyatlas
 ## Large-corpus fetch + build (OpenAlex)
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ./scripts/fetch_openalex_atlas_papers.py \
   --query-file atlas-concierge/kb/training/openalex_atlas_queries.txt \
   --pages 20 \
@@ -64,7 +64,7 @@ cd /Users/avrohom/Downloads/journeyatlas
 ## Continuous refresh loop (day/night)
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 RUN_FOREVER=1 \
 INTERVAL_SECONDS=1800 \
 FETCH_OPENALEX=1 \
@@ -101,15 +101,15 @@ Filter to Atlas-relevant domains:
 ## Output files
 
 - iOS research pack:
-  - `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/AtlasResearchPack.swift`
+  - `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/AtlasResearchPack.swift`
 - macOS research pack:
-  - `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/AtlasResearchPack.swift`
+  - `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/AtlasResearchPack.swift`
 - generated science training rows:
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/kb/training/local_reasoner_training_science.jsonl`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/kb/training/local_reasoner_training_science.jsonl`
 - model report:
-  - `/Users/avrohom/Downloads/journeyatlas/docs/ai/swift-travel-design-model-report.md`
+  - `/Users/avrohom/Downloads/BlackHaven/docs/ai/swift-travel-design-model-report.md`
 - scientific corpus report:
-  - `/Users/avrohom/Downloads/journeyatlas/docs/ai/swift-scientific-corpus-report.md`
+  - `/Users/avrohom/Downloads/BlackHaven/docs/ai/swift-scientific-corpus-report.md`
 
 ## Notes
 

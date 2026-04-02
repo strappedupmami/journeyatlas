@@ -8,6 +8,8 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
+using System.Net.Sockets;
 
 namespace AtlasMasaWindows.ViewModels;
 
@@ -21,13 +23,16 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private static readonly TimeSpan NatureSignalRefreshCadence = TimeSpan.FromMinutes(20);
     private static readonly TimeSpan NatureAlertNotificationCooldown = TimeSpan.FromMinutes(90);
     private static readonly TimeSpan WealthReminderNotificationCadence = TimeSpan.FromHours(4);
+    private const int MinimumSurveyAnswersForExecution = 40;
     private const int AuthSessionProbeRetryAttempts = 6;
     private static readonly TimeSpan AuthSessionProbeRetryDelay = TimeSpan.FromMilliseconds(350);
     private const int AdaptiveQuestionHistoryCap = 24;
     private const int AdaptiveQuestionPendingCap = 3;
+    private const int RemoteControlPort = 8765;
 
     private readonly DispatcherQueue _dispatcher;
     private readonly AppStateStore _stateStore;
+    private readonly MemoryVaultService _memoryVault;
     private readonly LocalReasoningEngine _reasoning;
     private readonly OnDeviceLlmClient _llmClient;
     private readonly AcademicResearchService _academicResearch;
@@ -87,6 +92,34 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private string _natureAlertSummary = "Nature signal stack pending first refresh.";
     private int _natureElevatedThreshold = 45;
     private int _natureCriticalThreshold = 70;
+    private string _localModelRuntimeStatus = "Local model runtime pending.";
+    private string _localModelRuntimeDetail = "Enhanced runtime is idle.";
+    private double _localModelRuntimeProgress;
+    private bool _localModelRuntimeIsBusy;
+    private bool _localModelRuntimeReady;
+    private long _localModelDownloadBytes;
+    private long _localModelDownloadTotalBytes;
+    private int? _localModelDownloadEtaSeconds;
+    private Task? _runtimeProvisioningTask;
+    private LocalAIRuntimeStatusCode _localAiRuntimeStatusCode = LocalAIRuntimeStatusCode.NotInstalled;
+    private string _localAiRuntimeLastError = string.Empty;
+    private bool _localAiSetupCompleted;
+    private bool _localAiSetupDeferred;
+    private LocalAIModelPack? _selectedLocalAiModelPack;
+    private DesktopRemoteControlServer? _remoteControlServer;
+    private string _remoteControlStatus = "Desktop remote control offline.";
+    private string _remoteControlUrl = "Unavailable";
+    private string _remoteControlLastAction = "No remote actions yet.";
+    private bool _showRemoteTransferTutorial;
+    private OperatorStateSnapshot? _operatorStateSnapshot;
+    private ChecklistPlan? _activeChecklistPlan;
+    private ActivitySuggestion? _currentActivitySuggestion;
+    private ItineraryPlan? _currentItineraryPlan;
+    private SupportRecommendation? _currentSupportRecommendation;
+    private MemoryVaultSnapshot _memoryVaultSnapshot = new();
+    private string _memoryVaultStatusLine = "Local memory vault pending.";
+    private string _memoryVaultPolicyLine = "Memory vault policy pending.";
+    private string _memoryVaultRecallQuery = string.Empty;
 
     public AtlasSessionState Session { get; } = new();
     public ObservableCollection<SystemLogLine> SystemOutput { get; } = [];
@@ -98,9 +131,113 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public ObservableCollection<SurveyChoice> CurrentSurveyChoices { get; } = [];
     public ObservableCollection<AdaptiveBusinessQuestion> AdaptiveBusinessQuestions { get; } = [];
     public ObservableCollection<NatureSignalTile> NatureSignalTiles { get; } = [];
+    public ObservableCollection<LocalAIModelPack> LocalAIModelPacks { get; } = [];
+    public ObservableCollection<LocalAIModelInstallOption> LocalAIInstallOptions { get; } = [];
+    public ObservableCollection<MemoryRecallHit> MemoryVaultRecallResults { get; } = [];
+
+    public OperatorStateSnapshot? OperatorStateSnapshot
+    {
+        get => _operatorStateSnapshot;
+        private set => SetProperty(ref _operatorStateSnapshot, value);
+    }
+
+    public ChecklistPlan? ActiveChecklistPlan
+    {
+        get => _activeChecklistPlan;
+        private set
+        {
+            if (_activeChecklistPlan == value)
+            {
+                return;
+            }
+
+            AttachChecklistStepHandlers(_activeChecklistPlan, attach: false);
+            if (SetProperty(ref _activeChecklistPlan, value))
+            {
+                AttachChecklistStepHandlers(value, attach: true);
+            }
+        }
+    }
+
+    public ActivitySuggestion? CurrentActivitySuggestion
+    {
+        get => _currentActivitySuggestion;
+        private set => SetProperty(ref _currentActivitySuggestion, value);
+    }
+
+    public ItineraryPlan? CurrentItineraryPlan
+    {
+        get => _currentItineraryPlan;
+        private set => SetProperty(ref _currentItineraryPlan, value);
+    }
+
+    public SupportRecommendation? CurrentSupportRecommendation
+    {
+        get => _currentSupportRecommendation;
+        private set => SetProperty(ref _currentSupportRecommendation, value);
+    }
 
     public string AppTitle => "Atlas Travel Design OS - Windows";
     public string PerformanceSummary => $"Mode: {_performance.Label} | Cores: {_performance.CpuCores} | RAM≈{_performance.PhysicalMemoryGb}GB | Queue workers: {_performance.MaxQueueWorkers} | LLM: {_llmClient.RuntimeModel}";
+    public string MemoryVaultStatusLine
+    {
+        get => _memoryVaultStatusLine;
+        private set => SetProperty(ref _memoryVaultStatusLine, value);
+    }
+    public string MemoryVaultPolicyLine
+    {
+        get => _memoryVaultPolicyLine;
+        private set => SetProperty(ref _memoryVaultPolicyLine, value);
+    }
+    public string MemoryVaultOverview =>
+        $"Archive mode: {_memoryVaultSnapshot.LastArchiveMode} | Raw: {_memoryVaultSnapshot.RawRecords.Count} | Compacted: {_memoryVaultSnapshot.CompactedRecords.Count} | Token pressure: {_memoryVaultSnapshot.LastTokenPressure}/{_memoryVaultSnapshot.LastPolicy.CompactionThresholdTokens}";
+    public string MemoryVaultRecallQuery
+    {
+        get => _memoryVaultRecallQuery;
+        set
+        {
+            if (SetProperty(ref _memoryVaultRecallQuery, value))
+            {
+                RecallMemoryVaultCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+    public string CodeAgentReadinessLine => Session.PrepaidCreditsActive
+        ? $"Hybrid cloud coding ready. Frontend work prefers Gemini 3.1 Pro Preview, backend/build work prefers GPT-5.4, and local Qwen stays available on-device. Queue workers: {_performance.MaxQueueWorkers}."
+        : "Hybrid cloud coding is locked until prepaid credits are active. Local Qwen remains available on-device.";
+    public string CodeAgentToolingLine => ShowClassicCodeTools
+        ? "Desktop tooling live: hybrid cloud routing, scratchpad context, and terminal execution are enabled together."
+        : "Desktop tooling live: hybrid cloud routing is enabled. Turn on classic tools to add scratchpad and terminal context.";
+    public string CodeAgentContextLine
+    {
+        get
+        {
+            var scratchpadState = string.IsNullOrWhiteSpace(ClassicCodeScratchpad)
+                ? "Scratchpad empty"
+                : $"Scratchpad {ClassicCodeScratchpad.Length} chars";
+            var commandState = string.IsNullOrWhiteSpace(ClassicCodeCommandOutput) || ClassicCodeCommandOutput == "Classic tools are hidden by default."
+                ? "No recent terminal output"
+                : "Recent terminal output attached";
+            return $"{scratchpadState} | {commandState}";
+        }
+    }
+    public string RemoteControlStatus
+    {
+        get => _remoteControlStatus;
+        private set => SetProperty(ref _remoteControlStatus, value);
+    }
+
+    public string RemoteControlUrl
+    {
+        get => _remoteControlUrl;
+        private set => SetProperty(ref _remoteControlUrl, value);
+    }
+
+    public bool ShowRemoteTransferTutorial
+    {
+        get => _showRemoteTransferTutorial;
+        private set => SetProperty(ref _showRemoteTransferTutorial, value);
+    }
 
     public string NewPrompt
     {
@@ -249,6 +386,242 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public string NatureThresholdLine => $"Alert thresholds: elevated >= {NatureElevatedThreshold}, critical >= {NatureCriticalThreshold}";
     public string NatureRiskLine => $"Nature risk: {NatureRiskScore}/100 ({NatureRiskBand})";
 
+    public string LocalModelRuntimeStatus
+    {
+        get => _localModelRuntimeStatus;
+        private set => SetProperty(ref _localModelRuntimeStatus, value);
+    }
+
+    public string LocalModelRuntimeDetail
+    {
+        get => _localModelRuntimeDetail;
+        private set => SetProperty(ref _localModelRuntimeDetail, value);
+    }
+
+    public double LocalModelRuntimeProgress
+    {
+        get => _localModelRuntimeProgress;
+        private set => SetProperty(ref _localModelRuntimeProgress, Math.Clamp(value, 0.0, 1.0));
+    }
+
+    public bool LocalModelRuntimeIsBusy
+    {
+        get => _localModelRuntimeIsBusy;
+        private set
+        {
+            if (SetProperty(ref _localModelRuntimeIsBusy, value))
+            {
+                RaisePropertyChanged(nameof(ShowRuntimeProgressStrip));
+            }
+        }
+    }
+
+    public bool LocalModelRuntimeReady
+    {
+        get => _localModelRuntimeReady;
+        private set
+        {
+            if (SetProperty(ref _localModelRuntimeReady, value))
+            {
+                RaisePropertyChanged(nameof(ShowRuntimeProgressStrip));
+            }
+        }
+    }
+
+    public long LocalModelDownloadBytes
+    {
+        get => _localModelDownloadBytes;
+        private set
+        {
+            if (SetProperty(ref _localModelDownloadBytes, Math.Max(0, value)))
+            {
+                RaisePropertyChanged(nameof(LocalModelDownloadSizeText));
+            }
+        }
+    }
+
+    public long LocalModelDownloadTotalBytes
+    {
+        get => _localModelDownloadTotalBytes;
+        private set
+        {
+            if (SetProperty(ref _localModelDownloadTotalBytes, Math.Max(0, value)))
+            {
+                RaisePropertyChanged(nameof(LocalModelDownloadSizeText));
+            }
+        }
+    }
+
+    public int? LocalModelDownloadEtaSeconds
+    {
+        get => _localModelDownloadEtaSeconds;
+        private set
+        {
+            if (SetProperty(ref _localModelDownloadEtaSeconds, value))
+            {
+                RaisePropertyChanged(nameof(LocalModelDownloadEtaText));
+            }
+        }
+    }
+
+    public string LocalModelDownloadSizeText =>
+        LocalModelDownloadTotalBytes <= 0
+            ? "Preparing download..."
+            : $"{FormatByteCount(LocalModelDownloadBytes)} / {FormatByteCount(LocalModelDownloadTotalBytes)}";
+
+    public string LocalModelDownloadEtaText
+    {
+        get
+        {
+            if (LocalModelDownloadEtaSeconds is null || LocalModelDownloadEtaSeconds <= 0)
+            {
+                return "Estimating time remaining...";
+            }
+
+            var eta = LocalModelDownloadEtaSeconds.Value;
+            var minutes = eta / 60;
+            var seconds = eta % 60;
+            if (minutes >= 60)
+            {
+                var hours = minutes / 60;
+                var remainingMinutes = minutes % 60;
+                return $"~{hours}h {remainingMinutes}m remaining";
+            }
+            if (minutes > 0)
+            {
+                return $"~{minutes}m {seconds}s remaining";
+            }
+            return $"~{seconds}s remaining";
+        }
+    }
+
+    public bool ShowRuntimeProgressStrip => LocalModelRuntimeIsBusy || (!LocalModelRuntimeReady && LocalModelRuntimeProgress > 0);
+
+    public LocalAIRuntimeStatusCode LocalAiRuntimeStatusCode
+    {
+        get => _localAiRuntimeStatusCode;
+        private set
+        {
+            if (SetProperty(ref _localAiRuntimeStatusCode, value))
+            {
+                RaisePropertyChanged(nameof(RuntimeHealthHeadline));
+                RaisePropertyChanged(nameof(LocalAiChatStatusMessage));
+                RaisePropertyChanged(nameof(ShouldShowLocalAiSetupExperience));
+                RaisePropertyChanged(nameof(LocalAiPrimaryActionTitle));
+                Session.LocalAiRuntimeStatusCode = value.ToString();
+            }
+        }
+    }
+
+    public string LocalAiRuntimeLastError
+    {
+        get => _localAiRuntimeLastError;
+        private set
+        {
+            if (SetProperty(ref _localAiRuntimeLastError, value))
+            {
+                RaisePropertyChanged(nameof(LocalAiChatStatusMessage));
+                Session.LocalAiRuntimeLastError = value;
+            }
+        }
+    }
+
+    public bool LocalAiSetupCompleted
+    {
+        get => _localAiSetupCompleted;
+        private set
+        {
+            if (SetProperty(ref _localAiSetupCompleted, value))
+            {
+                RaisePropertyChanged(nameof(ShouldShowLocalAiSetupExperience));
+                Session.LocalAiSetupCompleted = value;
+            }
+        }
+    }
+
+    public bool LocalAiSetupDeferred
+    {
+        get => _localAiSetupDeferred;
+        private set
+        {
+            if (SetProperty(ref _localAiSetupDeferred, value))
+            {
+                RaisePropertyChanged(nameof(ShouldShowLocalAiSetupExperience));
+                Session.LocalAiSetupDeferred = value;
+            }
+        }
+    }
+
+    public LocalAIModelPack? SelectedLocalAiModelPack
+    {
+        get => _selectedLocalAiModelPack;
+        set
+        {
+            if (SetProperty(ref _selectedLocalAiModelPack, value))
+            {
+                Session.SelectedLocalAiPackId = value?.Id ?? "starter";
+                RaisePropertyChanged(nameof(SelectedLocalAiPackSummary));
+                RaisePropertyChanged(nameof(SelectedLocalAiInstallSummary));
+            }
+        }
+    }
+
+    public bool ShouldShowLocalAiSetupExperience => !LocalAiSetupCompleted && !LocalAiSetupDeferred && LocalAiRuntimeStatusCode != LocalAIRuntimeStatusCode.Ready;
+
+    public string RuntimeHealthHeadline => LocalAiRuntimeStatusCode switch
+    {
+        LocalAIRuntimeStatusCode.NotInstalled => "BlackHaven Is Preparing Local AI",
+        LocalAIRuntimeStatusCode.InstallingRuntime => "Installing Local AI Runtime",
+        LocalAIRuntimeStatusCode.StartingRuntime => "Starting Local AI",
+        LocalAIRuntimeStatusCode.DownloadingModel => "Downloading Local AI Model",
+        LocalAIRuntimeStatusCode.WarmingModel => "Warming Local AI",
+        LocalAIRuntimeStatusCode.Ready => "Local AI Ready",
+        LocalAIRuntimeStatusCode.Degraded => "Local AI Retrying",
+        _ => "Local AI Needs Attention"
+    };
+
+    public string? LocalAiChatStatusMessage => LocalAiRuntimeStatusCode switch
+    {
+        LocalAIRuntimeStatusCode.NotInstalled => "BlackHaven is preparing local AI. Choose one or both local models to continue.",
+        LocalAIRuntimeStatusCode.InstallingRuntime => "BlackHaven is installing local AI runtime support.",
+        LocalAIRuntimeStatusCode.StartingRuntime => "BlackHaven is starting local AI in the background.",
+        LocalAIRuntimeStatusCode.DownloadingModel => "BlackHaven is downloading your selected local AI model.",
+        LocalAIRuntimeStatusCode.WarmingModel => "BlackHaven is warming the local model for first response.",
+        LocalAIRuntimeStatusCode.Degraded => "Local AI is temporarily unavailable and BlackHaven is retrying.",
+        LocalAIRuntimeStatusCode.Error => string.IsNullOrWhiteSpace(LocalAiRuntimeLastError) ? "Local AI needs attention before chat can continue." : LocalAiRuntimeLastError,
+        _ => null
+    };
+
+    public string LocalAiPrimaryActionTitle => LocalAiRuntimeStatusCode switch
+    {
+        LocalAIRuntimeStatusCode.NotInstalled => "Install Local AI",
+        LocalAIRuntimeStatusCode.InstallingRuntime => "Install Local AI",
+        LocalAIRuntimeStatusCode.Ready => "Repair / Recheck Local AI",
+        _ => "Repair / Retry Local AI"
+    };
+
+    public string RuntimeEndpointReachabilityLine => $"Endpoint: {_llmClient.RuntimeEndpointLabel} · status: {LocalAiRuntimeStatusCode.ToString().ToLowerInvariant()}";
+
+    public string SelectedLocalAiPackSummary => SelectedLocalAiModelPack is null
+        ? "No local AI pack selected."
+        : $"{SelectedLocalAiModelPack.Title} · {SelectedLocalAiModelPack.PrimaryModel} · {SelectedLocalAiModelPack.ApproximateSize}";
+
+    public string SelectedLocalAiInstallSummary
+    {
+        get
+        {
+            var selected = LocalAIInstallOptions.Where(option => option.IsSelected).ToList();
+            if (selected.Count == 0)
+            {
+                return "Select at least one model to continue local AI setup.";
+            }
+
+            var names = string.Join(" + ", selected.Select(option => option.Title));
+            var totalGb = selected.Sum(option => option.ApproximateSizeGb);
+            return $"{names} · {totalGb:0.0} GB total";
+        }
+    }
+
     public SurveyQuestion? CurrentSurveyQuestion
     {
         get => _currentSurveyQuestion;
@@ -274,12 +647,16 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     public string SurveyCompletionLine => IsSurveyCompleted
-        ? "Survey complete. Execution stream unlocked."
-        : "Survey in progress. Complete all questions to unlock full execution stream.";
+        ? $"Baseline survey complete. Keep going until {MinimumSurveyAnswersForExecution} total answers to unlock the full execution stream."
+        : $"Survey in progress. Build toward {MinimumSurveyAnswersForExecution} total answers for full execution unlock.";
 
     public string ExecutionAccessLine => CanAccessExecution
         ? "Execution stream: unlocked."
-        : "Execution stream: locked until survey completion.";
+        : $"Execution stream: locked until {MinimumSurveyAnswersForExecution} total answers are captured.";
+
+    public int TotalIntelligenceAnswersCount => CountAnsweredSurveyQuestions() + AnsweredAdaptiveBusinessQuestionCount;
+
+    public string IntelligenceCoverageLine => $"{TotalIntelligenceAnswersCount} / {MinimumSurveyAnswersForExecution} intelligence answers captured";
 
     public string SelectedSurveyAnswerLabel
     {
@@ -337,13 +714,25 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public bool ShowClassicCodeTools
     {
         get => _showClassicCodeTools;
-        set => SetProperty(ref _showClassicCodeTools, value);
+        set
+        {
+            if (SetProperty(ref _showClassicCodeTools, value))
+            {
+                RaisePropertyChanged(nameof(CodeAgentToolingLine));
+            }
+        }
     }
 
     public string ClassicCodeScratchpad
     {
         get => _classicCodeScratchpad;
-        set => SetProperty(ref _classicCodeScratchpad, value);
+        set
+        {
+            if (SetProperty(ref _classicCodeScratchpad, value))
+            {
+                RaisePropertyChanged(nameof(CodeAgentContextLine));
+            }
+        }
     }
 
     public string ClassicCodeCommandDraft
@@ -361,7 +750,13 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public string ClassicCodeCommandOutput
     {
         get => _classicCodeCommandOutput;
-        private set => SetProperty(ref _classicCodeCommandOutput, value);
+        private set
+        {
+            if (SetProperty(ref _classicCodeCommandOutput, value))
+            {
+                RaisePropertyChanged(nameof(CodeAgentContextLine));
+            }
+        }
     }
 
     public bool IsClassicCodeCommandRunning
@@ -382,18 +777,42 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         private set => SetProperty(ref _authFlowStatusLine, value);
     }
 
+    public string RemoteControlToken
+    {
+        get => Session.RemoteControlToken;
+        private set
+        {
+            if (Session.RemoteControlToken != value)
+            {
+                Session.RemoteControlToken = value;
+                RaisePropertyChanged(nameof(RemoteControlToken));
+            }
+        }
+    }
+
+    public string RemoteControlLastAction
+    {
+        get => _remoteControlLastAction;
+        private set => SetProperty(ref _remoteControlLastAction, value);
+    }
+
     public AsyncRelayCommand SubmitCheckInCommand { get; }
     public AsyncRelayCommand AddNoteCommand { get; }
     public AsyncRelayCommand EnqueuePromptCommand { get; }
     public AsyncRelayCommand RunCodeAgentTaskCommand { get; }
     public AsyncRelayCommand RunClassicCodeCommandCommand { get; }
     public AsyncRelayCommand RefreshExecutionCommand { get; }
+    public AsyncRelayCommand GenerateChecklistPlanCommand { get; }
+    public AsyncRelayCommand GenerateActivitySuggestionCommand { get; }
+    public AsyncRelayCommand GenerateItineraryPlanCommand { get; }
+    public AsyncRelayCommand RefreshSupportRecommendationCommand { get; }
     public AsyncRelayCommand AddWorkspaceSessionCommand { get; }
     public AsyncRelayCommand SignInAppleCommand { get; }
     public AsyncRelayCommand SignInGoogleCommand { get; }
     public AsyncRelayCommand SignInPasskeyCommand { get; }
     public AsyncRelayCommand SignUpPasskeyCommand { get; }
     public AsyncRelayCommand SignOutCommand { get; }
+    public AsyncRelayCommand DismissRemoteTransferTutorialCommand { get; }
     public AsyncRelayCommand SaveBackendConfigCommand { get; }
     public AsyncRelayCommand ApplyWorldMonitorUrlCommand { get; }
     public AsyncRelayCommand UseHostedWorldMonitorCommand { get; }
@@ -406,11 +825,22 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public AsyncRelayCommand RequestAdaptiveQuestionNowCommand { get; }
     public AsyncRelayCommand SubmitAdaptiveQuestionResponseCommand { get; }
     public AsyncRelayCommand RefreshNatureSignalStackCommand { get; }
+    public AsyncRelayCommand InstallLocalAiCommand { get; }
+    public AsyncRelayCommand RetryLocalAiSetupCommand { get; }
+    public AsyncRelayCommand DeferLocalAiSetupCommand { get; }
+    public AsyncRelayCommand CompactMemoryVaultCommand { get; }
+    public AsyncRelayCommand DeepArchiveMemoryVaultCommand { get; }
+    public AsyncRelayCommand RecallMemoryVaultCommand { get; }
+    public AsyncRelayCommand DeleteLocalMemoryCommand { get; }
+    public RelayCommand RegenerateRemoteControlTokenCommand { get; }
+    public RelayCommand<LocalAIModelPack> SelectLocalAiPackCommand { get; }
+    public RelayCommand<ChecklistStep> ToggleChecklistStepCommand { get; }
 
     public MainViewModel(DispatcherQueue dispatcherQueue)
     {
         _dispatcher = dispatcherQueue;
         _stateStore = new AppStateStore();
+        _memoryVault = new MemoryVaultService();
         _reasoning = new LocalReasoningEngine();
         _performance = SystemPerformanceProfile.Detect();
         _llmClient = new OnDeviceLlmClient(_performance);
@@ -435,12 +865,17 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             () => !string.IsNullOrWhiteSpace(ClassicCodeCommandDraft) && !IsClassicCodeCommandRunning
         );
         RefreshExecutionCommand = new AsyncRelayCommand(RefreshExecutionAsync);
+        GenerateChecklistPlanCommand = new AsyncRelayCommand(GenerateChecklistPlanAsync);
+        GenerateActivitySuggestionCommand = new AsyncRelayCommand(GenerateActivitySuggestionAsync);
+        GenerateItineraryPlanCommand = new AsyncRelayCommand(GenerateItineraryPlanAsync);
+        RefreshSupportRecommendationCommand = new AsyncRelayCommand(RefreshSupportRecommendationAsync);
         AddWorkspaceSessionCommand = new AsyncRelayCommand(AddWorkspaceSessionAsync, () => !string.IsNullOrWhiteSpace(NewWorkspaceTitle));
         SignInAppleCommand = new AsyncRelayCommand(() => RunInteractiveAuthAsync(AuthBrowserAction.AppleSignIn), () => !_isAuthFlowInProgress);
         SignInGoogleCommand = new AsyncRelayCommand(() => RunInteractiveAuthAsync(AuthBrowserAction.GoogleSignIn), () => !_isAuthFlowInProgress);
         SignInPasskeyCommand = new AsyncRelayCommand(() => RunInteractiveAuthAsync(AuthBrowserAction.PasskeySignIn), () => !_isAuthFlowInProgress);
         SignUpPasskeyCommand = new AsyncRelayCommand(() => RunInteractiveAuthAsync(AuthBrowserAction.PasskeySignUp), () => !_isAuthFlowInProgress);
         SignOutCommand = new AsyncRelayCommand(SignOutAsync, () => !_isAuthFlowInProgress);
+        DismissRemoteTransferTutorialCommand = new AsyncRelayCommand(DismissRemoteTransferTutorialAsync);
         SaveBackendConfigCommand = new AsyncRelayCommand(SaveBackendConfigAsync, () => !string.IsNullOrWhiteSpace(BackendApiBaseDraft));
         ApplyWorldMonitorUrlCommand = new AsyncRelayCommand(ApplyWorldMonitorUrlAsync, () => !string.IsNullOrWhiteSpace(WorldMonitorUrlDraft));
         UseHostedWorldMonitorCommand = new AsyncRelayCommand(() => SetWorldMonitorEndpointAsync(HostedWorldMonitorUrl, "World Monitor switched to hosted endpoint."));
@@ -452,6 +887,37 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         RequestAdaptiveQuestionNowCommand = new AsyncRelayCommand(RequestAdaptiveQuestionNowAsync, () => Session.GuidedLearningRuntimeActive);
         SubmitAdaptiveQuestionResponseCommand = new AsyncRelayCommand(SubmitAdaptiveQuestionResponseAsync, () => CanSubmitAdaptiveQuestionResponse());
         RefreshNatureSignalStackCommand = new AsyncRelayCommand(() => RefreshNatureSignalStackAsync(sendAlertNotifications: true));
+        InstallLocalAiCommand = new AsyncRelayCommand(InstallLocalAiAsync);
+        RetryLocalAiSetupCommand = new AsyncRelayCommand(RetryLocalAiSetupAsync);
+        DeferLocalAiSetupCommand = new AsyncRelayCommand(DeferLocalAiSetupAsync);
+        CompactMemoryVaultCommand = new AsyncRelayCommand(CompactMemoryVaultAsync);
+        DeepArchiveMemoryVaultCommand = new AsyncRelayCommand(DeepArchiveMemoryVaultAsync);
+        RecallMemoryVaultCommand = new AsyncRelayCommand(RecallMemoryVaultAsync, () => !string.IsNullOrWhiteSpace(MemoryVaultRecallQuery));
+        DeleteLocalMemoryCommand = new AsyncRelayCommand(DeleteLocalMemoryAsync);
+        RegenerateRemoteControlTokenCommand = new RelayCommand(() =>
+        {
+            RemoteControlToken = CreateRemoteControlToken();
+            RemoteControlLastAction = "Pairing token regenerated. Update mobile apps before the next remote request.";
+            _ = PersistAsync();
+        });
+        SelectLocalAiPackCommand = new RelayCommand<LocalAIModelPack>(pack =>
+        {
+            if (pack is not null)
+            {
+                SelectedLocalAiModelPack = pack;
+            }
+        });
+        ToggleChecklistStepCommand = new RelayCommand<ChecklistStep>(step =>
+        {
+            if (step is null)
+            {
+                return;
+            }
+
+            step.IsCompleted = !step.IsCompleted;
+            AddSystemOutput(step.IsCompleted ? "Checklist step completed." : "Checklist step reopened.");
+            _ = PersistAsync();
+        });
         AnswerSurveyChoiceCommand = new RelayCommand<SurveyChoice>(choice =>
         {
             if (choice is not null && !IsCurrentSurveyQuestionMulti)
@@ -459,6 +925,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 _ = AnswerSurveyChoiceAsync(choice);
             }
         });
+        ConfigureLocalAiModelPacks();
     }
 
     public async Task InitializeAsync()
@@ -470,7 +937,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         _isInitialized = true;
 
         var loaded = await _stateStore.LoadAsync();
+        _memoryVaultSnapshot = await _memoryVault.LoadAsync();
         HydrateFromEnvelope(loaded);
+        UpdateMemoryVaultLines();
+        RevealRemoteTransferTutorialIfNeeded();
+        ConfigureLocalAiModelPacks();
         Session.ApiBaseUrl = AtlasBackendConfig.ResolveStartupApiBase(Session.ApiBaseUrl);
         BackendApiBaseDraft = Session.ApiBaseUrl;
         InitializeWorldMonitorEndpoint();
@@ -482,10 +953,15 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         await RestoreAuthSessionAsync();
         AddSystemOutput(_llmClient.StatusLine);
         AddSystemOutput(_llmClient.RuntimePolicyStatus);
-        AddSystemOutput("Academic discovery mode ready: OpenAlex search + abstract scoring + DOI/PDF linking.");
+        EnsureRemoteControlServer();
+        StartLocalRuntimeProvisioning();
+        AddSystemOutput("Academic discovery mode ready: OpenAlex + Semantic Scholar + PubMed/arXiv search, abstract scoring, citation snowballing, and DOI/full-text linking.");
         AddSystemOutput("Local sync blueprint mode ready: USB-C/LAN discovery + mTLS pairing workflow.");
         AddSystemOutput("Recovery support mode ready: long-term relapse prevention guardrails.");
+        AddSystemOutput("Execution stream mode ready: energy-aware tasks, proactive nudges, guided learning, and resumable queue-backed work.");
         AddSystemOutput($"Active memory management: {ResolveActiveMemoryDepth()} (ATLAS_MEMORY_DEPTH=lean|balanced|deep).");
+        AddSystemOutput(MemoryVaultStatusLine);
+        AddSystemOutput(MemoryVaultPolicyLine);
         AddSystemOutput(_reasoning.RuntimeStatusLine);
         AddSystemOutput("Prompt queue is resumable and survives app restart.");
         AddSystemOutput($"World Monitor endpoint: {WorldMonitorUri}");
@@ -906,6 +1382,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             : remoteSession.Name;
         Session.PrepaidCreditsActive = remoteSession.PrepaidCreditsActive;
         Session.Tier = remoteSession.PrepaidCreditsActive ? AccountTier.ProCloud : AccountTier.LocalCore;
+        RaisePropertyChanged(nameof(CodeAgentReadinessLine));
 
         if (remoteSession.PrepaidCreditsActive)
         {
@@ -915,6 +1392,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         {
             AddSystemOutput($"Signed in with {Session.Provider} via shared backend {_apiClient.Host}. On-device AI remains active; prepaid credits unlock optional cloud add-on.");
         }
+
+        RevealRemoteTransferTutorialIfNeeded();
     }
 
     private void ResetToGuestAuthState()
@@ -924,6 +1403,26 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         Session.AccountLabel = "Guest Operator";
         Session.Tier = AccountTier.LocalCore;
         Session.PrepaidCreditsActive = false;
+        RaisePropertyChanged(nameof(CodeAgentReadinessLine));
+        ShowRemoteTransferTutorial = false;
+    }
+
+    private void RevealRemoteTransferTutorialIfNeeded()
+    {
+        ShowRemoteTransferTutorial = Session.IsSignedIn && !Session.RemoteTransferTutorialSeen;
+    }
+
+    private async Task DismissRemoteTransferTutorialAsync()
+    {
+        if (!ShowRemoteTransferTutorial)
+        {
+            return;
+        }
+
+        Session.RemoteTransferTutorialSeen = true;
+        ShowRemoteTransferTutorial = false;
+        RemoteControlLastAction = "Remote pairing guide acknowledged. Keep this desktop on and plugged in for phone-to-desktop handoff.";
+        await PersistAsync();
     }
 
     private Uri BuildAuthPortalUri(AuthBrowserAction action)
@@ -1036,8 +1535,37 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         TrimWorkspaces();
 
         AddSystemOutput("Check-in recorded. Execution stream refreshed.");
+        RefreshNextLayerArtifacts();
         await RefreshExecutionAsync();
         await PersistAsync();
+    }
+
+    private Task GenerateChecklistPlanAsync()
+    {
+        RefreshNextLayerArtifacts(regenerateChecklist: true, regenerateActivity: false, regenerateItinerary: false, regenerateSupport: false);
+        AddSystemOutput("Generated a local checklist plan from the current execution context.");
+        return PersistAsync();
+    }
+
+    private Task GenerateActivitySuggestionAsync()
+    {
+        RefreshNextLayerArtifacts(regenerateChecklist: false, regenerateActivity: true, regenerateItinerary: false, regenerateSupport: false);
+        AddSystemOutput("Generated a local activity suggestion from the current operator state.");
+        return PersistAsync();
+    }
+
+    private Task GenerateItineraryPlanAsync()
+    {
+        RefreshNextLayerArtifacts(regenerateChecklist: false, regenerateActivity: false, regenerateItinerary: true, regenerateSupport: false);
+        AddSystemOutput("Generated a local itinerary plan from the current goals and context.");
+        return PersistAsync();
+    }
+
+    private Task RefreshSupportRecommendationAsync()
+    {
+        RefreshNextLayerArtifacts(regenerateChecklist: false, regenerateActivity: false, regenerateItinerary: false, regenerateSupport: true);
+        AddSystemOutput("Refreshed the support recommendation for the current state.");
+        return PersistAsync();
     }
 
     private async Task AddNoteAsync()
@@ -1086,7 +1614,92 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         NewNoteTitle = string.Empty;
         NewNoteContent = string.Empty;
         AddSystemOutput("Note captured and indexed.");
+        await RefreshMemoryVaultAsync("note_capture");
         await RefreshExecutionAsync();
+        await PersistAsync();
+    }
+
+    private MemoryVaultPolicy CurrentMemoryVaultPolicy()
+    {
+        var selectedModels = Session.SelectedLocalAiModelIds
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return _memoryVault.ResolvePolicy(_performance, selectedModels);
+    }
+
+    private void UpdateMemoryVaultLines()
+    {
+        _memoryVaultSnapshot.LastPolicy ??= CurrentMemoryVaultPolicy();
+        MemoryVaultStatusLine = $"Local encrypted archive ready: {_memoryVaultSnapshot.RawRecords.Count} raw / {_memoryVaultSnapshot.CompactedRecords.Count} compacted records · last mode {_memoryVaultSnapshot.LastArchiveMode}.";
+        MemoryVaultPolicyLine = $"Hardware tier {_memoryVaultSnapshot.LastPolicy.HardwareTier} · context {_memoryVaultSnapshot.LastPolicy.ContextBudgetTokens} · compact at {_memoryVaultSnapshot.LastPolicy.CompactionThresholdTokens} · retrieval depth {_memoryVaultSnapshot.LastPolicy.RetrievalDepth}.";
+        RaisePropertyChanged(nameof(MemoryVaultOverview));
+    }
+
+    private async Task RefreshMemoryVaultAsync(string reason)
+    {
+        if (!Session.MemoryOptIn)
+        {
+            _memoryVaultSnapshot = _memoryVault.Scrub(_memoryVaultSnapshot);
+            await _memoryVault.SaveAsync(_memoryVaultSnapshot);
+            MemoryVaultRecallResults.Clear();
+            UpdateMemoryVaultLines();
+            return;
+        }
+
+        var policy = CurrentMemoryVaultPolicy();
+        _memoryVaultSnapshot = _memoryVault.SyncFromCurrentState(
+            _memoryVaultSnapshot,
+            Notes.ToList(),
+            Memory.ToList(),
+            Queue.ToList(),
+            policy,
+            reason);
+        await _memoryVault.SaveAsync(_memoryVaultSnapshot);
+        UpdateMemoryVaultLines();
+    }
+
+    private async Task CompactMemoryVaultAsync()
+    {
+        _memoryVaultSnapshot = _memoryVault.CompactFurther(_memoryVaultSnapshot, CurrentMemoryVaultPolicy());
+        await _memoryVault.SaveAsync(_memoryVaultSnapshot);
+        UpdateMemoryVaultLines();
+        AddSystemOutput("Local memory vault compacted further without deleting archived raw records.");
+    }
+
+    private async Task DeepArchiveMemoryVaultAsync()
+    {
+        _memoryVaultSnapshot = _memoryVault.DeepArchive(_memoryVaultSnapshot);
+        await _memoryVault.SaveAsync(_memoryVaultSnapshot);
+        UpdateMemoryVaultLines();
+        AddSystemOutput("Older raw records moved deeper into the encrypted local archive.");
+    }
+
+    private async Task RecallMemoryVaultAsync()
+    {
+        var hits = _memoryVault.Recall(_memoryVaultSnapshot, MemoryVaultRecallQuery, CurrentMemoryVaultPolicy().RetrievalDepth);
+        MemoryVaultRecallResults.Clear();
+        foreach (var hit in hits)
+        {
+            MemoryVaultRecallResults.Add(hit);
+        }
+        AddSystemOutput(hits.Count == 0
+            ? "No local archive matches were found for that recall query."
+            : $"Recalled {hits.Count} archive match(es) from the local memory vault.");
+        await Task.CompletedTask;
+    }
+
+    private async Task DeleteLocalMemoryAsync()
+    {
+        Notes.Clear();
+        Queue.Clear();
+        Memory.Clear();
+        Workspaces.Clear();
+        MemoryVaultRecallResults.Clear();
+        _surveyAnswers.Clear();
+        AdaptiveBusinessQuestions.Clear();
+        _memoryVaultSnapshot = _memoryVault.Scrub(_memoryVaultSnapshot);
+        await _memoryVault.SaveAsync(_memoryVaultSnapshot);
+        UpdateMemoryVaultLines();
+        AddSystemOutput("All local notes, queue state, memory, workspaces, and encrypted archive records were cleared by user request.");
         await PersistAsync();
     }
 
@@ -1326,7 +1939,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             Prompt = prompt[..Math.Min(prompt.Length, 2200)],
             Status = PromptQueueStatus.Queued,
             Progress = 0.0,
-            CheckpointNote = "Queued"
+            CheckpointNote = LocalAiChatStatusMessage ?? "Queued"
         });
         NewPrompt = string.Empty;
         if (Session.PrepaidCreditsActive)
@@ -1338,6 +1951,32 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             AddSystemOutput("Prompt queued for on-device AI processing.");
         }
         await PersistAsync();
+    }
+
+    private void EnqueueRemoteLocalPrompt(string prompt)
+    {
+        Queue.Insert(0, new QueueRecord
+        {
+            Prompt = prompt[..Math.Min(prompt.Length, 2200)],
+            Status = PromptQueueStatus.Queued,
+            Progress = 0.0,
+            CheckpointNote = $"Remote control · local Qwen ({_llmClient.RuntimeModel})"
+        });
+        AddSystemOutput("Remote control queued a local Qwen prompt.");
+    }
+
+    private void EnqueueRemoteCloudPrompt(string prompt, string route)
+    {
+        var enrichedPrompt = BuildCodeAgentPrompt(prompt, route);
+        Queue.Insert(0, new QueueRecord
+        {
+            Prompt = enrichedPrompt[..Math.Min(enrichedPrompt.Length, 2200)],
+            CodeAgentRoute = route,
+            Status = PromptQueueStatus.Queued,
+            Progress = 0.0,
+            CheckpointNote = $"Remote control · {CodeRouteLabel(route)}"
+        });
+        AddSystemOutput($"Remote control queued a GPT-5.4 coding task ({CodeRouteLabel(route)}).");
     }
 
     private async Task RunCodeAgentTaskAsync()
@@ -1440,19 +2079,76 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     {
         return route switch
         {
-            "frontend_design" => "Gemini 3.1 Pro · frontend design",
-            "backend_ops" => "GPT-5.3 Codex · backend/debug/build",
+            "frontend_design" => "Gemini 3.1 Pro Preview -> GPT-5.4 fallback",
+            "backend_ops" => "GPT-5.4 -> Gemini 3.1 Pro Preview fallback",
             _ => "Auto route"
         };
     }
 
-    private static string BuildCodeAgentPrompt(string prompt, string route)
+    private static string PreferredCloudModelForRoute(string route)
     {
+        return route == "frontend_design" ? "gemini-3.1-pro-preview" : "gpt-5.4";
+    }
+
+    private static string FallbackCloudModelForRoute(string route)
+    {
+        return route == "frontend_design" ? "gpt-5.4" : "gemini-3.1-pro-preview";
+    }
+
+    private string BuildCodeAgentPrompt(string prompt, string route)
+    {
+        var preferredCloudModel = PreferredCloudModelForRoute(route);
+        var fallbackCloudModel = FallbackCloudModelForRoute(route);
         var routeInstruction = route == "frontend_design"
-            ? "Route this to frontend design execution: prioritize UI system architecture, responsive layout, accessibility, and polished visual implementation."
-            : "Route this to backend/troubleshooting/build execution: prioritize root-cause isolation, minimal safe patches, and explicit verification commands/tests.";
-        return
-            $"{routeInstruction}\n\nUser task:\n{prompt}\n\nRequired output:\n1) Diagnosis\n2) Exact implementation steps\n3) Verification checklist\n4) Risk/fallback notes";
+            ? "You are the frontend design and implementation agent. Use Gemini 3.1 Pro Preview as the preferred model for UI ideation, layout exploration, motion direction, and visual iteration while keeping the output production-ready."
+            : "You are the backend and build agent. Use GPT-5.4 as the preferred model for root-cause isolation, minimal safe patches, terminal-aware debugging, and exact verification commands/tests.";
+        var scratchpad = string.IsNullOrWhiteSpace(ClassicCodeScratchpad) ? "No scratchpad notes captured." : ClassicCodeScratchpad.Trim();
+        var terminal = string.IsNullOrWhiteSpace(ClassicCodeCommandOutput) || ClassicCodeCommandOutput == "Classic tools are hidden by default."
+            ? "No recent terminal output captured."
+            : ClassicCodeCommandOutput.Trim();
+        var memorySnapshot = Memory
+            .Take(8)
+            .Select(item => $"- [{CleanText(item.Type, 20)}] {CleanText(item.Value, 220)}")
+            .ToArray();
+        var memoryBlock = memorySnapshot.Length == 0 ? "- No notable local memory records yet." : string.Join("\n", memorySnapshot);
+
+        return $"""
+{routeInstruction}
+
+Operate like a desktop coding agent, not a generic chat assistant.
+- Inspect current state before proposing changes.
+- Preserve existing architecture unless a clearer upgrade is justified.
+- Prefer the minimum safe patch over broad rewrites.
+- Give practical commands when verification is needed.
+- Call out risks, assumptions, and anything the user must do locally.
+- If the preferred cloud model is unavailable, continue using the fallback model without changing the route.
+
+DESKTOP RUNTIME
+- Preferred cloud model: {preferredCloudModel}
+- Fallback cloud model: {fallbackCloudModel}
+- Local coding model: {_llmClient.RuntimeModel}
+- Performance profile: {_performance.Label} / {_performance.CpuCores} cores / {_performance.PhysicalMemoryGb} GB RAM
+- Prepaid credits active: {Session.PrepaidCreditsActive}
+
+SCRATCHPAD
+{scratchpad}
+
+RECENT TERMINAL OUTPUT
+{terminal}
+
+RECENT LOCAL MEMORY
+{memoryBlock}
+
+USER TASK
+{prompt}
+
+REQUIRED RESPONSE SHAPE
+1. Diagnosis
+2. Exact implementation steps
+3. Verification checklist
+4. Risk or fallback notes
+5. What still needs to happen on the user's machine
+""";
     }
 
     private static async Task<(int StatusCode, string Output)> ExecuteShellCommandAsync(
@@ -1498,6 +2194,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     {
         await _dispatcher.EnqueueAsync(() =>
         {
+            RefreshNextLayerArtifacts();
             var feed = BuildExecutionFeed();
             ExecutionFeed.Clear();
             foreach (var item in feed)
@@ -1506,6 +2203,359 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             }
         });
         await PersistAsync();
+    }
+
+    private void RefreshNextLayerArtifacts(
+        bool regenerateChecklist = true,
+        bool regenerateActivity = true,
+        bool regenerateItinerary = true,
+        bool regenerateSupport = true)
+    {
+        var snapshot = BuildOperatorStateSnapshot();
+        OperatorStateSnapshot = snapshot;
+
+        if (regenerateSupport || CurrentSupportRecommendation is null)
+        {
+            CurrentSupportRecommendation = BuildSupportRecommendation(snapshot);
+        }
+
+        if (regenerateActivity || CurrentActivitySuggestion is null)
+        {
+            CurrentActivitySuggestion = BuildActivitySuggestion(snapshot);
+        }
+
+        if (regenerateItinerary || CurrentItineraryPlan is null)
+        {
+            CurrentItineraryPlan = BuildItineraryPlan(snapshot);
+        }
+
+        if (regenerateChecklist || ActiveChecklistPlan is null)
+        {
+            ActiveChecklistPlan = BuildChecklistPlan(snapshot);
+        }
+    }
+
+    private OperatorStateSnapshot BuildOperatorStateSnapshot()
+    {
+        var blocker = Session.Blockers?.Trim() ?? string.Empty;
+        var mood = Session.Mood?.Trim() ?? "Focused";
+        var daily = Session.DailyPriority?.Trim() ?? string.Empty;
+        var continuityRisk = NatureRiskScore >= NatureElevatedThreshold
+            || ContainsAny(blocker, "outage", "internet", "offline", "power", "router", "continuity");
+
+        string mode;
+        if (continuityRisk)
+        {
+            mode = "continuity_risk_mode";
+        }
+        else if (Session.Energy <= 2 || ContainsAny(mood, "stressed", "anxious", "burnout", "overloaded", "recover"))
+        {
+            mode = "low_energy_mode";
+        }
+        else if (!string.IsNullOrWhiteSpace(blocker) && (blocker.Length > 48 || ContainsAny(blocker, "stuck", "blocked", "unclear", "friction", "delay")))
+        {
+            mode = "high_friction_stall";
+        }
+        else if (Session.Energy >= 4)
+        {
+            mode = "deep_work_window";
+        }
+        else
+        {
+            mode = "short_idle_window";
+        }
+
+        var nextAction = ExecutionFeed.FirstOrDefault()?.Summary;
+        if (string.IsNullOrWhiteSpace(nextAction))
+        {
+            nextAction = string.IsNullOrWhiteSpace(daily)
+                ? "Capture one decisive next action and execute it in the next 25 minutes."
+                : daily;
+        }
+
+        var summary = mode switch
+        {
+            "continuity_risk_mode" => "Infrastructure risk is elevated, so BlackHaven is routing for continuity first.",
+            "low_energy_mode" => "Energy is low enough that the system should protect recovery-safe execution.",
+            "high_friction_stall" => "Blockers are sticky enough that environment prep and one-step routing beat brute force.",
+            "deep_work_window" => "Energy is strong enough to protect a heavier focus block.",
+            _ => "The system is routing for a short useful move instead of a large orchestration block."
+        };
+
+        var rationale = mode switch
+        {
+            "continuity_risk_mode" => "Local-first execution matters most when power, internet, or environmental conditions are less reliable.",
+            "low_energy_mode" => "The app should lower cognitive overhead instead of forcing a plan that will likely fail.",
+            "high_friction_stall" => "When blockers are vague or sticky, the best move is to shrink the scope and clear the first hard edge.",
+            "deep_work_window" => "This is the right time for coding, strategy, long-form drafting, and other compounding work.",
+            _ => "When time and energy are moderate, momentum matters more than perfect planning."
+        };
+
+        return new OperatorStateSnapshot
+        {
+            Id = "operator-state",
+            Mode = mode,
+            Summary = summary,
+            NextAction = CleanText(nextAction, 220),
+            Rationale = rationale,
+            ContinuityRiskActive = continuityRisk,
+            EnergyLevel = Session.Energy,
+            Mood = string.IsNullOrWhiteSpace(mood) ? "Focused" : mood,
+            BlockerSummary = string.IsNullOrWhiteSpace(blocker) ? null : CleanText(blocker, 180),
+            GeneratedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    private SupportRecommendation BuildSupportRecommendation(OperatorStateSnapshot snapshot)
+    {
+        return snapshot.Mode switch
+        {
+            "continuity_risk_mode" => new SupportRecommendation
+            {
+                Title = "Stabilize continuity before expanding scope",
+                Summary = "Check desktop power, local networking, and offline-critical files first. Keep the next work block local, simple, and resilient.",
+                BodyDoublingPrompt = "If you need a body-double, send: \"I am protecting continuity right now. Can you stay nearby for 20 minutes while I secure power, network, and one core task?\"",
+                GeneratedAt = DateTimeOffset.UtcNow
+            },
+            "low_energy_mode" => new SupportRecommendation
+            {
+                Title = "Reduce friction and protect recovery-safe output",
+                Summary = "Use one-task-only mode. Consider water, a shower, comfortable clothes, a desk reset, or a short walk before asking for harder output.",
+                BodyDoublingPrompt = "If helpful, text someone: \"Can you sit with me for 20 minutes while I finish one small task and reset my environment?\"",
+                GeneratedAt = DateTimeOffset.UtcNow
+            },
+            "high_friction_stall" => new SupportRecommendation
+            {
+                Title = "Shrink the problem until motion returns",
+                Summary = "Clear the desk, write the blocker in one sentence, and route only the first unblock step. Do not expand the plan until momentum is back.",
+                BodyDoublingPrompt = "If useful, send: \"I am stuck on a single blocker. Can I talk it through with you for 10 minutes so I can choose the first next step?\"",
+                GeneratedAt = DateTimeOffset.UtcNow
+            },
+            "deep_work_window" => new SupportRecommendation
+            {
+                Title = "Protect the high-energy window",
+                Summary = "Silence distractions, keep one tab set, and give the next heavy task a clean uninterrupted block before context-switching.",
+                GeneratedAt = DateTimeOffset.UtcNow
+            },
+            _ => new SupportRecommendation
+            {
+                Title = "Convert the open window into a completed move",
+                Summary = "Choose one sharp action that fits the next 5-20 minutes: approve, send, summarize, or prepare the next deep-work block.",
+                GeneratedAt = DateTimeOffset.UtcNow
+            }
+        };
+    }
+
+    private ActivitySuggestion BuildActivitySuggestion(OperatorStateSnapshot snapshot)
+    {
+        var combinedIntent = string.Join(" | ", _surveyAnswers.Values.Append(Session.LongTermVision ?? string.Empty).Append(Session.MidTermGoal ?? string.Empty)).ToLowerInvariant();
+        var hasTravel = ContainsAny(combinedIntent, "travel", "trip", "flight", "route", "hotel", "rv");
+
+        return snapshot.Mode switch
+        {
+            "continuity_risk_mode" => new ActivitySuggestion
+            {
+                Title = "Run a continuity walk-through",
+                Summary = "Verify the desktop node, power path, router, and local files, then capture one offline-safe action.",
+                DurationLabel = "15-20 min",
+                Reason = "Continuity risk is more important than variety when infrastructure is unstable.",
+                GeneratedAt = DateTimeOffset.UtcNow
+            },
+            "low_energy_mode" => new ActivitySuggestion
+            {
+                Title = "Choose a recovery-safe reset block",
+                Summary = "Take a short walk, hydrate, clear the desk, and then do a lightweight admin or summary pass.",
+                DurationLabel = "20-30 min",
+                Reason = "Low-energy routing should preserve progress without pretending this is a peak-performance block.",
+                GeneratedAt = DateTimeOffset.UtcNow
+            },
+            "high_friction_stall" => new ActivitySuggestion
+            {
+                Title = "Switch to a blocker-clearing micro session",
+                Summary = "List the blocker, open the one document or file that matters, and resolve only the first dependency.",
+                DurationLabel = "15 min",
+                Reason = "High friction calls for simplification, not more scope.",
+                GeneratedAt = DateTimeOffset.UtcNow
+            },
+            "deep_work_window" => new ActivitySuggestion
+            {
+                Title = hasTravel ? "Protect a focused travel-planning sprint" : "Protect a deep-work sprint",
+                Summary = hasTravel
+                    ? "Use the next strong block to finalize travel requirements, logistics, and the highest-value work deliverable."
+                    : "Turn this window into a serious build, drafting, or planning session before lower-value admin.",
+                DurationLabel = "60-90 min",
+                Reason = "High energy is best spent on compounding work.",
+                GeneratedAt = DateTimeOffset.UtcNow
+            },
+            _ => new ActivitySuggestion
+            {
+                Title = "Complete one sharp administrative win",
+                Summary = "Send the follow-up, approve the change, or queue the next prompt so the next heavy block starts clean.",
+                DurationLabel = "5-15 min",
+                Reason = "A short window should end with something actually completed.",
+                GeneratedAt = DateTimeOffset.UtcNow
+            }
+        };
+    }
+
+    private ItineraryPlan BuildItineraryPlan(OperatorStateSnapshot snapshot)
+    {
+        var combinedIntent = string.Join(" | ", _surveyAnswers.Values.Append(Session.LongTermVision ?? string.Empty).Append(Session.MidTermGoal ?? string.Empty)).ToLowerInvariant();
+        var hasTravel = ContainsAny(combinedIntent, "travel", "trip", "flight", "route", "hotel", "rv");
+        var blocker = string.IsNullOrWhiteSpace(Session.Blockers) ? "No blocker captured." : CleanText(Session.Blockers, 120);
+        var daily = string.IsNullOrWhiteSpace(Session.DailyPriority) ? "Define one non-negotiable action for today." : CleanText(Session.DailyPriority, 140);
+
+        var steps = hasTravel
+            ? new List<ItineraryStep>
+            {
+                new() { TimeLabel = "Now", Title = "Stabilize operator state", Summary = CurrentSupportRecommendation?.Summary ?? "Prepare your environment before making travel moves." },
+                new() { TimeLabel = "Next", Title = "Lock travel constraints", Summary = "Confirm dates, route, budget, and equipment requirements before adding optional motion." },
+                new() { TimeLabel = "Later", Title = "Protect the main work block", Summary = daily },
+                new() { TimeLabel = "Before close", Title = "Capture continuity notes", Summary = $"Record local files, logistics decisions, and unresolved blockers: {blocker}" }
+            }
+            : new List<ItineraryStep>
+            {
+                new() { TimeLabel = "Now", Title = "Set the mode", Summary = snapshot.Summary },
+                new() { TimeLabel = "Block 1", Title = "Execute the main priority", Summary = daily },
+                new() { TimeLabel = "Block 2", Title = "Handle the current blocker", Summary = blocker },
+                new() { TimeLabel = "Close", Title = "Preserve continuity", Summary = "Capture notes, update the checklist, and leave the next session with one obvious starting point." }
+            };
+
+        return new ItineraryPlan
+        {
+            Title = hasTravel ? "Travel + Work Itinerary" : "Today's Operating Itinerary",
+            Summary = hasTravel
+                ? "A travel-aware itinerary that protects logistics and the highest-value work."
+                : "A workday itinerary that matches your current energy and execution mode.",
+            Kind = hasTravel ? "travel" : "workday",
+            Steps = steps,
+            GeneratedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    private ChecklistPlan BuildChecklistPlan(OperatorStateSnapshot snapshot)
+    {
+        var topFeed = BuildExecutionFeed().Take(3).ToList();
+        var fileRefs = string.IsNullOrWhiteSpace(ClassicCodeCommandDraft) ? [] : [ClassicCodeCommandDraft];
+        var steps = new List<ChecklistStep>
+        {
+            new()
+            {
+                Id = "checklist-1",
+                Title = "Clarify the operating target",
+                Rationale = "A strong checklist starts with the one outcome that matters most right now.",
+                Instructions = string.IsNullOrWhiteSpace(Session.DailyPriority)
+                    ? "Write one non-negotiable outcome for this session before doing anything else."
+                    : CleanText(Session.DailyPriority, 180),
+                FileReferences = fileRefs
+            }
+        };
+
+        if (!string.IsNullOrWhiteSpace(Session.Blockers))
+        {
+            steps.Add(new ChecklistStep
+            {
+                Id = "checklist-2",
+                Title = "Clear the first blocker",
+                Rationale = "Execution stalls when blockers stay vague and unowned.",
+                Instructions = CleanText(Session.Blockers, 180),
+                FileReferences = fileRefs
+            });
+        }
+
+        for (var i = 0; i < topFeed.Count; i++)
+        {
+            var item = topFeed[i];
+            steps.Add(new ChecklistStep
+            {
+                Id = $"checklist-action-{i}",
+                Title = CleanText(item.Title, 90),
+                Rationale = "This step was promoted from your current execution context.",
+                Instructions = CleanText(item.Summary, 220),
+                ExternalLinks = ExtractLinks(item.Summary),
+                FileReferences = fileRefs
+            });
+        }
+
+        if (steps.Count < 4)
+        {
+            steps.Add(new ChecklistStep
+            {
+                Id = "checklist-close",
+                Title = "Close the loop",
+                Rationale = "A session is more valuable when the next starting point is preserved.",
+                Instructions = "Capture what changed, what is still open, and the first move for the next session in your workspace notes.",
+                FileReferences = fileRefs
+            });
+        }
+
+        return new ChecklistPlan
+        {
+            Id = "active-checklist-plan",
+            Title = "Interactive Checklist Hub",
+            Summary = "Local-first checklist generated from check-in, execution feed, and workspace context.",
+            CreatedFrom = HumanizeMode(snapshot.Mode),
+            Steps = steps.Take(5).ToList(),
+            GeneratedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    private static string HumanizeMode(string mode) => mode switch
+    {
+        "continuity_risk_mode" => "Continuity-Risk Mode",
+        "low_energy_mode" => "Low-Energy Mode",
+        "high_friction_stall" => "High-Friction Stall",
+        "deep_work_window" => "Deep-Work Window",
+        _ => "Short Idle Window"
+    };
+
+    private static bool ContainsAny(string text, params string[] terms)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return terms.Any(term => text.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static List<string> ExtractLinks(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        var regex = new Regex(@"https?://[^\s]+", RegexOptions.IgnoreCase);
+        return regex.Matches(text).Select(match => match.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private void AttachChecklistStepHandlers(ChecklistPlan? plan, bool attach)
+    {
+        if (plan is null)
+        {
+            return;
+        }
+
+        foreach (var step in plan.Steps)
+        {
+            if (attach)
+            {
+                step.PropertyChanged += ChecklistStep_PropertyChanged;
+            }
+            else
+            {
+                step.PropertyChanged -= ChecklistStep_PropertyChanged;
+            }
+        }
+    }
+
+    private void ChecklistStep_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ChecklistStep.Notes) or nameof(ChecklistStep.IsCompleted))
+        {
+            _ = PersistAsync();
+        }
     }
 
     private async Task AddWorkspaceSessionAsync()
@@ -1620,13 +2670,14 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         SelectedSurveyAnswerLabel = answerLabel;
         var answeredCount = CountAnsweredSurveyQuestions();
         IsSurveyCompleted = answeredCount >= _surveyQuestions.Count;
-        CanAccessExecution = IsSurveyCompleted;
+        CanAccessExecution = TotalIntelligenceAnswersCount >= MinimumSurveyAnswersForExecution;
         if (IsSurveyCompleted && !Session.GuidedLearningRuntimeActive)
         {
             Session.AdaptiveBusinessRuntimeStatusLine = "Survey complete. Activate guided learning when you are ready to start using the app.";
         }
         RaisePropertyChanged(nameof(SurveyCompletionLine));
         RaisePropertyChanged(nameof(ExecutionAccessLine));
+        RaisePropertyChanged(nameof(IntelligenceCoverageLine));
         SurveyProgressText = $"{answeredCount} / {_surveyQuestions.Count}";
         ActivateGuidedLearningCommand.NotifyCanExecuteChanged();
 
@@ -2423,10 +3474,13 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private void NotifyAdaptiveQuestionStateChanged()
     {
         SyncAdaptiveDraftWithPendingQuestion();
+        CanAccessExecution = TotalIntelligenceAnswersCount >= MinimumSurveyAnswersForExecution;
         RaisePropertyChanged(nameof(PendingAdaptiveBusinessQuestion));
         RaisePropertyChanged(nameof(AnsweredAdaptiveBusinessQuestionCount));
         RaisePropertyChanged(nameof(AdaptiveQuestionProgressLine));
         RaisePropertyChanged(nameof(AdaptiveSelectedOptionsLine));
+        RaisePropertyChanged(nameof(ExecutionAccessLine));
+        RaisePropertyChanged(nameof(IntelligenceCoverageLine));
         RequestAdaptiveQuestionNowCommand.NotifyCanExecuteChanged();
         SubmitAdaptiveQuestionResponseCommand.NotifyCanExecuteChanged();
         ActivateGuidedLearningCommand.NotifyCanExecuteChanged();
@@ -2462,12 +3516,13 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             CurrentSurveyChoices.Clear();
             SurveyProgressText = "0 / 0";
             IsSurveyCompleted = true;
-            CanAccessExecution = true;
+            CanAccessExecution = TotalIntelligenceAnswersCount >= MinimumSurveyAnswersForExecution;
             _surveyMultiSelections.Clear();
             _activeSurveyMultiQuestionId = null;
             SelectedSurveyAnswerLabel = string.Empty;
             RaisePropertyChanged(nameof(IsCurrentSurveyQuestionMulti));
             RaisePropertyChanged(nameof(SurveyMultiSelectionLine));
+            RaisePropertyChanged(nameof(IntelligenceCoverageLine));
             SubmitSurveyMultiChoiceCommand.NotifyCanExecuteChanged();
             return;
         }
@@ -2484,7 +3539,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 CurrentSurveyChoices.Add(choice);
             }
             IsSurveyCompleted = true;
-            CanAccessExecution = true;
+            CanAccessExecution = TotalIntelligenceAnswersCount >= MinimumSurveyAnswersForExecution;
             RaisePropertyChanged(nameof(SurveyCompletionLine));
             RaisePropertyChanged(nameof(ExecutionAccessLine));
         }
@@ -2498,12 +3553,13 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 CurrentSurveyChoices.Add(choice);
             }
             IsSurveyCompleted = false;
-            CanAccessExecution = false;
+            CanAccessExecution = TotalIntelligenceAnswersCount >= MinimumSurveyAnswersForExecution;
             RaisePropertyChanged(nameof(SurveyCompletionLine));
             RaisePropertyChanged(nameof(ExecutionAccessLine));
         }
 
         SurveyProgressText = $"{answeredCount} / {_surveyQuestions.Count}";
+        RaisePropertyChanged(nameof(IntelligenceCoverageLine));
         SyncSurveySelectionDraftForCurrentQuestion();
         SelectedSurveyAnswerLabel = ResolveSelectedSurveyAnswerLabel(CurrentSurveyQuestion);
         if (IsSurveyCompleted && !Session.GuidedLearningRuntimeActive && Session.AdaptiveBusinessRuntimeStatusLine == "Adaptive business runtime idle.")
@@ -2675,6 +3731,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
         try
         {
+            await RefreshMemoryVaultAsync("queue_preflight");
             var prompt = queueRecord.Prompt;
             var notesContext = new List<NoteRecord>();
             var memoryContext = new List<MemoryRecord>();
@@ -2700,7 +3757,10 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 memoryContext,
                 surveyContext);
             var promptWithQuantum = InjectQuantumPromptDirective(prompt, quantumSnapshot);
-            var promptWithActiveMemory = InjectActiveMemoryDirective(promptWithQuantum, notesContext, memoryContext);
+            var promptWithActiveMemory = _memoryVault.BuildDirective(
+                promptWithQuantum,
+                _memoryVaultSnapshot,
+                CurrentMemoryVaultPolicy());
             var route = string.IsNullOrWhiteSpace(queueRecord.CodeAgentRoute)
                 ? null
                 : ResolveCodeAgentRoute(queueRecord.CodeAgentRoute, prompt);
@@ -2775,7 +3835,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                         return;
                     }
                     record.Progress = Math.Max(record.Progress, 0.38);
-                    record.CheckpointNote = "Academic discovery scan (OpenAlex)";
+                    record.CheckpointNote = "Academic discovery scan (multi-source)";
                 });
 
                 var research = await _academicResearch.TryDiscoverAsync(prompt, cancellationToken);
@@ -2783,11 +3843,15 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 {
                     output = new LocalReasoningOutput
                     {
-                        Model = "atlas-openalex-research-v1",
+                        Model = "atlas-academic-discovery-v3",
                         Summary = research.Summary,
                         NextAction = research.NextAction,
                         Confidence = research.Confidence,
-                        GeneratedAt = DateTimeOffset.UtcNow
+                        GeneratedAt = DateTimeOffset.UtcNow,
+                        ReasoningSummary = "Selected the academic discovery route because the prompt matched a research workflow and external evidence quality mattered.",
+                        AlternativesConsidered = ["Answer from local memory only.", "Skip evidence lookup and provide a generic execution answer."],
+                        Assumptions = ["The user benefits from stronger external evidence here.", "Multi-source academic coverage is relevant to the query."],
+                        ConfidenceLabel = ConfidenceLabel(research.Confidence)
                     };
                     inferenceSource = "windows_academic_discovery";
                 }
@@ -2808,20 +3872,26 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                     responseTone: "direct",
                     includeProactive: false,
                     codeAgentRoute: route,
+                    preferredCloudModel: PreferredCloudModelForRoute(route),
+                    cloudFallbackModel: FallbackCloudModelForRoute(route),
                     cancellationToken: cancellationToken);
                 if (string.IsNullOrWhiteSpace(backendReply))
                 {
                     throw new InvalidOperationException("Code Agent cloud response unavailable. Retry once backend is reachable.");
                 }
 
-                output = new LocalReasoningOutput
-                {
-                    Model = "atlas-cloud-backend/v1-code-agent",
-                    Summary = FirstNonEmptyLine(backendReply, 420),
-                    NextAction = DeriveBackendNextAction(backendReply, 220),
-                    Confidence = 0.87,
-                    GeneratedAt = DateTimeOffset.UtcNow
-                };
+                    output = new LocalReasoningOutput
+                    {
+                        Model = "atlas-cloud-backend/v1-code-agent",
+                        Summary = FirstNonEmptyLine(backendReply, 420),
+                        NextAction = DeriveBackendNextAction(backendReply, 220),
+                        Confidence = 0.87,
+                        GeneratedAt = DateTimeOffset.UtcNow,
+                        ReasoningSummary = "Routed to the cloud code agent because this was a coding task and prepaid credits were active.",
+                        AlternativesConsidered = ["Keep the task local with a lighter deterministic planner.", "Ask the user to break the coding task down first."],
+                        Assumptions = ["The cloud code route is the highest-capability path for this task.", "The user wants execution, not just planning."],
+                        ConfidenceLabel = "High"
+                    };
                 inferenceSource = route == "frontend_design"
                     ? "windows_code_agent_frontend"
                     : "windows_code_agent_backend";
@@ -2841,7 +3911,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                         Summary = FirstNonEmptyLine(backendReply, 420),
                         NextAction = DeriveBackendNextAction(backendReply, 220),
                         Confidence = 0.84,
-                        GeneratedAt = DateTimeOffset.UtcNow
+                        GeneratedAt = DateTimeOffset.UtcNow,
+                        ReasoningSummary = "Used the optional cloud add-on because prepaid credits were active and the backend returned a valid response first.",
+                        AlternativesConsidered = ["Use the local LLM immediately instead.", "Fall back to the deterministic local reasoner."],
+                        Assumptions = ["The backend response is trustworthy and currently reachable.", "Shared backend output can improve quality for this prompt."],
+                        ConfidenceLabel = "High"
                     };
                     inferenceSource = "windows_shared_backend";
                     usedSharedBackend = true;
@@ -2921,7 +3995,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                     output.Model.Contains("rust", StringComparison.OrdinalIgnoreCase);
                 var deterministicRouteLabel = output.Model switch
                 {
-                    "atlas-openalex-research-v1" => "Completed via academic discovery engine",
+                    "atlas-academic-discovery-v3" => "Completed via academic discovery engine",
                     "atlas-local-sync-v1" => "Completed via local sync blueprint engine",
                     "atlas-recovery-support-v1" => "Completed via recovery support engine",
                     _ => "Completed via deterministic fallback"
@@ -2938,6 +4012,10 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 record.OutputSummary = output.Summary;
                 record.NextAction = output.NextAction;
                 record.Confidence = output.Confidence;
+                record.ReasoningSummary = output.ReasoningSummary;
+                record.AlternativesConsidered = output.AlternativesConsidered.ToList();
+                record.Assumptions = output.Assumptions.ToList();
+                record.ConfidenceLabel = output.ConfidenceLabel;
                 record.ErrorMessage = null;
 
                 if (sessionSnapshot.MemoryOptIn)
@@ -2956,7 +4034,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                     });
                     TrimMemory();
                 }
-                var isSpecialDeterministicRoute = output.Model is "atlas-openalex-research-v1" or "atlas-local-sync-v1" or "atlas-recovery-support-v1";
+                var isSpecialDeterministicRoute = output.Model is "atlas-academic-discovery-v3" or "atlas-local-sync-v1" or "atlas-recovery-support-v1";
                 if (!isCodeAgentTask && !usedSharedBackend && llmOutput is null && _llmClient.Enabled && !isSpecialDeterministicRoute)
                 {
                     var fallbackLabel = output.Model.Contains("rust", StringComparison.OrdinalIgnoreCase)
@@ -2964,9 +4042,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                         : "deterministic managed fallback";
                     AddSystemOutput($"Local LLM unavailable for this prompt. {fallbackLabel} was used. {_llmClient.RuntimeFailureHint()}");
                 }
-                if (output.Model == "atlas-openalex-research-v1")
+                if (output.Model == "atlas-academic-discovery-v3")
                 {
-                    AddSystemOutput("Academic discovery completed. Open top DOI/PDF sources and run citation expansion.");
+                    AddSystemOutput("Academic discovery completed. Open the top full-text or DOI sources, compare the matrix, and run citation snowballing.");
                 }
                 else if (output.Model == "atlas-local-sync-v1")
                 {
@@ -2978,6 +4056,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 }
                 AddSystemOutput($"Queue complete: {record.Prompt[..Math.Min(record.Prompt.Length, 72)]}");
             });
+            await RefreshMemoryVaultAsync("queue_output");
         }
         catch (OperationCanceledException)
         {
@@ -3045,18 +4124,49 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private List<FeedItem> BuildExecutionFeed()
     {
         var feed = new List<FeedItem>();
+        var snapshot = OperatorStateSnapshot ?? BuildOperatorStateSnapshot();
+        var support = CurrentSupportRecommendation ?? BuildSupportRecommendation(snapshot);
+        var activity = CurrentActivitySuggestion ?? BuildActivitySuggestion(snapshot);
 
         if (!CanAccessExecution)
         {
             feed.Add(new FeedItem
             {
                 Title = "Complete adaptive survey",
-                Summary = "Execution stream unlocks after full survey coverage.",
-                WhyNow = "Deep personalization quality depends on complete baseline signals.",
-                Priority = "high"
+                Summary = $"Execution stream unlocks after {MinimumSurveyAnswersForExecution} total survey/adaptive answers.",
+                WhyNow = "Deep personalization quality depends on broader signal coverage, not just the baseline questionnaire.",
+                Priority = "high",
+                SourceType = "survey-gate"
             });
             return feed;
         }
+
+        feed.Add(new FeedItem
+        {
+            Title = HumanizeMode(snapshot.Mode),
+            Summary = snapshot.NextAction,
+            WhyNow = snapshot.Rationale,
+            Priority = snapshot.ContinuityRiskActive ? "critical" : "high",
+            SourceType = "operator-state"
+        });
+
+        feed.Add(new FeedItem
+        {
+            Title = support.Title,
+            Summary = support.Summary,
+            WhyNow = "Supportive routing stays operational and non-medical while helping the user stay in motion.",
+            Priority = snapshot.Mode is "low_energy_mode" or "high_friction_stall" ? "high" : "normal",
+            SourceType = "support"
+        });
+
+        feed.Add(new FeedItem
+        {
+            Title = activity.Title,
+            Summary = $"{activity.DurationLabel} · {activity.Summary}",
+            WhyNow = activity.Reason,
+            Priority = snapshot.Mode == "deep_work_window" ? "high" : "normal",
+            SourceType = "activity"
+        });
 
         if (!string.IsNullOrWhiteSpace(Session.DailyPriority))
         {
@@ -3065,7 +4175,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 Title = "Execute daily priority",
                 Summary = Session.DailyPriority,
                 WhyNow = "Daily compounding is the strongest predictor of long-term outcomes.",
-                Priority = "high"
+                Priority = "high",
+                SourceType = "daily-priority"
             });
         }
 
@@ -3076,7 +4187,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 Title = "Protect problem-solving biology",
                 Summary = "Do 20-30 minutes of movement to sharpen cognition and emotional regulation.",
                 WhyNow = "Executive function and stress control materially impact economic execution.",
-                Priority = "high"
+                Priority = "high",
+                SourceType = "health"
             });
         }
 
@@ -3087,7 +4199,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 Title = "Run one direct income action now",
                 Summary = "Choose one: outreach, offer refinement, or close-follow-up.",
                 WhyNow = "Daily revenue contact improves weekly conversion odds.",
-                Priority = "critical"
+                Priority = "critical",
+                SourceType = "revenue"
             });
         }
 
@@ -3098,7 +4211,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 Title = "Memory-backed recommendation",
                 Summary = memory.Value[..Math.Min(memory.Value.Length, 180)],
                 WhyNow = "Generated from your long-term local memory graph.",
-                Priority = memory.Weight >= 0.85 ? "high" : "normal"
+                Priority = memory.Weight >= 0.85 ? "high" : "normal",
+                SourceType = "memory"
             });
         }
 
@@ -3109,7 +4223,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 Title = "Climate + biodiversity response readiness",
                 Summary = "Nature risk is elevated. Keep income execution disciplined so donation capacity for frontline organizations can compound.",
                 WhyNow = "Wealth creation and stewardship are linked when environmental risk trends higher.",
-                Priority = NatureRiskScore >= NatureCriticalThreshold ? "critical" : "high"
+                Priority = NatureRiskScore >= NatureCriticalThreshold ? "critical" : "high",
+                SourceType = "nature"
             });
         }
 
@@ -3120,12 +4235,21 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 Title = "Begin your operating cycle",
                 Summary = "Submit check-in, capture notes, and queue one prompt.",
                 WhyNow = "Atlas can only orchestrate once baseline telemetry exists.",
-                Priority = "normal"
+                Priority = "normal",
+                SourceType = "bootstrap"
             });
         }
 
         return feed.Take(10).ToList();
     }
+
+    private static string ConfidenceLabel(double confidence) => Math.Clamp(confidence, 0.0, 1.0) switch
+    {
+        < 0.45 => "Low",
+        < 0.72 => "Medium",
+        < 0.9 => "High",
+        _ => "Very High"
+    };
 
     private List<string> BuildCheckinTags()
     {
@@ -3152,6 +4276,458 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         {
             SystemOutput.RemoveAt(SystemOutput.Count - 1);
         }
+    }
+
+    private void EnsureRemoteControlServer()
+    {
+        if (string.IsNullOrWhiteSpace(RemoteControlToken))
+        {
+            RemoteControlToken = CreateRemoteControlToken();
+        }
+
+        if (_remoteControlServer is not null)
+        {
+            UpdateRemoteControlStatusLine();
+            return;
+        }
+
+        try
+        {
+            _remoteControlServer = new DesktopRemoteControlServer(RemoteControlPort, HandleRemoteControlRequestAsync);
+            _remoteControlServer.Start();
+            UpdateRemoteControlStatusLine();
+            AddSystemOutput("Desktop remote control ready for iOS/Android pairing.");
+        }
+        catch (Exception ex)
+        {
+            RemoteControlStatus = $"Desktop remote control unavailable: {ex.Message}";
+            RemoteControlUrl = "Unavailable";
+            AddSystemOutput(RemoteControlStatus);
+        }
+    }
+
+    private void UpdateRemoteControlStatusLine()
+    {
+        var lanIp = TryGetLanIPv4Address() ?? "127.0.0.1";
+        RemoteControlUrl = $"http://{lanIp}:{RemoteControlPort}";
+        RemoteControlStatus = $"Desktop remote control is listening on {RemoteControlUrl}.";
+    }
+
+    private static string CreateRemoteControlToken()
+    {
+        var bytes = Guid.NewGuid().ToByteArray();
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string? TryGetLanIPv4Address()
+    {
+        try
+        {
+            return Dns.GetHostEntry(Dns.GetHostName())
+                .AddressList
+                .FirstOrDefault(ip =>
+                    ip.AddressFamily == AddressFamily.InterNetwork &&
+                    !IPAddress.IsLoopback(ip))?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<DesktopRemoteControlServer.RemoteResponse> HandleRemoteControlRequestAsync(DesktopRemoteControlServer.RemoteRequest request)
+    {
+        if (!request.Headers.TryGetValue("Authorization", out var authorization) ||
+            authorization != $"Bearer {RemoteControlToken}")
+        {
+            return new DesktopRemoteControlServer.RemoteResponse(401, new { error = "unauthorized" });
+        }
+
+        if (request.Method == "GET" && request.Path == "/api/remote/status")
+        {
+            return new DesktopRemoteControlServer.RemoteResponse(200, new
+            {
+                app_name = "BlackHaven Windows",
+                platform = "windows",
+                device_name = Environment.MachineName,
+                runtime_status = LocalModelRuntimeStatus,
+                runtime_detail = LocalModelRuntimeDetail,
+                local_model = _llmClient.RuntimeModel,
+                available_local_models = LocalAIInstallOptions.Select(option => option.ModelName).ToArray(),
+                queue_depth = Queue.Count(item => item.Status is PromptQueueStatus.Queued or PromptQueueStatus.Running),
+                cloud_code_models = new[] { "gemini-3.1-pro-preview", "gpt-5.4" },
+                coding_agent_ready = Session.PrepaidCreditsActive,
+                coding_agent_summary = CodeAgentReadinessLine,
+                coding_agent_tooling = CodeAgentToolingLine,
+                remote_url = RemoteControlUrl,
+                last_action = RemoteControlLastAction
+            });
+        }
+
+        if (request.Method == "POST" && request.Path == "/api/remote/dispatch")
+        {
+            using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(request.Body) ? "{}" : request.Body);
+            var root = document.RootElement;
+            var prompt = root.TryGetProperty("prompt", out var promptNode) ? promptNode.GetString()?.Trim() : null;
+            var target = root.TryGetProperty("target", out var targetNode) ? targetNode.GetString()?.Trim().ToLowerInvariant() : null;
+            var route = root.TryGetProperty("route", out var routeNode) ? routeNode.GetString()?.Trim().ToLowerInvariant() : "auto";
+
+            if (string.IsNullOrWhiteSpace(prompt) || string.IsNullOrWhiteSpace(target))
+            {
+                return new DesktopRemoteControlServer.RemoteResponse(400, new { error = "missing_prompt_or_target" });
+            }
+
+            await _dispatcher.EnqueueAsync(() =>
+            {
+                if (target == "cloud_gpt5_4")
+                {
+                    if (!Session.PrepaidCreditsActive)
+                    {
+                        RemoteControlLastAction = "GPT-5.4 coding is locked until prepaid credits are active on desktop.";
+                        return;
+                    }
+
+                    var resolvedRoute = route is "frontend_design" or "backend_ops"
+                        ? route
+                        : ResolveCodeAgentRoute("auto", prompt);
+                    EnqueueRemoteCloudPrompt(prompt, resolvedRoute);
+                    RemoteControlLastAction = $"Queued GPT-5.4 task on {CodeRouteLabel(resolvedRoute)}.";
+                }
+                else
+                {
+                    EnqueueRemoteLocalPrompt(prompt);
+                    RemoteControlLastAction = $"Queued local Qwen task using {_llmClient.RuntimeModel}.";
+                }
+            });
+
+            await PersistAsync();
+            return new DesktopRemoteControlServer.RemoteResponse(200, new
+            {
+                accepted = true,
+                message = RemoteControlLastAction,
+                queue_depth = Queue.Count(item => item.Status is PromptQueueStatus.Queued or PromptQueueStatus.Running)
+            });
+        }
+
+        return new DesktopRemoteControlServer.RemoteResponse(404, new { error = "not_found" });
+    }
+
+    private void StartLocalRuntimeProvisioning(bool force = false)
+    {
+        if (_runtimeProvisioningTask is not null)
+        {
+            return;
+        }
+
+        if (force)
+        {
+            LocalModelDownloadBytes = 0;
+            LocalModelDownloadTotalBytes = 0;
+            LocalModelDownloadEtaSeconds = null;
+        }
+
+        _runtimeProvisioningTask = Task.Run(async () =>
+        {
+            try
+            {
+                var result = await _llmClient.EnsureRuntimeReadyAsync(
+                    update =>
+                    {
+                        _ = _dispatcher.EnqueueAsync(() =>
+                        {
+                            var parsed = Enum.TryParse<LocalAIRuntimeStatusCode>(update.StatusCode, ignoreCase: true, out var statusCode)
+                                ? statusCode
+                                : LocalAIRuntimeStatusCode.Error;
+                            SetLocalAiRuntimeHealth(
+                                parsed,
+                                update.Status,
+                                update.Detail,
+                                update.Progress,
+                                update.Busy,
+                                update.Ready,
+                                update.DownloadedBytes,
+                                update.TotalBytes,
+                                update.EtaSeconds,
+                                update.LastError);
+                        });
+                    },
+                    _queueCts.Token);
+
+                await _dispatcher.EnqueueAsync(() =>
+                {
+                    var parsed = Enum.TryParse<LocalAIRuntimeStatusCode>(result.StatusCode, ignoreCase: true, out var statusCode)
+                        ? statusCode
+                        : (result.Ready ? LocalAIRuntimeStatusCode.Ready : LocalAIRuntimeStatusCode.Error);
+                    SetLocalAiRuntimeHealth(
+                        parsed,
+                        result.Status,
+                        result.Detail,
+                        result.Ready ? 1.0 : 0.0,
+                        false,
+                        result.Ready,
+                        lastError: result.LastError);
+                    AddSystemOutput(result.Ready
+                        ? "Local AI runtime ready for inference."
+                        : $"Local AI setup state: {result.Detail}");
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // ignore app shutdown
+            }
+            catch (Exception ex)
+            {
+                await _dispatcher.EnqueueAsync(() =>
+                {
+                    SetLocalAiRuntimeHealth(
+                        LocalAIRuntimeStatusCode.Error,
+                        "Local AI needs attention",
+                        "Runtime provisioning failed.",
+                        0,
+                        false,
+                        false,
+                        lastError: ex.Message);
+                    AddSystemOutput($"Local runtime provisioning error: {ex.Message}");
+                });
+            }
+            finally
+            {
+                _runtimeProvisioningTask = null;
+            }
+        });
+    }
+
+    private static string FormatByteCount(long bytes)
+    {
+        const double kb = 1024.0;
+        const double mb = kb * 1024.0;
+        const double gb = mb * 1024.0;
+        const double tb = gb * 1024.0;
+        var value = Math.Max(0, bytes);
+        if (value >= tb) return $"{value / tb:0.##} TB";
+        if (value >= gb) return $"{value / gb:0.##} GB";
+        if (value >= mb) return $"{value / mb:0.##} MB";
+        if (value >= kb) return $"{value / kb:0.##} KB";
+        return $"{value} B";
+    }
+
+    private void ConfigureLocalAiModelPacks()
+    {
+        LocalAIModelPacks.Clear();
+        LocalAIInstallOptions.Clear();
+        var recommendedId = (_performance.PhysicalMemoryGb >= 24 && _performance.CpuCores >= 8) ? "balanced" : "starter";
+        var packs = new[]
+        {
+            new LocalAIModelPack
+            {
+                Id = "starter",
+                Title = "Fast Starter",
+                Subtitle = "Best for quick responses and broad compatibility.",
+                PrimaryModel = "qwen2.5:7b",
+                SecondaryModels = ["deepseek-r1:14b"],
+                ModelOrder = ["qwen2.5:7b", "deepseek-r1:14b"],
+                ApproximateSize = "About 4.7 GB",
+                MinimumHardwareTier = "balanced",
+                Recommended = recommendedId == "starter"
+            },
+            new LocalAIModelPack
+            {
+                Id = "balanced",
+                Title = "Balanced Reasoner",
+                Subtitle = "Stronger reasoning with good desktop responsiveness.",
+                PrimaryModel = "deepseek-r1:14b",
+                SecondaryModels = ["qwen2.5:7b"],
+                ModelOrder = ["deepseek-r1:14b", "qwen2.5:7b"],
+                ApproximateSize = "About 9.0 GB",
+                MinimumHardwareTier = "high",
+                Recommended = recommendedId == "balanced"
+            }
+        };
+
+        foreach (var pack in packs)
+        {
+            LocalAIModelPacks.Add(pack);
+        }
+
+        var options = new[]
+        {
+            new LocalAIModelInstallOption
+            {
+                Id = "qwen2.5:7b",
+                Title = "Qwen 2.5 7B",
+                Subtitle = "Fastest local concierge path and the best default fit for most Windows machines.",
+                ModelName = "qwen2.5:7b",
+                ApproximateSizeGb = 4.4,
+                Recommended = true
+            },
+            new LocalAIModelInstallOption
+            {
+                Id = "deepseek-r1:14b",
+                Title = "DeepSeek R1 14B",
+                Subtitle = "Heavier reasoning model with a much larger local install footprint.",
+                ModelName = "deepseek-r1:14b",
+                ApproximateSizeGb = 8.4,
+                Recommended = _performance.PhysicalMemoryGb >= 24
+            }
+        };
+        foreach (var option in options)
+        {
+            LocalAIInstallOptions.Add(option);
+        }
+
+        var persistedId = Session.SelectedLocalAiPackId;
+        SelectedLocalAiModelPack = LocalAIModelPacks.FirstOrDefault(pack => pack.Id.Equals(persistedId, StringComparison.OrdinalIgnoreCase))
+            ?? LocalAIModelPacks.FirstOrDefault(pack => pack.Recommended)
+            ?? LocalAIModelPacks.FirstOrDefault();
+
+        var persistedModels = ParseSelectedLocalAiModelIds(Session.SelectedLocalAiModelIds);
+        if (persistedModels.Count == 0 && SelectedLocalAiModelPack is not null)
+        {
+            persistedModels = SelectedLocalAiModelPack.ModelOrder
+                .Where(model => options.Any(option => option.Id.Equals(model, StringComparison.OrdinalIgnoreCase)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        if (persistedModels.Count == 0)
+        {
+            persistedModels = _performance.PhysicalMemoryGb >= 24
+                ? options.Select(option => option.Id).ToList()
+                : ["qwen2.5:7b"];
+        }
+
+        foreach (var option in LocalAIInstallOptions)
+        {
+            option.IsSelected = persistedModels.Contains(option.Id, StringComparer.OrdinalIgnoreCase);
+        }
+        PersistSelectedLocalAiModelIds();
+    }
+
+    private static List<string> ParseSelectedLocalAiModelIds(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return [];
+        }
+
+        return raw
+            .Split([',', ';', '|', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private List<string> SelectedLocalAiModelOrder()
+    {
+        var selected = LocalAIInstallOptions.Where(option => option.IsSelected).Select(option => option.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var preferredOrder = new[] { "qwen2.5:7b", "deepseek-r1:14b" };
+        var ordered = preferredOrder.Where(selected.Contains).ToList();
+        return ordered.Count == 0 ? ["qwen2.5:7b"] : ordered;
+    }
+
+    private void PersistSelectedLocalAiModelIds()
+    {
+        Session.SelectedLocalAiModelIds = string.Join(",", SelectedLocalAiModelOrder());
+        RaisePropertyChanged(nameof(SelectedLocalAiInstallSummary));
+    }
+
+    public void SetLocalAiInstallOptionSelection(string optionId, bool isSelected)
+    {
+        var option = LocalAIInstallOptions.FirstOrDefault(candidate => candidate.Id.Equals(optionId, StringComparison.OrdinalIgnoreCase));
+        if (option is null)
+        {
+            return;
+        }
+
+        if (!isSelected && LocalAIInstallOptions.Count(candidate => candidate.IsSelected) == 1 && option.IsSelected)
+        {
+            return;
+        }
+
+        option.IsSelected = isSelected;
+        PersistSelectedLocalAiModelIds();
+    }
+
+    private void SetLocalAiRuntimeHealth(
+        LocalAIRuntimeStatusCode statusCode,
+        string status,
+        string detail,
+        double progress,
+        bool busy,
+        bool ready,
+        long downloaded = 0,
+        long total = 0,
+        int? eta = null,
+        string lastError = "")
+    {
+        LocalAiRuntimeStatusCode = statusCode;
+        LocalAiRuntimeLastError = lastError;
+        LocalModelRuntimeStatus = status;
+        LocalModelRuntimeDetail = detail;
+        LocalModelRuntimeProgress = progress;
+        LocalModelRuntimeIsBusy = busy;
+        LocalModelRuntimeReady = ready;
+        LocalModelDownloadBytes = downloaded;
+        LocalModelDownloadTotalBytes = total;
+        LocalModelDownloadEtaSeconds = eta;
+        if (ready)
+        {
+            LocalAiSetupCompleted = true;
+            LocalAiSetupDeferred = false;
+        }
+    }
+
+    private void OpenOllamaInstaller()
+    {
+        var url = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? "https://ollama.com/download/OllamaSetup.exe"
+            : "https://ollama.com/download";
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = url,
+            UseShellExecute = true
+        });
+    }
+
+    private async Task InstallLocalAiAsync()
+    {
+        ConfigureLocalAiModelPacks();
+        var selectedModels = SelectedLocalAiModelOrder();
+        if (selectedModels.Count == 0)
+        {
+            return;
+        }
+
+        var primaryModel = selectedModels[0];
+
+        Environment.SetEnvironmentVariable("ATLAS_LOCAL_LLM_ENABLED", "true");
+        Environment.SetEnvironmentVariable("ATLAS_LOCAL_LLM_ENDPOINT", "http://127.0.0.1:11434/v1/chat/completions");
+        Environment.SetEnvironmentVariable("ATLAS_LOCAL_LLM_MODEL", string.Join(",", selectedModels));
+        Environment.SetEnvironmentVariable("ATLAS_LOCAL_LLM_MODEL_CATALOG", string.Join(",", selectedModels));
+        Session.SelectedLocalAiModelIds = string.Join(",", selectedModels);
+        LocalAiSetupDeferred = false;
+        if (_llmClient.IsOllamaMissing())
+        {
+            SetLocalAiRuntimeHealth(LocalAIRuntimeStatusCode.InstallingRuntime, "Installing local AI runtime", "BlackHaven is opening the Ollama installer so setup can continue without Terminal.", 0.12, true, false);
+            OpenOllamaInstaller();
+        }
+        AddSystemOutput($"Installing local AI models: {string.Join(", ", selectedModels)}. Primary model: {primaryModel}.");
+        StartLocalRuntimeProvisioning(force: true);
+        await Task.CompletedTask;
+    }
+
+    private async Task RetryLocalAiSetupAsync()
+    {
+        LocalAiSetupDeferred = false;
+        ConfigureLocalAiModelPacks();
+        StartLocalRuntimeProvisioning(force: true);
+        await Task.CompletedTask;
+    }
+
+    private async Task DeferLocalAiSetupAsync()
+    {
+        LocalAiSetupDeferred = true;
+        AddSystemOutput("Local AI setup deferred. You can return to Runtime Health anytime.");
+        await PersistAsync();
     }
 
     private void TrimMemory()
@@ -3184,6 +4760,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             SurveyAnswers = _surveyAnswers.Select(x => new SurveyAnswer { QuestionId = x.Key, Value = x.Value }).ToList(),
             AdaptiveBusinessQuestions = AdaptiveBusinessQuestions.Select(CloneAdaptiveQuestion).ToList(),
             NatureSignalTiles = NatureSignalTiles.ToList(),
+            OperatorStateSnapshot = OperatorStateSnapshot,
+            ActiveChecklistPlan = ActiveChecklistPlan,
+            CurrentActivitySuggestion = CurrentActivitySuggestion,
+            CurrentItineraryPlan = CurrentItineraryPlan,
+            CurrentSupportRecommendation = CurrentSupportRecommendation,
             ApiAuthCookies = _persistedAuthCookies.ToList(),
             LastSavedAt = DateTimeOffset.UtcNow
         };
@@ -3229,7 +4810,13 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             NatureCriticalThreshold = Session.NatureCriticalThreshold,
             LastNatureSignalRefreshAtUtc = Session.LastNatureSignalRefreshAtUtc,
             LastNatureAlertNotificationAtUtc = Session.LastNatureAlertNotificationAtUtc,
-            LastWealthReminderNotificationAtUtc = Session.LastWealthReminderNotificationAtUtc
+            LastWealthReminderNotificationAtUtc = Session.LastWealthReminderNotificationAtUtc,
+            LocalAiSetupCompleted = Session.LocalAiSetupCompleted,
+            LocalAiSetupDeferred = Session.LocalAiSetupDeferred,
+            SelectedLocalAiPackId = Session.SelectedLocalAiPackId,
+            SelectedLocalAiModelIds = Session.SelectedLocalAiModelIds,
+            LocalAiRuntimeStatusCode = Session.LocalAiRuntimeStatusCode,
+            LocalAiRuntimeLastError = Session.LocalAiRuntimeLastError
         };
     }
 
@@ -3240,6 +4827,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         Session.AccountLabel = envelope.Session.AccountLabel;
         Session.Tier = envelope.Session.Tier;
         Session.PrepaidCreditsActive = envelope.Session.PrepaidCreditsActive;
+        RaisePropertyChanged(nameof(CodeAgentReadinessLine));
         Session.ApiBaseUrl = AtlasBackendConfig.ResolveStartupApiBase(envelope.Session.ApiBaseUrl);
         Session.WorldMonitorUrl = string.IsNullOrWhiteSpace(envelope.Session.WorldMonitorUrl)
             ? HostedWorldMonitorUrl
@@ -3286,6 +4874,18 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         Session.LastNatureSignalRefreshAtUtc = envelope.Session.LastNatureSignalRefreshAtUtc;
         Session.LastNatureAlertNotificationAtUtc = envelope.Session.LastNatureAlertNotificationAtUtc;
         Session.LastWealthReminderNotificationAtUtc = envelope.Session.LastWealthReminderNotificationAtUtc;
+        Session.LocalAiSetupCompleted = envelope.Session.LocalAiSetupCompleted;
+        Session.LocalAiSetupDeferred = envelope.Session.LocalAiSetupDeferred;
+        Session.SelectedLocalAiPackId = string.IsNullOrWhiteSpace(envelope.Session.SelectedLocalAiPackId) ? "starter" : envelope.Session.SelectedLocalAiPackId;
+        Session.SelectedLocalAiModelIds = envelope.Session.SelectedLocalAiModelIds ?? string.Empty;
+        Session.LocalAiRuntimeStatusCode = string.IsNullOrWhiteSpace(envelope.Session.LocalAiRuntimeStatusCode) ? nameof(LocalAIRuntimeStatusCode.NotInstalled) : envelope.Session.LocalAiRuntimeStatusCode;
+        Session.LocalAiRuntimeLastError = envelope.Session.LocalAiRuntimeLastError ?? string.Empty;
+        LocalAiSetupCompleted = Session.LocalAiSetupCompleted;
+        LocalAiSetupDeferred = Session.LocalAiSetupDeferred;
+        LocalAiRuntimeLastError = Session.LocalAiRuntimeLastError;
+        LocalAiRuntimeStatusCode = Enum.TryParse<LocalAIRuntimeStatusCode>(Session.LocalAiRuntimeStatusCode, true, out var persistedStatusCode)
+            ? persistedStatusCode
+            : LocalAIRuntimeStatusCode.NotInstalled;
         NatureRiskScore = Session.NatureRiskScore;
         NatureRiskBand = Session.NatureRiskBand;
         NatureAlertSummary = Session.NatureAlertSummary;
@@ -3368,6 +4968,16 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                      .Take(8))
         {
             NatureSignalTiles.Add(tile);
+        }
+
+        OperatorStateSnapshot = envelope.OperatorStateSnapshot;
+        ActiveChecklistPlan = envelope.ActiveChecklistPlan;
+        CurrentActivitySuggestion = envelope.CurrentActivitySuggestion;
+        CurrentItineraryPlan = envelope.CurrentItineraryPlan;
+        CurrentSupportRecommendation = envelope.CurrentSupportRecommendation;
+        if (OperatorStateSnapshot is null || ActiveChecklistPlan is null || CurrentActivitySuggestion is null || CurrentItineraryPlan is null || CurrentSupportRecommendation is null)
+        {
+            RefreshNextLayerArtifacts();
         }
     }
 
@@ -3628,6 +5238,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (_remoteControlServer is not null)
+        {
+            await _remoteControlServer.DisposeAsync();
+            _remoteControlServer = null;
+        }
         _queueCts.Cancel();
         if (_queueLoopTask is not null)
         {

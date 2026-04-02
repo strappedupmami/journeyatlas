@@ -1,7 +1,7 @@
 # Atlas Masa Master Context and Prompt/Response Ledger
 
 Last updated: 2026-02-24 (workspace local time may differ)
-Repository: `/Users/avrohom/Downloads/journeyatlas`
+Repository: `/Users/avrohom/Downloads/BlackHaven`
 Branch: `main`
 Purpose: provide a single, durable context file that preserves project intent, major prompts, assistant responses, decisions, build/deploy history, and next actions.
 
@@ -50,7 +50,7 @@ Recurring constraints from user prompts:
 ## 3) Architecture Snapshot (Current)
 
 ### 3.1 Website
-Path: `/Users/avrohom/Downloads/journeyatlas/website`
+Path: `/Users/avrohom/Downloads/BlackHaven/website`
 
 Current direction after multiple revisions:
 - Website should act as a marketing portal and entry point.
@@ -59,17 +59,17 @@ Current direction after multiple revisions:
 - Dedicated Windows app page added (`website/windows-app.html`).
 
 ### 3.2 Rust API
-Path: `/Users/avrohom/Downloads/journeyatlas/atlas-concierge`
+Path: `/Users/avrohom/Downloads/BlackHaven/atlas-concierge`
 
 - Rust API handles auth/session/passkey/provider hooks/billing endpoints/memory and orchestration surfaces.
 - API is designed to run separately from website host.
 - Major confusion resolved during project: website deploy alone does not provide API runtime; API needs dedicated service host + DNS + env vars.
 
 ### 3.3 Apps
-- iOS: `/Users/avrohom/Downloads/journeyatlas/ios-app`
-- macOS: `/Users/avrohom/Downloads/journeyatlas/macos-app`
-- Android: `/Users/avrohom/Downloads/journeyatlas/android-app`
-- Windows: `/Users/avrohom/Downloads/journeyatlas/windows-app`
+- iOS: `/Users/avrohom/Downloads/BlackHaven/ios-app`
+- macOS: `/Users/avrohom/Downloads/BlackHaven/macos-app`
+- Android: `/Users/avrohom/Downloads/BlackHaven/android-app`
+- Windows: `/Users/avrohom/Downloads/BlackHaven/windows-app`
 
 State:
 - Native app code exists and has been actively iterated.
@@ -77,9 +77,9 @@ State:
 - Android/Windows scaffolding and local LLM client paths were added.
 
 ### 3.4 Local LLM Runtime
-- Rollout docs: `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md`
-- Context summary: `/Users/avrohom/Downloads/journeyatlas/QUICK_CONTEXT.md`
-- Launcher script: `/Users/avrohom/Downloads/journeyatlas/scripts/start-local-llm-runtime.sh`
+- Rollout docs: `/Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md`
+- Context summary: `/Users/avrohom/Downloads/BlackHaven/QUICK_CONTEXT.md`
+- Launcher script: `/Users/avrohom/Downloads/BlackHaven/scripts/start-local-llm-runtime.sh`
 
 Direction:
 - Local endpoint first, deterministic fallback second.
@@ -90,9 +90,9 @@ Direction:
 ## 4) Security + Hardening Posture
 
 Repo includes security workflows and docs:
-- `/Users/avrohom/Downloads/journeyatlas/docs/security/repository-hardening.md`
-- `/Users/avrohom/Downloads/journeyatlas/docs/security/app-enterprise-hardening.md`
-- `/Users/avrohom/Downloads/journeyatlas/.pre-commit-config.yaml`
+- `/Users/avrohom/Downloads/BlackHaven/docs/security/repository-hardening.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/security/app-enterprise-hardening.md`
+- `/Users/avrohom/Downloads/BlackHaven/.pre-commit-config.yaml`
 - `.github/workflows/*` security and CI workflows.
 
 Hardening themes implemented over time:
@@ -497,13 +497,13 @@ From recent history:
 
 Read in this order:
 
-1. `/Users/avrohom/Downloads/journeyatlas/PROJECT_CONTEXT_MASTER.md`
-2. `/Users/avrohom/Downloads/journeyatlas/QUICK_CONTEXT.md`
-3. `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md`
-4. `/Users/avrohom/Downloads/journeyatlas/docs/operations/release-readiness-report.md`
-5. `/Users/avrohom/Downloads/journeyatlas/docs/operations/api-production-deploy.md`
-6. `/Users/avrohom/Downloads/journeyatlas/docs/operations/apple-signin-website.md`
-7. `/Users/avrohom/Downloads/journeyatlas/docs/security/repository-hardening.md`
+1. `/Users/avrohom/Downloads/BlackHaven/PROJECT_CONTEXT_MASTER.md`
+2. `/Users/avrohom/Downloads/BlackHaven/QUICK_CONTEXT.md`
+3. `/Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md`
+4. `/Users/avrohom/Downloads/BlackHaven/docs/operations/release-readiness-report.md`
+5. `/Users/avrohom/Downloads/BlackHaven/docs/operations/api-production-deploy.md`
+6. `/Users/avrohom/Downloads/BlackHaven/docs/operations/apple-signin-website.md`
+7. `/Users/avrohom/Downloads/BlackHaven/docs/security/repository-hardening.md`
 
 ---
 

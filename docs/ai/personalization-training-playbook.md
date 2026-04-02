@@ -6,8 +6,11 @@ This document defines a production-safe path for long-term, precise personalizat
 
 Atlas/אטלס uses a layered memory strategy:
 - **Structured profile memory**: style, risk, language, preferences.
+- **Psychological profile memory**: comfort-vs-novelty, routine rigidity, stress load, recovery bias.
+- **Vehicle profile memory**: vehicle type, dimensions, battery/solar envelope, NVH sensitivity.
 - **Adaptive survey memory**: dynamic answers for daily/mid/long-horizon planning.
 - **Execution memory**: user notes and imported memory events.
+- **Lifelog mirror**: sanitized long-term memory records mirrored into a dedicated lifelog store for audit and retrieval.
 - **Model runtime**: GPT-5.2 API calls with high reasoning effort, enriched by the above memory.
 
 The base model is not fine-tuned with raw private chats by default. Instead, we use retrieval-augmented personalization to keep user control, auditability, and deletion support.
@@ -16,6 +19,9 @@ The base model is not fine-tuned with raw private chats by default. Instead, we 
 
 The Rust API exposes:
 - `POST /v1/memory/import`
+- `GET|POST /v1/profile/psychological`
+- `GET|POST /v1/profile/vehicle`
+- `GET /v1/lifelog/records`
 
 Authenticated users can import notebook/chat-derived memory items in batches:
 
@@ -61,7 +67,7 @@ Recommended tag taxonomy:
 
 ## 5) Next production upgrades
 
-- Add vector search index for semantic memory retrieval.
+- Replace `embedding_json` lifelog placeholders with a production vector index (`pgvector` or equivalent managed vector store).
 - Add TTL + archival policies by memory type.
 - Add user-facing memory audit timeline (what was learned, when, and why).
 - Add explicit consent toggles for each memory source class.
@@ -69,6 +75,6 @@ Recommended tag taxonomy:
 ## 6) Local app model loop
 
 For iOS/macOS on-device model updates, use:
-- `/Users/avrohom/Downloads/journeyatlas/docs/ai/local-model-training.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/ai/local-model-training.md`
 
 This loop trains and regenerates local Swift model payloads without cloud inference.

@@ -20,7 +20,7 @@ targets:
     info:
       path: AtlasMasaIOS/Info.plist
       properties:
-        CFBundleDisplayName: Atlas
+        CFBundleDisplayName: BlackHaven
         CFBundleIconName: AppIcon
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -33,7 +33,10 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
           - UIInterfaceOrientationPortraitUpsideDown
-        NSFaceIDUsageDescription: Use Face ID to authenticate passkeys and protect your Atlas account.
+        NSFaceIDUsageDescription: Use Face ID to authenticate passkeys and protect your BlackHaven account.
+        NSLocalNetworkUsageDescription: Use your local network to connect this phone to the BlackHaven desktop remote-control server.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: AtlasMasaIOS/AtlasMasaIOS.entitlements

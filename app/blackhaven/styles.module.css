@@ -230,6 +230,29 @@
   color: var(--bh-muted);
 }
 
+.featurePanel {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: start;
+}
+
+.panelLabel {
+  margin: 0 0 0.38rem;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--bh-brand);
+}
+
+.checklist {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--bh-muted);
+  display: grid;
+  gap: 0.55rem;
+}
+
 .downloadCard {
   display: grid;
   gap: 0.76rem;
@@ -309,6 +332,11 @@
   color: var(--bh-muted);
 }
 
+.requirementText {
+  font-size: 0.88rem;
+  color: var(--bh-brand-deep) !important;
+}
+
 .disabledCta {
   display: inline-flex;
   align-items: center;
@@ -334,5 +362,9 @@
 
   .footer .shell {
     padding: 0.8rem 0 0.2rem;
+  }
+
+  .featurePanel {
+    grid-template-columns: 1fr;
   }
 }

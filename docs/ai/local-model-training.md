@@ -1,15 +1,15 @@
 # Atlas/אטלס Swift Travel Design Model Training
 
 This workflow trains the **on-device Swift local reasoning model** used by:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS`
 
 It is **Swift-app focused** and independent from the Rust cloud-pro model lifecycle.
 
 ## 1) Training dataset
 
 Primary dataset file:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/kb/training/local_reasoner_training.jsonl`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/kb/training/local_reasoner_training.jsonl`
 
 JSONL schema (one object per line):
 
@@ -50,21 +50,21 @@ This improves classification and output quality for:
 ## 2) Run training once
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ./scripts/train-local-model-loop.sh
 ```
 
 This command will:
 - train a lightweight local classifier via Python tooling for Swift app injection
 - regenerate model payload block in:
-  - `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/LocalReasoningEngine.swift`
-  - `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/LocalReasoningEngine.swift`
+  - `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/LocalReasoningEngine.swift`
+  - `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/LocalReasoningEngine.swift`
 - write a report at:
-  - `/Users/avrohom/Downloads/journeyatlas/docs/ai/swift-travel-design-model-report.md`
-  - compatibility copy: `/Users/avrohom/Downloads/journeyatlas/docs/ai/local-reasoner-model-report.md`
+  - `/Users/avrohom/Downloads/BlackHaven/docs/ai/swift-travel-design-model-report.md`
+  - compatibility copy: `/Users/avrohom/Downloads/BlackHaven/docs/ai/local-reasoner-model-report.md`
 - write versioned artifacts at:
-  - `/Users/avrohom/Downloads/journeyatlas/artifacts/swift-travel-design-model/<run_id>/`
-  - plus `/Users/avrohom/Downloads/journeyatlas/artifacts/swift-travel-design-model/latest.json`
+  - `/Users/avrohom/Downloads/BlackHaven/artifacts/swift-travel-design-model/<run_id>/`
+  - plus `/Users/avrohom/Downloads/BlackHaven/artifacts/swift-travel-design-model/latest.json`
 
 ## 2.1) Pruning controls
 
@@ -76,14 +76,14 @@ The trainer performs token-importance pruning by default.
 Example:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 MAX_VOCAB=1800 PRUNE_TARGET_VOCAB=640 ./scripts/train-local-model-loop.sh
 ```
 
 ## 3) Run continuously (day/night)
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 RUN_FOREVER=1 INTERVAL_SECONDS=1800 ./scripts/train-local-model-loop.sh
 ```
 
@@ -95,7 +95,7 @@ Use `tmux`/`screen` if you want this to survive terminal closure.
 ## 4) Quality gate
 
 Check holdout accuracy in:
-- `/Users/avrohom/Downloads/journeyatlas/docs/ai/swift-travel-design-model-report.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/ai/swift-travel-design-model-report.md`
 
 If accuracy drops, add better labeled prompts before shipping.
 
@@ -104,7 +104,7 @@ If accuracy drops, add better labeled prompts before shipping.
 To build research-grounded Swift outputs from scientific papers:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ./scripts/build_swift_research_corpus.py --input atlas-concierge/kb/training/scientific_papers_seed.jsonl --merge-into-base
 ./scripts/train-local-model-loop.sh
 ```
@@ -112,12 +112,12 @@ cd /Users/avrohom/Downloads/journeyatlas
 For continuous refresh:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 RUN_FOREVER=1 INTERVAL_SECONDS=1800 ./scripts/train-swift-science-loop.sh
 ```
 
 Pipeline details:
-- `/Users/avrohom/Downloads/journeyatlas/docs/ai/swift-scientific-corpus-pipeline.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/ai/swift-scientific-corpus-pipeline.md`
 
 Default quality gate:
 - minimum holdout accuracy: `55%`
@@ -126,7 +126,7 @@ Default quality gate:
 Override only if explicitly needed:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ALLOW_BELOW_THRESHOLD=1 ./scripts/train-local-model-loop.sh
 ```
 

@@ -182,6 +182,7 @@ struct UserNote: Codable, Identifiable, Hashable {
     let noteID: String
     let title: String
     let content: String
+    let createdAt: Date
 
     var id: String { noteID }
 
@@ -189,7 +190,38 @@ struct UserNote: Codable, Identifiable, Hashable {
         case noteID = "note_id"
         case title
         case content
+        case createdAt = "created_at"
     }
+
+    init(noteID: String, title: String, content: String, createdAt: Date = Date()) {
+        self.noteID = noteID
+        self.title = title
+        self.content = content
+        self.createdAt = createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        noteID = try container.decode(String.self, forKey: .noteID)
+        title = try container.decode(String.self, forKey: .title)
+        content = try container.decode(String.self, forKey: .content)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    }
+}
+
+struct SavedTravelLocation: Codable, Identifiable, Hashable {
+    let id: String
+    var name: String
+    var googleMapsQuery: String
+    var notes: String
+    var createdAt: String
+}
+
+struct TravelItineraryDraft: Codable, Identifiable, Hashable {
+    let id: String
+    var title: String
+    var locationIDs: [String]
+    var updatedAt: String
 }
 
 struct NoteUpsertPayload: Encodable {

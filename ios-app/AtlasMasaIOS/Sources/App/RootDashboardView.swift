@@ -11,14 +11,14 @@ import UIKit
 struct RootDashboardView: View {
     private enum Tab: Hashable {
         case command
+        case aiChat
         case execution
-        case workspaces
-        case concierge
+        case remote
         case more
     }
 
     @EnvironmentObject private var session: SessionStore
-    @State private var selectedTab: Tab = .concierge
+    @State private var selectedTab: Tab = .command
     @State private var openSurveyFromRequest = false
 
     init() {
@@ -39,19 +39,19 @@ struct RootDashboardView: View {
                 TabView(selection: $selectedTab) {
                     CommandCenterCard()
                         .tag(Tab.command)
-                        .tabItem { Label("Command", systemImage: "sparkles") }
+                        .tabItem { Label("Home", systemImage: "sparkles") }
+
+                    AIChatCard()
+                        .tag(Tab.aiChat)
+                        .tabItem { Label("AI Chat", systemImage: "message.badge.waveform") }
 
                     ProactiveFeedCard()
                         .tag(Tab.execution)
                         .tabItem { Label("Execution", systemImage: "chart.line.uptrend.xyaxis") }
 
-                    WorkspacesCard()
-                        .tag(Tab.workspaces)
-                        .tabItem { Label("Projects", systemImage: "square.grid.2x2") }
-
-                    PromptQueueCard()
-                        .tag(Tab.concierge)
-                        .tabItem { Label("Chat", systemImage: "message.fill") }
+                    DesktopRemoteControlCard()
+                        .tag(Tab.remote)
+                        .tabItem { Label("Remote", systemImage: "iphone.and.arrow.forward") }
 
                     MoreMenuCard(openSurveyRequested: $openSurveyFromRequest)
                         .tag(Tab.more)
@@ -69,6 +69,62 @@ struct RootDashboardView: View {
                 }
             } else {
                 AccessLockScreen()
+            }
+        }
+    }
+}
+
+private struct AIChatCard: View {
+    private enum Mode: String, CaseIterable, Identifiable {
+        case chat
+        case projects
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .chat: return "Chat"
+            case .projects: return "Projects"
+            }
+        }
+    }
+
+    @State private var selectedMode: Mode = .chat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("AI Chat")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundStyle(AtlasTheme.textPrimary)
+                        Text("Unified local-first chat for direct asks and project-threaded work.")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(AtlasTheme.textSecondary)
+                    }
+                    Spacer()
+                }
+
+                Picker("AI Chat Mode", selection: $selectedMode) {
+                    ForEach(Mode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
+            .background(AtlasTheme.tabBarSurface)
+
+            Group {
+                switch selectedMode {
+                case .chat:
+                    PromptQueueCard()
+                case .projects:
+                    WorkspacesCard()
+                }
             }
         }
     }
@@ -170,6 +226,7 @@ private enum MoreDestination: Hashable {
     case account
     case planSource
     case memory
+    case operations
     case mobility
     case guide
     case plans
@@ -278,6 +335,11 @@ private struct MoreMenuCard: View {
                     }
                     .buttonStyle(.plain)
 
+                    NavigationLink(value: MoreDestination.operations) {
+                        MoreRow(icon: "building.2.crop.circle", title: "Operations", subtitle: "Approval gates and exception handling")
+                    }
+                    .buttonStyle(.plain)
+
                     NavigationLink(value: MoreDestination.mobility) {
                         MoreRow(icon: "car.side.fill", title: "Mobility", subtitle: "Van rental and planning alignment")
                     }
@@ -309,6 +371,8 @@ private struct MoreMenuCard: View {
                     PlanSourceCard()
                 case .memory:
                     NotesCard()
+                case .operations:
+                    OperationsControlCard()
                 case .mobility:
                     MobilityOpsCard()
                 case .guide:
@@ -434,6 +498,84 @@ private struct MoreMenuCard: View {
                     )
                 case let .failure(error):
                     photoLoadError = error.localizedDescription
+                }
+            }
+        }
+    }
+}
+
+private struct OperationsControlCard: View {
+    private let modules = [
+        ("Treasury", "Track billing health, cash posture, payout readiness, and the approvals that should never happen silently.", "creditcard.and.123"),
+        ("Factory", "Surface machine status, stock alerts, and operational anomalies without pretending the phone is itself a robotics safety system.", "gearshape.2"),
+        ("Growth", "Review campaign candidates, approve brand-sensitive outputs, and keep budget decisions visible before anything goes live.", "megaphone"),
+        ("Support", "Summarize resolved tickets, highlight unresolved risk, and escalate only the cases that need owner involvement.", "person.2.fill"),
+        ("Logistics", "Monitor replenishment drafts, shipment delays, and supplier exceptions in one operator-friendly queue.", "shippingbox.fill")
+    ]
+
+    private let gates = [
+        "Money movement, unusual purchases, and irreversible actions should have explicit approval thresholds.",
+        "Support and safety escalations need a human-owner path instead of endless automation loops.",
+        "Physical robotics or factory overrides require separate safety engineering outside the phone UI.",
+        "Every automated action should leave an audit trail that explains what happened and why."
+    ]
+
+    var body: some View {
+        AtlasScreen(
+            title: "Operations Control",
+            subtitle: "A company-of-one control surface for approvals, exceptions, and operational visibility."
+        ) {
+            AtlasPanel(
+                heading: "Current product boundary",
+                caption: "What this app can responsibly become"
+            ) {
+                Text("Atlas should act as the owner-facing approval and exception cockpit for a highly automated business. The right goal is not 'replace every human without limits.' The right goal is to reduce routine work, surface anomalies, and keep high-stakes decisions visible on one device.")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(AtlasTheme.textSecondary)
+            }
+
+            AtlasPanel(
+                heading: "Operations modules",
+                caption: "The five control surfaces this PDF is directionally asking for"
+            ) {
+                VStack(spacing: 12) {
+                    ForEach(modules, id: \.0) { module in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: module.2)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(AtlasTheme.accentWarm)
+                                .frame(width: 22)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(module.0)
+                                    .font(.system(size: 15, weight: .semibold, design: .default))
+                                    .foregroundStyle(AtlasTheme.textPrimary)
+                                Text(module.1)
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AtlasTheme.textSecondary)
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+
+            AtlasPanel(
+                heading: "Readiness gates",
+                caption: "What has to be true before this works in the real world"
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(gates, id: \.self) { gate in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "checkmark.shield")
+                                .foregroundStyle(AtlasTheme.accentWarm)
+                            Text(gate)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(AtlasTheme.textSecondary)
+                        }
+                    }
                 }
             }
         }

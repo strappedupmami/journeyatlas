@@ -6,7 +6,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Dict, List
 
-ROOT = Path('/Users/avrohom/Downloads/journeyatlas')
+ROOT = Path('/Users/avrohom/Downloads/BlackHaven')
 
 DEFAULT_INPUT = ROOT / 'atlas-concierge/kb/training/scientific_papers_seed.jsonl'
 IOS_PACK = ROOT / 'ios-app/AtlasMasaIOS/Sources/Core/AtlasResearchPack.swift'
@@ -304,7 +304,7 @@ def write_report(
         'Run local training to update Swift model payloads:',
         '',
         '```bash',
-        'cd /Users/avrohom/Downloads/journeyatlas',
+        'cd /Users/avrohom/Downloads/BlackHaven',
         './scripts/train-local-model-loop.sh',
         '```',
     ])

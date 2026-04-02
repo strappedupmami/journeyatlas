@@ -2,7 +2,10 @@ using AtlasMasaWindows.Models;
 using AtlasMasaWindows.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using System.Collections;
+using Windows.System;
 
 namespace AtlasMasaWindows;
 
@@ -67,6 +70,49 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void LocalAiPackButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: LocalAIModelPack pack })
+        {
+            ViewModel.SelectLocalAiPackCommand.Execute(pack);
+        }
+    }
+
+    private void LocalAiInstallOption_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: LocalAIModelInstallOption option })
+        {
+            ViewModel.SetLocalAiInstallOptionSelection(option.Id, isSelected: true);
+        }
+    }
+
+    private void LocalAiInstallOption_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: LocalAIModelInstallOption option })
+        {
+            ViewModel.SetLocalAiInstallOptionSelection(option.Id, isSelected: false);
+        }
+    }
+
+    private void ConciergePrompt_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Enter)
+        {
+            return;
+        }
+
+        if ((InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
+        {
+            return;
+        }
+
+        if (ViewModel.EnqueuePromptCommand.CanExecute(null))
+        {
+            ViewModel.EnqueuePromptCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
     public Visibility PrepaidLockedVisibility(bool prepaidCreditsActive)
     {
         return prepaidCreditsActive ? Visibility.Collapsed : Visibility.Visible;
@@ -85,6 +131,46 @@ public sealed partial class MainWindow : Window
     public Visibility SurveyMultiVisibility(bool isCurrentSurveyQuestionMulti)
     {
         return isCurrentSurveyQuestionMulti ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public Visibility RuntimeStripVisibility(bool showRuntimeProgressStrip)
+    {
+        return showRuntimeProgressStrip ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public Visibility BoolVisibility(bool value)
+    {
+        return value ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public Visibility InverseBoolVisibility(bool value)
+    {
+        return value ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    public Visibility TextVisibility(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    public Visibility ListVisibility(IEnumerable? values)
+    {
+        if (values is null)
+        {
+            return Visibility.Collapsed;
+        }
+
+        foreach (var _ in values)
+        {
+            return Visibility.Visible;
+        }
+
+        return Visibility.Collapsed;
+    }
+
+    public Visibility ReasoningVisibility(bool hasReasoningDetails)
+    {
+        return hasReasoningDetails ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void UpdateSiblingSurveyChoiceSelection(

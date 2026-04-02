@@ -46,6 +46,10 @@ struct ReasonResponse {
     summary: String,
     next_action: String,
     confidence: f64,
+    reasoning_summary: String,
+    alternatives_considered: Vec<String>,
+    assumptions: Vec<String>,
+    confidence_label: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,6 +74,7 @@ struct PolicyRequest {
 struct PolicyResponse {
     selected_model: String,
     fallback_models: Vec<String>,
+    recommended_pack_id: String,
     reasoning_mode: String,
     analysis_passes: u8,
     temperature: f64,
@@ -113,6 +118,15 @@ fn run() -> Result<(), String> {
                     summary: "No prompt supplied.".to_string(),
                     next_action: "Add one clear objective and queue it again.".to_string(),
                     confidence: 0.0,
+                    reasoning_summary: "No reasoning was performed because the prompt was empty.".to_string(),
+                    alternatives_considered: vec![
+                        "Keep waiting without a concrete prompt.".to_string(),
+                        "Ask for more context before defining any objective.".to_string(),
+                    ],
+                    assumptions: vec![
+                        "A concrete objective is required before useful execution planning can happen.".to_string(),
+                    ],
+                    confidence_label: "Low".to_string(),
                 }
             } else {
                 reason(&prompt, request.notes_used)
@@ -151,6 +165,16 @@ fn reason(prompt: &str, notes_used: usize) -> ReasonResponse {
                 next_action: "בצעו עכשיו: אבטחת זירה, קריאה לחירום, שיתוף מיקום, ותיעוד זמנים."
                     .to_string(),
                 confidence: 0.97,
+                reasoning_summary: "המערכת זיהתה אותות חירום ובחרה במסלול שמעדיף בטיחות ותגובה מיידית על פני ניתוח רחב יותר.".to_string(),
+                alternatives_considered: vec![
+                    "להתחיל בניתוח אסטרטגי רחב יותר לפני פעולה.".to_string(),
+                    "להמתין לעוד פרטים לפני הפעלת תגובת חירום.".to_string(),
+                ],
+                assumptions: vec![
+                    "נדרשת תגובה מיידית ומעשית.".to_string(),
+                    "הסיכון המיידי חשוב יותר ממיצוי מידע נוסף כרגע.".to_string(),
+                ],
+                confidence_label: "Very High".to_string(),
             };
         }
         return ReasonResponse {
@@ -161,6 +185,16 @@ fn reason(prompt: &str, notes_used: usize) -> ReasonResponse {
                 "Do now: secure scene, contact emergency services, share location, log timeline."
                     .to_string(),
             confidence: 0.97,
+            reasoning_summary: "Emergency signals were present, so the response optimized for immediate safety and continuity instead of broader planning.".to_string(),
+            alternatives_considered: vec![
+                "Pause to gather more context before acting.".to_string(),
+                "Start with a broader strategic plan instead of immediate emergency steps.".to_string(),
+            ],
+            assumptions: vec![
+                "The situation may involve immediate harm or instability.".to_string(),
+                "Fast action is more valuable than exhaustive analysis right now.".to_string(),
+            ],
+            confidence_label: "Very High".to_string(),
         };
     }
 
@@ -173,6 +207,16 @@ fn reason(prompt: &str, notes_used: usize) -> ReasonResponse {
                     "בחרו מהלך 14 יום אחד: קידום שכר, לקוח ראשון, או שדרוג הצעת ערך + KPI יומי."
                         .to_string(),
                 confidence: 0.91,
+                reasoning_summary: "המערכת זיהתה הקשר כלכלי ובחרה במסלול הכנסה יחיד ומדיד כדי לצמצם פיזור ולחזק מומנטום.".to_string(),
+                alternatives_considered: vec![
+                    "לרדוף אחרי כמה מסלולי הכנסה במקביל.".to_string(),
+                    "להתמקד בלמידה בלבד לפני מהלך הכנסה קונקרטי.".to_string(),
+                ],
+                assumptions: vec![
+                    "מומנטום כלכלי ייבנה מהר יותר דרך מסלול אחד ברור.".to_string(),
+                    "פשטות מדידה עדיפה כרגע על תכנית צמיחה מורכבת.".to_string(),
+                ],
+                confidence_label: "High".to_string(),
             };
         }
         return ReasonResponse {
@@ -181,6 +225,16 @@ fn reason(prompt: &str, notes_used: usize) -> ReasonResponse {
             next_action: "Select one 14-day route: compensation upgrade, first client, or offer improvement with daily KPI."
                 .to_string(),
             confidence: 0.91,
+            reasoning_summary: "The prompt pointed to income growth, so the response chose one measurable route to reduce diffusion and improve execution speed.".to_string(),
+            alternatives_considered: vec![
+                "Pursue multiple income strategies at the same time.".to_string(),
+                "Stay in planning mode longer before choosing a route.".to_string(),
+            ],
+            assumptions: vec![
+                "A narrower execution path will beat a scattered approach right now.".to_string(),
+                "Short feedback loops matter more than complex long-range planning here.".to_string(),
+            ],
+            confidence_label: "High".to_string(),
         };
     }
 
@@ -191,6 +245,16 @@ fn reason(prompt: &str, notes_used: usize) -> ReasonResponse {
             summary: format!("תדריך ביצוע: {first_sentence} | פתקי הקשר: {normalized_notes}"),
             next_action: "ב-15 הדקות הקרובות: בצעו צעד אחד מדיד ורשמו תוצאה.".to_string(),
             confidence: 0.79,
+            reasoning_summary: "נבחר מסלול פעולה ישיר וקצר, לאחר השוואה מהירה בין חלופות ובמיקוד בביצוע מיידי.".to_string(),
+            alternatives_considered: vec![
+                "להעמיק באבחון לפני כל המלצה.".to_string(),
+                "לתת תכנית רחבה יותר עם יותר שלבים ופחות דחיפות.".to_string(),
+            ],
+            assumptions: vec![
+                "המשתמש צריך מהלך מעשי מהיר יותר מאשר ניתוח ארוך.".to_string(),
+                format!("נעשה שימוש ב-{normalized_notes} פתקי הקשר רלוונטיים."),
+            ],
+            confidence_label: "Medium".to_string(),
         };
     }
 
@@ -202,6 +266,16 @@ fn reason(prompt: &str, notes_used: usize) -> ReasonResponse {
         next_action: "In the next 15 minutes: execute one measurable step and log the result."
             .to_string(),
         confidence: 0.79,
+        reasoning_summary: "A direct execution path was chosen after a quick comparison of alternatives, prioritizing speed, clarity, and follow-through.".to_string(),
+        alternatives_considered: vec![
+            "Ask more diagnostic questions before recommending an action.".to_string(),
+            "Offer a broader and slower multi-step plan.".to_string(),
+        ],
+        assumptions: vec![
+            "A practical next step is more valuable than deeper analysis right now.".to_string(),
+            format!("The current prompt and {normalized_notes} context notes capture enough signal to act."),
+        ],
+        confidence_label: "Medium".to_string(),
     }
 }
 
@@ -272,19 +346,21 @@ fn build_policy(request: PolicyRequest) -> PolicyResponse {
     let mut analysis_passes = match reasoning_mode.as_str() {
         "fast" => match tier {
             HardwareTier::Low => 1,
-            _ => 2,
+            HardwareTier::Balanced => 2,
+            HardwareTier::High => 3,
+            HardwareTier::Ultra => 3,
         },
         "deep" => match tier {
             HardwareTier::Low => 2,
-            HardwareTier::Balanced => 3,
-            HardwareTier::High => 4,
-            HardwareTier::Ultra => 5,
+            HardwareTier::Balanced => 4,
+            HardwareTier::High => 5,
+            HardwareTier::Ultra => 6,
         },
         _ => match tier {
             HardwareTier::Low => 2,
             HardwareTier::Balanced => 3,
-            HardwareTier::High => 3,
-            HardwareTier::Ultra => 4,
+            HardwareTier::High => 4,
+            HardwareTier::Ultra => 5,
         },
     };
 
@@ -295,34 +371,34 @@ fn build_policy(request: PolicyRequest) -> PolicyResponse {
     let mut max_tokens = match reasoning_mode.as_str() {
         "fast" => match tier {
             HardwareTier::Low => 560,
-            HardwareTier::Balanced => 740,
-            HardwareTier::High => 900,
-            HardwareTier::Ultra => 1024,
+            HardwareTier::Balanced => 900,
+            HardwareTier::High => 1200,
+            HardwareTier::Ultra => 1500,
         },
         "deep" => match tier {
-            HardwareTier::Low => 880,
-            HardwareTier::Balanced => 1220,
-            HardwareTier::High => 1650,
-            HardwareTier::Ultra => 2200,
+            HardwareTier::Low => 1100,
+            HardwareTier::Balanced => 1700,
+            HardwareTier::High => 2600,
+            HardwareTier::Ultra => 3600,
         },
         _ => match tier {
-            HardwareTier::Low => 700,
-            HardwareTier::Balanced => 980,
-            HardwareTier::High => 1250,
-            HardwareTier::Ultra => 1600,
+            HardwareTier::Low => 900,
+            HardwareTier::Balanced => 1300,
+            HardwareTier::High => 1900,
+            HardwareTier::Ultra => 2600,
         },
     };
 
     if task.contains("adaptive_question") {
-        max_tokens = max_tokens.min(720);
+        max_tokens = max_tokens.min(960);
     }
     if task.contains("structured_json") {
-        max_tokens = max_tokens.min(1300);
+        max_tokens = max_tokens.min(1800);
     }
 
     let mut num_ctx = match tier {
-        HardwareTier::Low => 8_192,
-        HardwareTier::Balanced => 12_288,
+        HardwareTier::Low => 12_288,
+        HardwareTier::Balanced => 16_384,
         HardwareTier::High => 24_576,
         HardwareTier::Ultra => 32_768,
     };
@@ -333,21 +409,21 @@ fn build_policy(request: PolicyRequest) -> PolicyResponse {
     let timeout_seconds = match reasoning_mode.as_str() {
         "fast" => match tier {
             HardwareTier::Low => 16,
-            HardwareTier::Balanced => 20,
-            HardwareTier::High => 26,
-            HardwareTier::Ultra => 34,
-        },
-        "deep" => match tier {
-            HardwareTier::Low => 25,
-            HardwareTier::Balanced => 34,
-            HardwareTier::High => 44,
-            HardwareTier::Ultra => 55,
-        },
-        _ => match tier {
-            HardwareTier::Low => 20,
-            HardwareTier::Balanced => 26,
+            HardwareTier::Balanced => 24,
             HardwareTier::High => 32,
             HardwareTier::Ultra => 40,
+        },
+        "deep" => match tier {
+            HardwareTier::Low => 32,
+            HardwareTier::Balanced => 44,
+            HardwareTier::High => 60,
+            HardwareTier::Ultra => 80,
+        },
+        _ => match tier {
+            HardwareTier::Low => 24,
+            HardwareTier::Balanced => 32,
+            HardwareTier::High => 42,
+            HardwareTier::Ultra => 56,
         },
     };
 
@@ -364,6 +440,10 @@ fn build_policy(request: PolicyRequest) -> PolicyResponse {
     };
 
     let fallback_count = fallback_models.len();
+    let recommended_pack_id = match tier {
+        HardwareTier::High | HardwareTier::Ultra => "balanced".to_string(),
+        HardwareTier::Balanced | HardwareTier::Low => "starter".to_string(),
+    };
     let status_line = format!(
         "Rust policy {platform_or_unknown} tier={tier_label} task={task_or_general} selected={selected_model} fallbacks={fallback_count} mode={reasoning_mode} passes={analysis_passes} max_tokens={max_tokens} num_ctx={num_ctx} timeout={timeout_seconds}s",
         platform_or_unknown = if platform.is_empty() { "unknown" } else { &platform },
@@ -373,6 +453,7 @@ fn build_policy(request: PolicyRequest) -> PolicyResponse {
     PolicyResponse {
         selected_model,
         fallback_models,
+        recommended_pack_id,
         reasoning_mode,
         analysis_passes,
         temperature,
@@ -387,7 +468,7 @@ fn build_policy(request: PolicyRequest) -> PolicyResponse {
 fn classify_hardware_tier(cores: u32, memory_gb: u64, high_perf: bool) -> HardwareTier {
     if high_perf || (cores >= 16 && memory_gb >= 32) {
         HardwareTier::Ultra
-    } else if cores >= 12 && memory_gb >= 24 {
+    } else if cores >= 8 && memory_gb >= 16 {
         HardwareTier::High
     } else if cores >= 8 && memory_gb >= 12 {
         HardwareTier::Balanced

@@ -6,8 +6,8 @@ struct CommandCenterCard: View {
 
     var body: some View {
         AtlasScreen(
-            title: "Atlas Life OS",
-            subtitle: "Command brief, execution planning, and orchestration controls"
+            title: "BlackHaven Home",
+            subtitle: "Home brief, execution planning, and orchestration controls"
         ) {
             AtlasPanel(
                 heading: "Safety + rehabilitation guardrails",
@@ -35,10 +35,10 @@ struct CommandCenterCard: View {
 
             AtlasPanel(
                 heading: "Model Inference Brief",
-                caption: "Current command synthesis"
+                caption: "Current home synthesis"
             ) {
                 if !session.isModelAutofillUnlocked {
-                    Text("AI command brief unlock: \(session.modelAutofillMinimumSurveyAnswers) survey answers (\(session.modelAutofillSurveyAnswersRemaining) remaining).")
+                    Text("AI home brief unlock: \(session.modelAutofillMinimumSurveyAnswers) survey answers (\(session.modelAutofillSurveyAnswersRemaining) remaining).")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(AtlasTheme.accentWarm)
                 }
@@ -50,10 +50,10 @@ struct CommandCenterCard: View {
             }
 
             AtlasPanel(
-                heading: "Command Prompt Studio",
-                caption: "Text-first queue controls for command operations"
+                heading: "Home Prompt Studio",
+                caption: "Text-first queue controls for home operations"
             ) {
-                Text("Write a prompt for Atlas AI")
+                Text("Write a prompt for BlackHaven AI")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(AtlasTheme.textPrimary)
 
@@ -93,7 +93,7 @@ struct CommandCenterCard: View {
                 }
 
                 if recentConciergeItems.isEmpty {
-                    Text("No command prompts yet. Send one to generate a standard reply, podcast, or rehearsal quiz.")
+                    Text("No home prompts yet. Send one to generate a standard reply, podcast, or rehearsal quiz.")
                         .foregroundStyle(AtlasTheme.textSecondary)
                 } else {
                     ForEach(recentConciergeItems) { item in
@@ -175,7 +175,7 @@ struct CommandCenterCard: View {
 
             AtlasPanel(
                 heading: "Adaptive deep survey",
-                caption: "Branching intake is now part of Command and powers long-term personalization quality"
+                caption: "Branching intake is now part of Home and powers long-term personalization quality"
             ) {
                 if let survey = session.survey {
                     ProgressView(value: Double(survey.progress.percent), total: 100)
@@ -252,6 +252,51 @@ struct CommandCenterCard: View {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .fill(Color.black.opacity(0.2))
                         )
+                    }
+                }
+            }
+
+            AtlasPanel(
+                heading: "Travel Itinerary Window",
+                caption: "Your saved itinerary is visible directly on Home"
+            ) {
+                if session.activeTravelItineraryLocations.isEmpty {
+                    Text("No saved itinerary yet. Add locations in Travel Maps + Itinerary and they will appear here.")
+                        .foregroundStyle(AtlasTheme.textSecondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(session.activeTravelItinerary.title)
+                            .font(.system(size: 16, weight: .semibold, design: .default))
+                            .foregroundStyle(AtlasTheme.textPrimary)
+
+                        ForEach(Array(session.activeTravelItineraryLocations.enumerated()), id: \.element.id) { index, location in
+                            HStack(alignment: .top, spacing: 10) {
+                                Text("\(index + 1)")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AtlasTheme.accentWarm)
+                                    .frame(width: 24, alignment: .leading)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(location.name)
+                                        .font(.system(size: 14, weight: .semibold, design: .default))
+                                        .foregroundStyle(AtlasTheme.textPrimary)
+                                    Text(location.googleMapsQuery)
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundStyle(AtlasTheme.textSecondary)
+                                    if !location.notes.isEmpty {
+                                        Text(location.notes)
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                                            .foregroundStyle(AtlasTheme.textSecondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                            }
+                            .padding(10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.black.opacity(0.2))
+                            )
+                        }
                     }
                 }
             }

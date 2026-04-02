@@ -88,6 +88,7 @@ public sealed class RustReasoningBridge
                     .Select(item => item.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList() ?? [],
+                RecommendedPackId = string.IsNullOrWhiteSpace(response.RecommendedPackId) ? "starter" : response.RecommendedPackId.Trim(),
                 ReasoningMode = string.IsNullOrWhiteSpace(response.ReasoningMode) ? "standard" : response.ReasoningMode.Trim(),
                 AnalysisPasses = Math.Clamp(response.AnalysisPasses, 1, 6),
                 Temperature = Math.Clamp(response.Temperature, 0.0, 0.95),
@@ -166,7 +167,19 @@ public sealed class RustReasoningBridge
                 Summary = response.Summary.Trim(),
                 NextAction = response.NextAction.Trim(),
                 Confidence = Math.Clamp(response.Confidence, 0.0, 1.0),
-                GeneratedAt = DateTimeOffset.UtcNow
+                GeneratedAt = DateTimeOffset.UtcNow,
+                ReasoningSummary = string.IsNullOrWhiteSpace(response.ReasoningSummary) ? null : response.ReasoningSummary.Trim(),
+                AlternativesConsidered = response.AlternativesConsidered?
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .Select(item => item.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? [],
+                Assumptions = response.Assumptions?
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .Select(item => item.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? [],
+                ConfidenceLabel = string.IsNullOrWhiteSpace(response.ConfidenceLabel) ? null : response.ConfidenceLabel.Trim()
             };
         }
         catch (OperationCanceledException)
@@ -301,6 +314,8 @@ public sealed class RustReasoningBridge
         public string? SelectedModel { get; set; }
         [JsonPropertyName("fallback_models")]
         public List<string>? FallbackModels { get; set; }
+        [JsonPropertyName("recommended_pack_id")]
+        public string? RecommendedPackId { get; set; }
         [JsonPropertyName("reasoning_mode")]
         public string? ReasoningMode { get; set; }
         [JsonPropertyName("analysis_passes")]
@@ -329,6 +344,18 @@ public sealed class RustReasoningBridge
         public string NextAction { get; set; } = string.Empty;
         [JsonPropertyName("confidence")]
         public double Confidence { get; set; }
+
+        [JsonPropertyName("reasoning_summary")]
+        public string? ReasoningSummary { get; set; }
+
+        [JsonPropertyName("alternatives_considered")]
+        public List<string>? AlternativesConsidered { get; set; }
+
+        [JsonPropertyName("assumptions")]
+        public List<string>? Assumptions { get; set; }
+
+        [JsonPropertyName("confidence_label")]
+        public string? ConfidenceLabel { get; set; }
     }
 }
 
@@ -336,6 +363,7 @@ public sealed class RustInferencePolicy
 {
     public string SelectedModel { get; init; } = "llama3.2:latest";
     public IReadOnlyList<string> FallbackModels { get; init; } = [];
+    public string RecommendedPackId { get; init; } = "starter";
     public string ReasoningMode { get; init; } = "standard";
     public int AnalysisPasses { get; init; } = 2;
     public double Temperature { get; init; } = 0.22;

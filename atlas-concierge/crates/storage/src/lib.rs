@@ -1,3 +1,5 @@
+pub mod financial;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -7,6 +9,8 @@ use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
+
+pub use financial::{Aes256GcmCrypto, FinancialCrypto, FinancialRepository, SqliteFinancialVault};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GearInventoryItem {

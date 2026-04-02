@@ -5,6 +5,7 @@ Deliver a one-click Windows install flow that feels like a managed app channel:
 - User clicks install page button
 - Windows App Installer opens
 - Atlas installs and can check for updates
+- On first launch, BlackHaven completes local AI setup inside the app
 
 ## 1. Build release bundle
 From `windows-app/scripts`:

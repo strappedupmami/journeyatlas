@@ -129,36 +129,315 @@ struct AtlasPill: View {
     }
 }
 
+struct AtlasModelRuntimeProgressStrip: View {
+    let progress: Double
+    let busy: Bool
+    let title: String
+    let sizeText: String
+    let etaText: String
+    let compact: Bool
+    @State private var shimmerOffset: CGFloat = -0.8
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 5 : 7) {
+            GeometryReader { proxy in
+                let width = max(0, proxy.size.width)
+                let clamped = min(1.0, max(0.0, progress))
+                let fillWidth = max(6, width * (busy ? max(0.04, clamped) : clamped))
+
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.16, green: 0.54, blue: 0.98),
+                                    Color(red: 0.12, green: 0.78, blue: 0.86),
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: fillWidth)
+                        .overlay(alignment: .leading) {
+                            Capsule(style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.clear, .white.opacity(0.35), .clear],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: max(28, width * 0.2))
+                                .offset(x: width * shimmerOffset)
+                                .opacity(busy ? 1 : 0)
+                        }
+                }
+            }
+            .frame(height: compact ? 9 : 11)
+
+            HStack {
+                Text(title)
+                    .font(compact ? .caption2 : .caption)
+                    .foregroundStyle(AtlasTheme.textSecondary)
+                Spacer()
+                Text("\(Int((min(1.0, max(0.0, progress)) * 100).rounded()))%")
+                    .font((compact ? Font.caption2 : Font.caption).monospacedDigit())
+                    .foregroundStyle(AtlasTheme.textSecondary)
+            }
+
+            HStack {
+                Text(sizeText)
+                    .font(.caption2)
+                    .foregroundStyle(AtlasTheme.textSecondary)
+                Spacer()
+                Text(etaText)
+                    .font(.caption2)
+                    .foregroundStyle(AtlasTheme.textSecondary)
+            }
+        }
+        .onAppear {
+            updateShimmerState()
+        }
+        .onChange(of: busy) { _, _ in
+            updateShimmerState()
+        }
+    }
+
+    private func updateShimmerState() {
+        if busy {
+            shimmerOffset = -0.8
+            withAnimation(.linear(duration: 1.25).repeatForever(autoreverses: false)) {
+                shimmerOffset = 1.15
+            }
+        } else {
+            shimmerOffset = -0.8
+        }
+    }
+}
+
 // MARK: - Native Chat Bubble
 struct AtlasChatBubble: View {
     let text: String
     let isUser: Bool
+    let isStreaming: Bool
+    @State private var shimmerOffset: CGFloat = -0.45
+
+    init(text: String, isUser: Bool, isStreaming: Bool = false) {
+        self.text = text
+        self.isUser = isUser
+        self.isStreaming = isStreaming
+    }
 
     var body: some View {
         HStack {
             if isUser { Spacer(minLength: 60) }
 
-            Text(text)
-                .font(.body)
-                .foregroundStyle(isUser ? Color.white : AtlasTheme.textPrimary)
-                .textSelection(.enabled) // Good that you had this!
+            bubbleText
+                .textSelection(.enabled)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(
                             isUser
-                                ? AnyShapeStyle(AtlasTheme.brandGradient)
-                                : AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
+                                ? AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
+                                : (isStreaming
+                                    ? AnyShapeStyle(Color.white.opacity(0.05))
+                                    : AnyShapeStyle(AtlasTheme.brandGradient))
                         )
                 )
-                // Only stroke the AI bubble, keep user bubble clean
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(isUser ? Color.clear : AtlasTheme.border, lineWidth: 1)
+                        .stroke(isUser ? AtlasTheme.border : (isStreaming ? Color.white.opacity(0.12) : AtlasTheme.accent), lineWidth: 1)
                 )
+                .onAppear {
+                    guard isStreaming else { return }
+                    shimmerOffset = -0.45
+                    withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) {
+                        shimmerOffset = 1.15
+                    }
+                }
 
             if !isUser { Spacer(minLength: 60) }
+        }
+    }
+
+    @ViewBuilder
+    private var bubbleText: some View {
+        if isStreaming && !isUser {
+            Text(text)
+                .font(.body)
+                .foregroundStyle(Color.white.opacity(0.34))
+                .overlay {
+                    GeometryReader { proxy in
+                        let width = max(proxy.size.width, 1)
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                Color.white.opacity(0.18),
+                                Color.white.opacity(0.98),
+                                Color.white.opacity(0.2),
+                                .clear,
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: max(72, width * 0.42))
+                        .offset(x: width * shimmerOffset)
+                        .mask(
+                            Text(text)
+                                .font(.body)
+                        )
+                    }
+                }
+        } else {
+            Text(renderedAttributedText)
+                .font(.body)
+                .foregroundStyle(isUser ? AtlasTheme.textPrimary : Color.white)
+        }
+    }
+
+    private var renderedAttributedText: AttributedString {
+        if let rendered = try? AttributedString(
+            markdown: text,
+            options: AttributedString.MarkdownParsingOptions(
+                interpretedSyntax: .full,
+                failurePolicy: .returnPartiallyParsedIfPossible
+            )
+        ) {
+            return rendered
+        }
+        return AttributedString(text)
+    }
+}
+
+struct AtlasAssistantResponseView: View {
+    let output: LocalReasoningOutput
+
+    @State private var showReasoning = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            AtlasChatBubble(text: primaryText, isUser: false)
+
+            if hasReasoningDetails {
+                DisclosureGroup(isExpanded: $showReasoning) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let reasoning = cleanReasoningSummary {
+                            reasoningBlock(
+                                title: "Why this answer",
+                                body: reasoning
+                            )
+                        }
+
+                        if !output.alternativesConsidered.isEmpty {
+                            bulletBlock(
+                                title: "Alternatives considered",
+                                items: output.alternativesConsidered
+                            )
+                        }
+
+                        if !output.assumptions.isEmpty {
+                            bulletBlock(
+                                title: "Assumptions",
+                                items: output.assumptions
+                            )
+                        }
+
+                        HStack(spacing: 12) {
+                            if let label = cleanConfidenceLabel {
+                                AtlasPill(title: "CONFIDENCE \(label.uppercased())")
+                            }
+                            if !output.nextAction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                AtlasPill(title: "NEXT ACTION READY")
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .frame(maxWidth: 720, alignment: .leading)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(AtlasTheme.border, lineWidth: 1)
+                    )
+                    .padding(.leading, 12)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: showReasoning ? "chevron.down.circle.fill" : "chevron.right.circle")
+                            .foregroundStyle(AtlasTheme.accentWarm)
+                        Text("Thought process")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AtlasTheme.textPrimary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .tint(AtlasTheme.accentWarm)
+            }
+        }
+    }
+
+    private var primaryText: String {
+        let body = output.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let action = output.nextAction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !action.isEmpty, !body.localizedCaseInsensitiveContains(action) else {
+            return body
+        }
+        return "\(body)\n\nNext action: \(action)"
+    }
+
+    private var cleanReasoningSummary: String? {
+        let value = output.reasoningSummary?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (value?.isEmpty == false) ? value : nil
+    }
+
+    private var cleanConfidenceLabel: String? {
+        let value = output.confidenceLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (value?.isEmpty == false) ? value : nil
+    }
+
+    private var hasReasoningDetails: Bool {
+        cleanReasoningSummary != nil
+            || !output.alternativesConsidered.isEmpty
+            || !output.assumptions.isEmpty
+            || cleanConfidenceLabel != nil
+    }
+
+    @ViewBuilder
+    private func reasoningBlock(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasTheme.textSecondary)
+            Text(body)
+                .font(.subheadline)
+                .foregroundStyle(AtlasTheme.textPrimary)
+                .textSelection(.enabled)
+        }
+    }
+
+    @ViewBuilder
+    private func bulletBlock(title: String, items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasTheme.textSecondary)
+            ForEach(items, id: \.self) { item in
+                HStack(alignment: .top, spacing: 8) {
+                    Circle()
+                        .fill(AtlasTheme.accentWarm)
+                        .frame(width: 5, height: 5)
+                        .padding(.top, 6)
+                    Text(item)
+                        .font(.subheadline)
+                        .foregroundStyle(AtlasTheme.textPrimary)
+                        .textSelection(.enabled)
+                }
+            }
         }
     }
 }

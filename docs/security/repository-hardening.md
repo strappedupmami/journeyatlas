@@ -45,13 +45,15 @@ Install pre-commit and hooks:
 
 ```bash
 pipx install pre-commit
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 pre-commit install
 pre-commit run --all-files
 ```
 
 Hooks enforced by this repo:
 - secret leak scan (`detect-secrets`)
+- tracked baseline for local secret review (`.secrets.baseline`)
+- Rust format/check/clippy/audit gates
 - lockfile presence policy
 - workflow action SHA pinning policy
 
@@ -115,4 +117,4 @@ Operator policy:
 
 ## 7) App hardening baseline
 
-See `/Users/avrohom/Downloads/journeyatlas/docs/security/app-enterprise-hardening.md` for platform-specific controls across iOS, macOS, Android, and Windows (encrypted local persistence, host allowlists, manifest defaults, and release verification steps).
+See `/Users/avrohom/Downloads/BlackHaven/docs/security/app-enterprise-hardening.md` for platform-specific controls across iOS, macOS, Android, and Windows (encrypted local persistence, host allowlists, manifest defaults, and release verification steps).

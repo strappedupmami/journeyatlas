@@ -2,10 +2,10 @@
   #define AppVersion "0.0.0-dev"
 #endif
 #ifndef AppPublisher
-  #define AppPublisher "Atlas Masa"
+  #define AppPublisher "BlackHaven"
 #endif
 #ifndef AppURL
-  #define AppURL "https://atlasmasa.com"
+  #define AppURL "https://blackhaven.app"
 #endif
 #ifndef Arch
   #define Arch "x64"
@@ -17,7 +17,7 @@
   #define OutputDir "..\\release"
 #endif
 
-#define AppName "Atlas Masa"
+#define AppName "BlackHaven"
 #define AppExeName "AtlasMasaWindows.exe"
 
 [Setup]
@@ -28,8 +28,8 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#AppURL}
 AppUpdatesURL={#AppURL}
-DefaultDirName={autopf}\Atlas Masa
-DefaultGroupName=Atlas Masa
+DefaultDirName={autopf}\BlackHaven
+DefaultGroupName=BlackHaven
 OutputDir={#OutputDir}
 OutputBaseFilename=AtlasMasa-Setup-{#AppVersion}-{#Arch}
 ArchitecturesAllowed={#Arch}
@@ -52,8 +52,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion; Excludes: "*.pdb,*.xml"
 
 [Icons]
-Name: "{autoprograms}\Atlas Masa"; Filename: "{app}\{#AppExeName}"
-Name: "{autodesktop}\Atlas Masa"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\BlackHaven"; Filename: "{app}\{#AppExeName}"
+Name: "{autodesktop}\BlackHaven"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch Atlas Masa"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Launch BlackHaven"; Flags: nowait postinstall skipifsilent

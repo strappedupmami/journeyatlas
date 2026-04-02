@@ -5,7 +5,7 @@ param(
     [string]$Version = "1.0.0",
     [string]$ArtifactPrefix = "AtlasMasa",
     [string]$AppInstallerBaseUrl = "",
-    [string]$AppDisplayName = "Atlas Masa",
+    [string]$AppDisplayName = "BlackHaven",
     [switch]$BuildRust = $true,
     [switch]$AllowUnsigned = $false,
     [string]$SigningThumbprint = "",

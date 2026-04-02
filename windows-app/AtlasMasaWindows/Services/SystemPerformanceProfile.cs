@@ -6,6 +6,7 @@ public sealed class SystemPerformanceProfile
     public long PhysicalMemoryGb { get; init; }
     public int MaxQueueWorkers { get; init; }
     public bool HighPerformanceMode { get; init; }
+    public bool UltraPerformanceMode { get; init; }
     public string Label { get; init; } = "balanced";
 
     public static SystemPerformanceProfile Detect()
@@ -25,10 +26,13 @@ public sealed class SystemPerformanceProfile
             // keep default
         }
 
-        var highPerf = cores >= 12 && memoryGb >= 16;
-        var workers = highPerf
-            ? Math.Min(8, Math.Max(2, cores / 2))
-            : Math.Max(1, Math.Min(4, cores / 3));
+        var ultraPerf = cores >= 16 && memoryGb >= 32;
+        var highPerf = ultraPerf || (cores >= 8 && memoryGb >= 16);
+        var workers = ultraPerf
+            ? Math.Min(12, Math.Max(4, (int)Math.Ceiling(cores / 2.0)))
+            : highPerf
+                ? Math.Min(8, Math.Max(3, (int)Math.Ceiling(cores / 2.0)))
+                : Math.Max(1, Math.Min(4, Math.Max(2, cores / 3)));
 
         return new SystemPerformanceProfile
         {
@@ -36,7 +40,8 @@ public sealed class SystemPerformanceProfile
             PhysicalMemoryGb = memoryGb,
             MaxQueueWorkers = workers,
             HighPerformanceMode = highPerf,
-            Label = highPerf ? "high_performance" : "balanced"
+            UltraPerformanceMode = ultraPerf,
+            Label = ultraPerf ? "ultra_performance" : highPerf ? "high_performance" : "balanced"
         };
     }
 }

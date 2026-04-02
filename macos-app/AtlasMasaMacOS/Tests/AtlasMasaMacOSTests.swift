@@ -15,13 +15,311 @@ final class AtlasMasaMacOSTests: XCTestCase {
         )
     }
 
+    @MainActor
+    private func testStore() -> SessionStore {
+        SessionStore(api: offlineClient(), launchBehavior: .testing)
+    }
+
+    private func sampleRAndDJob() -> RAndDJobResponse {
+        RAndDJobResponse(
+            jobID: "job-1",
+            productType: "mechanical_vehicle",
+            designDomain: "mechanical_cad",
+            currentStage: .reviewHandoff,
+            waitingOnUser: true,
+            autoRunEnabled: false,
+            pausedAfterCurrentStage: false,
+            acceptedPlanVersion: 2,
+            latestPlan: RAndDPlan(
+                version: 2,
+                generatedAt: "2026-04-01T00:00:00Z",
+                goals: ["Ship a serviceable trailer platform"],
+                constraints: ["Low tool count", "Affordable architecture"],
+                risks: ["Service access drift"],
+                assumptions: ["Use common hardware", "Avoid proprietary repair tooling"],
+                requiredResearchDomains: ["manufacturing", "service"],
+                proposedParts: ["Frame", "Utility module"],
+                executionStages: [],
+                userExplanation: "Detailed plan",
+                simpleSummary: "Simple summary",
+                citations: [],
+                executable: true,
+                blockingIssues: []
+            ),
+            eta: RAndDEta(
+                estimatedTotalMinutes: 120,
+                estimatedRemainingMinutes: 15,
+                currentStageEstimatedMinutes: 10,
+                confidenceLabel: "medium",
+                currentBottleneck: "review",
+                slippageReason: "none"
+            ),
+            partCounts: RAndDPartCounts(queued: 0, running: 0, blocked: 0, completed: 2),
+            riskFlags: ["human review required"],
+            latestValidationSummary: "Validation ready",
+            latestArtifacts: [],
+            routingSummary: RAndDRoutingSummary(localOnlyTasks: [], geminiEscalatedTasks: [], gptEscalatedTasks: [], executorTasks: []),
+            governanceSummary: RAndDGovernanceSummary(
+                requirementCount: 1,
+                decisionCount: 1,
+                evidenceCount: 1,
+                reportCount: 0,
+                approvalCount: 0,
+                unresolvedItemCount: 1,
+                readinessStatus: "needs_review"
+            ),
+            progressPercent: 84
+        )
+    }
+
     func testScaffoldBootstraps() {
         XCTAssertTrue(true)
     }
 
+    func testResolvedLaunchBehaviorTreatsXCTestAsTesting() {
+        let behavior = SessionStore.resolvedLaunchBehavior(
+            environment: ["XCTestConfigurationFilePath": "/tmp/session.xctestconfiguration"]
+        )
+
+        XCTAssertEqual(behavior, .testing)
+    }
+
+    func testNormalizeCADExecutablePathResolvesAppBundles() {
+        XCTAssertEqual(
+            SessionStore.normalizeCADExecutablePath("/Applications/FreeCAD.app"),
+            "/Applications/FreeCAD.app/Contents/MacOS/FreeCAD"
+        )
+        XCTAssertEqual(
+            SessionStore.normalizeCADExecutablePath("~/Applications/KiCad.app"),
+            ("~/Applications/KiCad.app" as NSString)
+                .expandingTildeInPath + "/Contents/MacOS/kicad-cli"
+        )
+    }
+
+    func testDeriveFreeCADPathsFindsCompanionCmdFromAppBundle() throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("atlas-freecad-\(UUID().uuidString)", isDirectory: true)
+        let freeCADApp = tempRoot.appendingPathComponent("FreeCAD.app", isDirectory: true)
+        let macOSDir = freeCADApp.appendingPathComponent("Contents/MacOS", isDirectory: true)
+        let binDir = freeCADApp.appendingPathComponent("Contents/Resources/bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: macOSDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+
+        let freeCADURL = macOSDir.appendingPathComponent("FreeCAD")
+        let freeCADCmdURL = binDir.appendingPathComponent("FreeCADCmd")
+        FileManager.default.createFile(atPath: freeCADURL.path, contents: Data())
+        FileManager.default.createFile(atPath: freeCADCmdURL.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: freeCADURL.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: freeCADCmdURL.path)
+
+        let derivedFromApp = SessionStore.deriveFreeCADPaths(from: freeCADApp.path)
+        XCTAssertEqual(derivedFromApp.freeCAD, freeCADURL.path)
+        XCTAssertEqual(derivedFromApp.freeCADCmd, freeCADCmdURL.path)
+
+        let derivedFromCmd = SessionStore.deriveFreeCADPaths(from: freeCADCmdURL.path)
+        XCTAssertEqual(derivedFromCmd.freeCAD, freeCADURL.path)
+        XCTAssertEqual(derivedFromCmd.freeCADCmd, freeCADCmdURL.path)
+    }
+
+    func testLocalCADExecutableArtifactSelectionRequiresPythonCADSource() {
+        XCTAssertTrue(SessionStore.isLocalCADExecutableArtifact(artifactType: "cad_source", format: "py"))
+        XCTAssertFalse(SessionStore.isLocalCADExecutableArtifact(artifactType: "blueprint_package", format: "md"))
+        XCTAssertFalse(SessionStore.isLocalCADExecutableArtifact(artifactType: "cad_source", format: "fcstd"))
+    }
+
+    @MainActor
+    func testNextLayerArtifactsGenerateFromManualState() {
+        let store = testStore()
+        store.deleteLocalMemory()
+        store.dailyPriority = "Ship the desktop-first release."
+        store.midTermGoal = "Harden BlackHaven for real end users."
+        store.checkInMood = "Overloaded"
+        store.checkInEnergy = 2
+        store.checkInBlockers = "Need to verify onboarding, installer readiness, and one blocker at a time."
+
+        store.applyDailyCheckIn()
+
+        XCTAssertNotNil(store.operatorStateSnapshot)
+        XCTAssertEqual(store.operatorStateSnapshot?.mode, .lowEnergyMode)
+        XCTAssertNotNil(store.currentSupportRecommendation)
+        XCTAssertNotNil(store.currentActivitySuggestion)
+        XCTAssertNotNil(store.currentItineraryPlan)
+        XCTAssertNotNil(store.activeChecklistPlan)
+        XCTAssertFalse(store.activeChecklistPlan?.steps.isEmpty ?? true)
+    }
+
+    @MainActor
+    func testOfflineRAndDDocumentFallbackBuildsPreviewableRecord() {
+        let store = testStore()
+        store.deleteLocalMemory()
+        let job = sampleRAndDJob()
+        store.rAndDJobs = [job]
+        store.selectedRAndDJobID = job.jobID
+        store.rAndDArtifacts = [
+            RAndDArtifact(
+                artifactID: "artifact-1",
+                partID: nil,
+                artifactType: "assembly_package",
+                title: "Assembly package",
+                format: "md",
+                content: "Assembly content",
+                createdAt: "2026-04-01T00:00:00Z"
+            )
+        ]
+        store.rAndDDoctrine = RAndDDoctrineResponse(
+            jobID: job.jobID,
+            profile: RAndDDoctrineProfile(
+                profileID: "profile-1",
+                title: "BlackHaven Vehicle Doctrine",
+                principles: ["manufacturability", "serviceability"],
+                updatedAt: "2026-04-01T00:00:00Z"
+            ),
+            checks: [
+                RAndDDoctrineCheck(
+                    checkID: "check-1",
+                    doctrineArea: "manufacturability",
+                    severity: "warning",
+                    passed: false,
+                    explanation: "Too much complexity",
+                    suggestedFix: "Simplify the join strategy",
+                    linkedModuleIDs: [],
+                    linkedArtifactIDs: [],
+                    linkedDecisionIDs: [],
+                    gating: false,
+                    updatedAt: "2026-04-01T00:00:00Z"
+                )
+            ],
+            moduleDefinitions: [],
+            toolRequirements: [
+                RAndDToolRequirement(toolID: "tool-1", name: "Socket set", category: "mechanical", reason: "Common fasteners", commonality: "common")
+            ],
+            bomItems: [
+                RAndDBomItem(bomID: "bom-1", name: "Common structural stock", quantity: "1 set", notes: "Use stocked sections", moduleID: nil)
+            ],
+            assemblySteps: [],
+            serviceAccessPoints: [],
+            inspectionChecklistItems: [],
+            revisionHistory: []
+        )
+
+        let document = store.buildOfflineFallbackRAndDDocument()
+
+        XCTAssertNotNil(document)
+        XCTAssertEqual(store.selectedRAndDDocument?.documentType, "manufacturing_build_guide")
+        XCTAssertFalse(store.rAndDDocumentPreviewHTML.isEmpty)
+        XCTAssertTrue(store.rAndDDocumentPreviewHTML.contains("BlackHaven R&amp;D"))
+    }
+
+    @MainActor
+    func testMajorDoctrineFailuresAreDetectedForReleaseGating() {
+        let store = testStore()
+        store.rAndDDoctrine = RAndDDoctrineResponse(
+            jobID: "job-1",
+            profile: RAndDDoctrineProfile(profileID: "profile-1", title: "Doctrine", principles: [], updatedAt: "2026-04-01T00:00:00Z"),
+            checks: [
+                RAndDDoctrineCheck(
+                    checkID: "major-1",
+                    doctrineArea: "service_access",
+                    severity: "major",
+                    passed: false,
+                    explanation: "Requires teardown",
+                    suggestedFix: "Move service points to removable panel",
+                    linkedModuleIDs: [],
+                    linkedArtifactIDs: [],
+                    linkedDecisionIDs: [],
+                    gating: true,
+                    updatedAt: "2026-04-01T00:00:00Z"
+                ),
+                RAndDDoctrineCheck(
+                    checkID: "info-1",
+                    doctrineArea: "accessible_documentation",
+                    severity: "info",
+                    passed: true,
+                    explanation: "Plain language",
+                    suggestedFix: "",
+                    linkedModuleIDs: [],
+                    linkedArtifactIDs: [],
+                    linkedDecisionIDs: [],
+                    gating: false,
+                    updatedAt: "2026-04-01T00:00:00Z"
+                )
+            ],
+            moduleDefinitions: [],
+            toolRequirements: [],
+            bomItems: [],
+            assemblySteps: [],
+            serviceAccessPoints: [],
+            inspectionChecklistItems: [],
+            revisionHistory: []
+        )
+
+        XCTAssertEqual(store.rAndDMajorDoctrineFailures.count, 1)
+        XCTAssertEqual(store.rAndDMajorDoctrineFailures.first?.doctrineArea, "service_access")
+    }
+
+    @MainActor
+    func testSelectedDocumentRevisionDriftIsSurfaced() {
+        let store = testStore()
+        let job = sampleRAndDJob()
+        store.rAndDJobs = [job]
+        store.selectedRAndDJobID = job.jobID
+        store.rAndDDoctrine = RAndDDoctrineResponse(
+            jobID: job.jobID,
+            profile: RAndDDoctrineProfile(profileID: "profile-1", title: "Doctrine", principles: [], updatedAt: "2026-04-01T00:00:00Z"),
+            checks: [],
+            moduleDefinitions: [],
+            toolRequirements: [],
+            bomItems: [],
+            assemblySteps: [],
+            serviceAccessPoints: [],
+            inspectionChecklistItems: [],
+            revisionHistory: [
+                RAndDRevisionRecord(revisionID: "rev-1", label: "R3-P2", sourcePlanVersion: 2, reason: "updated", createdAt: "2026-04-01T00:00:00Z")
+            ]
+        )
+        store.rAndDDocuments = [
+            RAndDDocumentRecord(
+                documentID: "doc-1",
+                documentType: "service_manual",
+                audienceMode: "private",
+                title: "Service Manual",
+                projectName: "BlackHaven R&D",
+                platformName: "Trailer",
+                revisionLabel: "R1-P1",
+                sourceJobID: job.jobID,
+                sourcePlanVersion: 1,
+                artifactIDs: [],
+                moduleIDs: [],
+                purpose: "Purpose",
+                targetAudience: "Audience",
+                author: "Author",
+                assumptions: [],
+                safetyNotes: [],
+                toolsRequired: [],
+                materialsRequired: [],
+                bomSummary: [],
+                sections: [],
+                manufacturabilityNotes: [],
+                affordabilityNotes: [],
+                repairabilityNotes: [],
+                serviceabilityNotes: [],
+                publicBenefitRationale: "Benefit",
+                exports: [],
+                createdAt: "2026-04-01T00:00:00Z",
+                updatedAt: "2026-04-01T00:00:00Z"
+            )
+        ]
+        store.selectedRAndDDocumentID = "doc-1"
+
+        XCTAssertNotNil(store.rAndDSelectedDocumentRevisionDriftMessage)
+        XCTAssertTrue(store.rAndDSelectedDocumentRevisionDriftMessage?.contains("source plan v1 is behind current accepted plan v2") == true)
+    }
+
     @MainActor
     func testWorkspaceMemoryCarriesAcrossLanes() {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
         store.dailyPriority = "Close two enterprise partnerships this week."
         store.midTermGoal = "Harden emergency command workflows."
@@ -49,7 +347,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testWorkspaceMemoryUpsertsCoreSignals() {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
         store.dailyPriority = "First value"
         store.applyDailyCheckIn()
@@ -67,7 +365,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testKnowledgeFilesBecomeSharedWorkspaceMemory() throws {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
 
         let tempURL = FileManager.default.temporaryDirectory
@@ -88,8 +386,64 @@ final class AtlasMasaMacOSTests: XCTestCase {
     }
 
     @MainActor
+    func testKnowledgeRetrievalPrefersPromptRelevantChunks() throws {
+        let store = testStore()
+        store.deleteLocalMemory()
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("atlas-semantic-\(UUID().uuidString).txt")
+        let content = """
+        Recirculating showers for vans require a particulate filter, UV sterilization stage, and a compact heat exchanger so water can be reused safely.
+        The plumbing loop should include a service access panel and clear maintenance intervals for filter swaps.
+
+        Israeli business regulation updates can affect VAT handling, company reporting, compliance filings, and employer obligations in 2026.
+        """
+        try content.write(to: tempURL, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        store.importKnowledgeFiles(urls: [tempURL])
+
+        let digest = store.knowledgeRetrievalDigest(
+            for: "What filtration and UV stages do I need for a recirculating shower in a van build?",
+            surface: .workspace,
+            workspaceLane: .mobileLivingInfrastructure,
+            maxLength: 900
+        )
+
+        XCTAssertTrue(digest.localizedCaseInsensitiveContains("filter") || digest.localizedCaseInsensitiveContains("filtration"), digest)
+        XCTAssertTrue(digest.localizedCaseInsensitiveContains("uv"), digest)
+        XCTAssertFalse(digest.localizedCaseInsensitiveContains("vat handling"), digest)
+    }
+
+    @MainActor
+    func testKnowledgeRetrievalStaysWithinBudgetAndUsesIndexWhenPromptArrives() throws {
+        let store = testStore()
+        store.deleteLocalMemory()
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("atlas-semantic-budget-\(UUID().uuidString).txt")
+        let repeated = Array(repeating: "Lightweight RV insulation can use aerogel blankets, polyiso, cork, and careful thermal-break design.", count: 50)
+            .joined(separator: "\n")
+        try repeated.write(to: tempURL, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        store.importKnowledgeFiles(urls: [tempURL])
+
+        let digest = store.knowledgeRetrievalDigest(
+            for: "Best lightweight insulation choices for an electric RV build",
+            surface: .workspace,
+            workspaceLane: .mobileLivingInfrastructure,
+            maxLength: 420
+        )
+
+        XCTAssertLessThanOrEqual(digest.count, 420)
+        XCTAssertTrue(digest.localizedCaseInsensitiveContains("retrieved evidence"))
+        XCTAssertTrue(digest.localizedCaseInsensitiveContains("insulation"))
+    }
+
+    @MainActor
     func testWorkspaceSessionsSeedAndCarryAcrossLanes() async {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
         XCTAssertGreaterThanOrEqual(store.workspaceSessions.count, WorkspaceLane.allCases.count)
 
@@ -116,8 +470,61 @@ final class AtlasMasaMacOSTests: XCTestCase {
     }
 
     @MainActor
+    func testMemoryVaultKeepsStableNoteTimestampsAcrossSyncs() {
+        let store = testStore()
+        store.deleteLocalMemory()
+        let createdAt = Date(timeIntervalSince1970: 1_715_000_000)
+        store.notes = [
+            UserNote(
+                noteID: "stable-note",
+                title: "Stable chronology",
+                content: "Do not rewrite this note timestamp on every vault sync.",
+                createdAt: createdAt
+            )
+        ]
+
+        store.debugSyncMemoryVault(reason: "first_sync")
+        let first = store.debugMemoryVaultSnapshot().rawRecords.first { $0.id == "note:stable-note" }
+
+        store.debugSyncMemoryVault(reason: "second_sync")
+        let second = store.debugMemoryVaultSnapshot().rawRecords.first { $0.id == "note:stable-note" }
+
+        XCTAssertEqual(first?.createdAt, createdAt)
+        XCTAssertEqual(second?.createdAt, createdAt)
+    }
+
+    @MainActor
+    func testQueueMutationByIDIsSafeWhenItemDisappears() {
+        let store = testStore()
+        store.deleteLocalMemory()
+        let id = "queued-item"
+        store.promptQueue = [
+            PromptQueueItem(
+                id: id,
+                prompt: "Test queue item",
+                status: .queued,
+                createdAt: Date()
+            )
+        ]
+
+        let firstMutation = store.updatePromptQueueItem(id: id) { item in
+            item.status = .running
+            item.checkpointNote = "Working"
+        }
+        XCTAssertTrue(firstMutation)
+        XCTAssertEqual(store.promptQueue.first?.status, .running)
+
+        store.promptQueue = []
+
+        let secondMutation = store.updatePromptQueueItem(id: id) { item in
+            item.status = .done
+        }
+        XCTAssertFalse(secondMutation)
+    }
+
+    @MainActor
     func testAdditionalSurveyPassAvoidsRepeatedQuestionIDs() async {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
         var askedIDs = Set<String>()
 
@@ -149,7 +556,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testWealthRouteQuestionsDriveWealthExecutionLane() async {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
         var askedIDs = Set<String>()
 
@@ -207,7 +614,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testJobRadarBuildsOpportunitiesAndBlockerPlan() async {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
 
         for _ in 0 ..< 120 {
@@ -247,7 +654,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testCareerRouteChoosesPromotionOrCustomerGrowth() async {
-        let employeeStore = SessionStore(api: offlineClient())
+        let employeeStore = testStore()
         employeeStore.deleteLocalMemory()
 
         for _ in 0 ..< 130 {
@@ -278,7 +685,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
         XCTAssertTrue(employeeStore.executionActions.contains(where: { $0.source == "promotion-sprint" }))
         XCTAssertTrue(employeeStore.tailoredOffers.contains(where: { $0.id == "offer-promotion-accelerator" }))
 
-        let businessStore = SessionStore(api: offlineClient())
+        let businessStore = testStore()
         businessStore.deleteLocalMemory()
 
         for _ in 0 ..< 130 {
@@ -314,7 +721,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testRealEstateIndustryCorpusAppearsInExecutionAndOffers() async {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
 
         for _ in 0 ..< 130 {
@@ -353,7 +760,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testCodingWorkspaceScanOpenSaveAndPromptMemory() throws {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
 
         let fm = FileManager.default
@@ -391,7 +798,7 @@ final class AtlasMasaMacOSTests: XCTestCase {
 
     @MainActor
     func testCodingWorkspaceSlashGrepFindsFileContent() throws {
-        let store = SessionStore(api: offlineClient())
+        let store = testStore()
         store.deleteLocalMemory()
 
         let fm = FileManager.default

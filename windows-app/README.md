@@ -3,6 +3,10 @@
 Production-target Windows app for Atlas local compute + local storage workflows.
 
 ## What is implemented
+- First-run local AI setup flow in Command with one-click install/retry/defer actions
+- Hybrid cloud coding routes:
+  - `frontend_design` prefers Gemini 3.1 Pro Preview with GPT-5.4 fallback
+  - `backend_ops` prefers GPT-5.4 with Gemini 3.1 Pro Preview fallback
 - Full workspace surfaces (specialized layouts, not one generic screen):
   - `Command Center`
   - `Adaptive Survey`
@@ -109,8 +113,8 @@ setx ATLAS_RUST_REASONER_BIN "C:\path\to\atlas-rust-reasoner.exe"
 
 If this is not set, Windows will try common local paths and then fall back to managed C# local reasoning.
 
-## Local LLM bridge (optional, local-first)
-Prompt queue reasoning can use a local OpenAI-compatible endpoint first, then fall back to deterministic local reasoning.
+## Local LLM bridge (Phase 1 production path)
+Windows now uses app-managed Ollama as the local runtime contract for end users. The app installer gets the desktop app onto the machine, and first launch continues local AI preparation inside the app.
 
 ## Shared backend target
 Windows now uses the same Atlas backend base as web + iOS (`https://api.atlasmasa.com`) and can be overridden:
@@ -120,18 +124,15 @@ Windows now uses the same Atlas backend base as web + iOS (`https://api.atlasmas
 Environment variables:
 - `ATLAS_LOCAL_LLM_ENABLED` (`true` by default)
 - `ATLAS_LOCAL_LLM_ENDPOINT` (default: `http://127.0.0.1:11434/v1/chat/completions`)
-- `ATLAS_LOCAL_LLM_MODEL` (default: `auto`; set a fixed model to override policy)
+- `ATLAS_LOCAL_LLM_MODEL` (default: `qwen2.5:7b,deepseek-r1:14b`; set a fixed model list to override policy)
 - `ATLAS_LOCAL_LLM_MODEL_CATALOG` (optional ordered list, comma-separated; heavy to light)
 - `ATLAS_RUST_REASONER_BIN` (optional absolute path to `atlas-rust-reasoner.exe`)
 
-Default auto model catalog (heavy to light):
-- `llama3.1:70b`
-- `qwen2.5:32b`
-- `deepseek-r1:14b`
-- `qwen2.5:7b`
-- `llama3.2:latest`
+Default model packs:
+- `Fast Starter` -> `qwen2.5:7b`
+- `Balanced Reasoner` -> `deepseek-r1:14b`
 
-Rust policy mode now selects model + reasoning budget from hardware:
+Rust policy mode now selects reasoning budget from hardware and helps recommend the starting pack:
 - CPU cores + RAM tier
 - task type (`queue_reasoning`, `adaptive_question`, etc.)
 - configured model override (`ATLAS_LOCAL_LLM_MODEL`)
@@ -170,6 +171,13 @@ Then click `Use Local Dev` in the Windows app.
   - produce DMG-style App Installer bundle via `scripts/build-windows-dmg-style-installer.ps1`
 - `Yosef + Yasha` Android track:
   - use Android flavor builds (`yosefRelease`, `yashaRelease`) in `/Users/avrohom/Downloads/BlackHaven/android-app`.
+
+## End-user setup promise
+- install app
+- open app
+- choose recommended local AI
+- BlackHaven prepares local AI
+- app enters Survey/Command when ready
 
 ## Shopify Distribution
 See:

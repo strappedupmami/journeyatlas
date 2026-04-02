@@ -74,4 +74,4 @@ Ship real frontier-quality AI in Atlas apps for underserved users with low-frict
 ## New Chat Bootstrap
 Use this starter line in new chats:
 
-`Read /Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md first, then /Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md and /Users/avrohom/Downloads/journeyatlas/CHAT_CONTINUITY.md, then continue implementation under those contracts.`
+`Read /Users/avrohom/Downloads/BlackHaven/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md first, then /Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md and /Users/avrohom/Downloads/BlackHaven/CHAT_CONTINUITY.md, then continue implementation under those contracts.`

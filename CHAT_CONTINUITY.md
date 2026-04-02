@@ -6,7 +6,7 @@ Purpose:
 - Act as the single continuity source for LLM rollout direction and recent shipping work.
 
 How to use in a new chat:
-- Start with: `Read /Users/avrohom/Downloads/journeyatlas/CHAT_CONTINUITY.md and continue from there.`
+- Start with: `Read /Users/avrohom/Downloads/BlackHaven/CHAT_CONTINUITY.md and continue from there.`
 - Then ask: `Update this file at the end of this session with what changed.`
 
 Last updated:
@@ -23,19 +23,19 @@ Last updated:
 - 2026-02-26 02:07:02 UTC
   - Scope: Android compile verification for Gemini 3 Flash rollout
   - Commands:
-    - `cd /Users/avrohom/Downloads/journeyatlas/android-app && ./gradlew :app:compileDebugKotlin`
-    - `cd /Users/avrohom/Downloads/journeyatlas/android-app && gradle :app:compileDebugKotlin`
+    - `cd /Users/avrohom/Downloads/BlackHaven/android-app && ./gradlew :app:compileDebugKotlin`
+    - `cd /Users/avrohom/Downloads/BlackHaven/android-app && gradle :app:compileDebugKotlin`
   - Outcome: `FAILED`
   - Blocker: Gradle wrapper is not present in `android-app` and `gradle` binary is not installed in this environment.
 - 2026-02-26 02:07:02 UTC
   - Scope: iOS syntax parse checks for Gemini 3 Flash model-lock updates
-  - Command: `cd /Users/avrohom/Downloads/journeyatlas && xcrun swiftc -parse ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
+  - Command: `cd /Users/avrohom/Downloads/BlackHaven && xcrun swiftc -parse ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
   - Outcome: `PASSED`
 - 2026-02-26 02:07:02 UTC
   - Scope: backend targeted tests after Gemini default-model change
   - Commands:
-    - `cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge && cargo test -p atlas-api guest_session_endpoints_are_disabled -- --nocapture`
-    - `cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge && cargo test -p atlas-api cloud_requirements_classify_paths_correctly -- --nocapture`
+    - `cd /Users/avrohom/Downloads/BlackHaven/atlas-concierge && cargo test -p atlas-api guest_session_endpoints_are_disabled -- --nocapture`
+    - `cd /Users/avrohom/Downloads/BlackHaven/atlas-concierge && cargo test -p atlas-api cloud_requirements_classify_paths_correctly -- --nocapture`
   - Outcome: `PASSED`
 - 2026-02-25 14:33:03 UTC
   - Scope: continuity docs update for mandatory 2-model podcast pipeline context in new chats
@@ -49,7 +49,7 @@ Last updated:
   - Reason: docs-only update; no runtime code changed in this step.
 - 2026-02-25 (time not captured in earlier entry)
   - Scope: iOS compile verification
-  - Command: `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+  - Command: `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
   - Outcome: `PASSED` (`** BUILD SUCCEEDED **`)
 - 2026-02-25 (time not captured in earlier entry)
   - Scope: iOS syntax parse checks (multiple touched files)
@@ -90,10 +90,10 @@ Last updated:
   - iOS and Android must expose equivalent chat-first podcast UX and playback readiness.
 
 ## Mandatory New Chat Read Order
-- 1) `/Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`
-- 2) `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md`
-- 3) `/Users/avrohom/Downloads/journeyatlas/QUICK_CONTEXT.md`
-- 4) `/Users/avrohom/Downloads/journeyatlas/CHAT_CONTINUITY.md`
+- 1) `/Users/avrohom/Downloads/BlackHaven/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`
+- 2) `/Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md`
+- 3) `/Users/avrohom/Downloads/BlackHaven/QUICK_CONTEXT.md`
+- 4) `/Users/avrohom/Downloads/BlackHaven/CHAT_CONTINUITY.md`
 - New chats should not begin implementation before this read order is acknowledged.
 
 ## Session Updates (Newest First)
@@ -112,19 +112,19 @@ What changed in this session:
 - Updated rollout context docs (`QUICK_CONTEXT.md`, `LLM_ROLLOUT.md`, Gemini guide import) and continuity pinned pipeline text to Flash.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/.env.example`
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/docs/RUNBOOK.md`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/android-app/app/src/main/java/com/atlasmasa/android/data/AtlasRepository.kt`
-- `/Users/avrohom/Downloads/journeyatlas/android-app/app/src/main/java/com/atlasmasa/android/ui/AtlasApp.kt`
-- `/Users/avrohom/Downloads/journeyatlas/docs/operations/api-production-deploy.md`
-- `/Users/avrohom/Downloads/journeyatlas/docs/operations/release-readiness-report.md`
-- `/Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`
-- `/Users/avrohom/Downloads/journeyatlas/QUICK_CONTEXT.md`
-- `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md`
-- `/Users/avrohom/Downloads/journeyatlas/CHAT_CONTINUITY.md`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/.env.example`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/docs/RUNBOOK.md`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/android-app/app/src/main/java/com/atlasmasa/android/data/AtlasRepository.kt`
+- `/Users/avrohom/Downloads/BlackHaven/android-app/app/src/main/java/com/atlasmasa/android/ui/AtlasApp.kt`
+- `/Users/avrohom/Downloads/BlackHaven/docs/operations/api-production-deploy.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/operations/release-readiness-report.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`
+- `/Users/avrohom/Downloads/BlackHaven/QUICK_CONTEXT.md`
+- `/Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md`
+- `/Users/avrohom/Downloads/BlackHaven/CHAT_CONTINUITY.md`
 
 Verification:
 - Backend targeted tests passed:
@@ -144,10 +144,10 @@ What changed in this session:
 - Added pinned podcast pipeline policy and mandatory read order to continuity log.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/QUICK_CONTEXT.md`
-- `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md`
-- `/Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`
-- `/Users/avrohom/Downloads/journeyatlas/CHAT_CONTINUITY.md`
+- `/Users/avrohom/Downloads/BlackHaven/QUICK_CONTEXT.md`
+- `/Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`
+- `/Users/avrohom/Downloads/BlackHaven/CHAT_CONTINUITY.md`
 
 Verification:
 - Documentation update only.
@@ -160,7 +160,7 @@ Decisions made:
 
 What changed in this session:
 - Added a new fast-read engineering source-of-truth document:
-  - `/Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`
+  - `/Users/avrohom/Downloads/BlackHaven/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`
 - Document includes:
   - official Gemini source links,
   - Gemini 3 request and thinking config rules,
@@ -193,7 +193,7 @@ What changed in this session:
   - status line now reports Gemini primary with GPT fallback and key readiness for both providers.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
 
 Verification:
 - Syntax parse passed:
@@ -220,9 +220,9 @@ What changed in this session:
   - Quiz now uses dual-provider synthesis when available, but can still return valid one-provider output if only GPT or Gemini succeeds.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
 
 Verification:
 - Syntax parse passed:
@@ -243,12 +243,12 @@ What changed in this session:
   - title uses the new brand display font and tracking.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/AtlasTheme.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/AtlasTheme.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
 
 Verification:
 - iOS compile succeeded:
-  - `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+  - `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
   - Result: `** BUILD SUCCEEDED **`
 
 ### 2026-02-25 (iOS Queue Frontier-Only + UI Text Declutter)
@@ -271,11 +271,11 @@ What changed in this session:
   - Mobility: removed secondary "What this feeds" explainer panel and kept labeled input fields.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Mobility/MobilityOpsCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Mobility/MobilityOpsCard.swift`
 
 Verification:
 - Syntax parse passed:
@@ -315,11 +315,11 @@ What changed in this session:
   - difficulty included in response text summaries.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
 
 Verification notes:
 - `xcodebuild` attempts in this environment still fail before compile due host `CoreSimulatorService` / runtime availability issues and log write permissions, so full build verification remains blocked here.
@@ -338,13 +338,13 @@ What changed in this session:
   - Workspace quiz composer now states quiz uses prompt + survey + memory.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
 
 Verification:
 - iOS compile succeeded:
-  - `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+  - `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
   - Result: `** BUILD SUCCEEDED **`
 
 ### 2026-02-25 (iOS Profile Photo Upload + Crop + Adjust)
@@ -370,12 +370,12 @@ What changed in this session:
   - clear on local memory wipe
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
 
 Verification:
 - iOS compile succeeded:
-  - `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+  - `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
   - Result: `** BUILD SUCCEEDED **`
 
 ### 2026-02-25 (iOS Tab Order Finalized)
@@ -388,7 +388,7 @@ What changed in this session:
 - Updated default selected tab from `Concierge` to `Command`.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
 
 ### 2026-02-25 (iOS Quiz Uses GPT/Gemini + Survey Signals)
 Decisions made:
@@ -409,11 +409,11 @@ What changed in this session:
 - Fixed compile regression in `inferenceSettingsSnapshot()` by returning the snapshot value explicitly.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
 
 Verification:
 - iOS compile succeeded:
-  - `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+  - `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
   - Result: `** BUILD SUCCEEDED **`
 - iOS simulator test run is currently blocked in this environment:
   - CoreSimulatorService unavailable and requested simulator destination ID not present.
@@ -440,20 +440,20 @@ What changed in this session:
 - Reworded iOS user-facing strings to remove "local reasoning" phrasing across Command, Queue, Workspaces, Feed, Mobility, Guide, Subscription, and runtime status/output text.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/LocalReasoningEngine.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Feed/ProactiveFeedCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Guide/AIGuideCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Mobility/MobilityOpsCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/LocalReasoningEngine.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Feed/ProactiveFeedCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Guide/AIGuideCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Mobility/MobilityOpsCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift`
 
 Verification:
 - iOS build succeeded:
-  - `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build`
+  - `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build`
   - Result: `** BUILD SUCCEEDED **`
 
 ### 2026-02-24 (iOS Provider-Locked Models + High-Depth Upgrade)
@@ -474,13 +474,13 @@ What changed in this session:
 - Updated iOS README runtime docs to match current behavior and model versions.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/README.md`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/README.md`
 
 Verification:
 - iOS build succeeded:
-  - `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build`
+  - `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build`
   - Result: `** BUILD SUCCEEDED **`
 
 ### 2026-02-24 (iOS Inference Efficiency + Model Targets)
@@ -505,7 +505,7 @@ What changed in this session:
 - Reduced prompt-token overhead for non-coding domains by setting domain-specific context budgets (still high-depth).
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
 
 Verification:
 - `xcodebuild -project .../ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build` passed.
@@ -527,10 +527,10 @@ What changed in this session:
 - Added in-UI adaptive suggestion chips in the Workspaces screen on iOS/macOS, so users can create a notebook directly from any suggested name.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Workspaces/WorkspacesCard.swift`
 
 Verification:
 - `xcodebuild -project .../macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' build` passed.
@@ -547,14 +547,14 @@ What changed in this session:
 - Updated boot/system and passkey default member label strings in iOS/macOS from Atlas Masa variants to Atlas variants.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Info.plist`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/project.yml`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Info.plist`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/project.yml`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Command/CommandCenterCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Info.plist`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/project.yml`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Info.plist`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/project.yml`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Command/CommandCenterCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
 
 Notes:
 - Internal target/module/project identifiers (e.g. `AtlasMasaIOS`, `AtlasMasaMacOS`) were intentionally left unchanged to avoid destabilizing builds.
@@ -578,10 +578,10 @@ What changed in this session:
   - replaced invalid `modelOutput ?? await ...` expression with explicit async branch handling.
 
 Files changed (this session):
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
 
 Build/verification notes:
 - Xcode simulator builds in this environment still fail before Swift compile due missing/invalid CoreSimulator runtime service.
@@ -590,7 +590,7 @@ Build/verification notes:
 Open blockers:
 - New app icon replacement is pending because the chat attachment image is not directly readable from terminal filesystem in this environment.
 - Required next step for icon update: place source image at:
-  - `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Assets.xcassets/AppIcon.appiconset/new-icon-source.png`
+  - `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Assets.xcassets/AppIcon.appiconset/new-icon-source.png`
   - then regenerate all iOS icon sizes after cropping white border.
 
 Immediate next actions:
@@ -629,7 +629,7 @@ Immediate next actions:
   - Feedback is sent through existing `/v1/feedback/submit` path with structured tags and source labels.
 - iOS UI change completed:
   - Removed the `Account status` window/panel from Command Center.
-  - File changed: `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
+  - File changed: `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
 - macOS upload blockers previously addressed in this thread context:
   - Enabled App Sandbox entitlement.
   - Added required `.icns` app icon wiring.
@@ -655,8 +655,8 @@ Immediate next actions:
 - Added provider preference env routing (`auto|openai|gemini`) and aliases for Gemini key env vars.
 - Premium chat and note rewrite paths were wired to try providers in order and fall back on failure.
 - Docs updated in:
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/README.md`
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/docs/RUNBOOK.md`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/README.md`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/docs/RUNBOOK.md`
 
 ## Production Env Vars to Set (Railway Service Variables)
 Required:
@@ -674,8 +674,8 @@ Optional tuning:
 ## Current Deployment Blocker
 - Railway deploy logs show security gate failure due to vulnerable `next@14.2.5`.
 - Local fix was applied:
-  - `/Users/avrohom/Downloads/journeyatlas/package.json` now uses `next: ^14.2.35`
-  - `/Users/avrohom/Downloads/journeyatlas/package-lock.json` now resolves `next` to `14.2.35`
+  - `/Users/avrohom/Downloads/BlackHaven/package.json` now uses `next: ^14.2.35`
+  - `/Users/avrohom/Downloads/BlackHaven/package-lock.json` now resolves `next` to `14.2.35`
 - Next build passed locally after upgrade.
 - Remaining action: commit and push these two files so Railway deploys the fixed commit.
 
@@ -751,9 +751,9 @@ What changed:
   - Workspaces send button now opens `Steer` / `Queue` dialog when processing is active.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
 
 Verification:
 - `xcrun swiftc -parse` passed for all three touched files.
@@ -781,11 +781,11 @@ What changed:
 - Session store gained a scoped clear action for concierge-only history.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Command/CommandCenterCard.swift`
 
 Verification:
 - Swift parse passed for the edited files:
@@ -804,11 +804,11 @@ What changed:
 - The replaced tab now uses `Command` label/icon to match the requested "old command card" direction.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
 
 Verification:
 - iOS build succeeded:
-  - `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build`
+  - `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build`
   - Result: `** BUILD SUCCEEDED **`
 
 Open blockers:
@@ -839,19 +839,19 @@ What changed:
 - Deployment/docs updated to match runtime behavior and required env vars.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/.env.example`
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/README.md`
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/docs/RUNBOOK.md`
-- `/Users/avrohom/Downloads/journeyatlas/docs/operations/api-production-deploy.md`
-- `/Users/avrohom/Downloads/journeyatlas/docs/operations/release-readiness-report.md`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/README.md`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/.env.example`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/README.md`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/docs/RUNBOOK.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/operations/api-production-deploy.md`
+- `/Users/avrohom/Downloads/BlackHaven/docs/operations/release-readiness-report.md`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/README.md`
 
 Verification:
 - `cargo check -p atlas-api` succeeded.
-- `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build` succeeded.
+- `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'platform=iOS Simulator,name=iPhone 17' build` succeeded.
 
 ## 2026-02-25 (Workspace Projects + Chats UX Alignment)
 Decisions made:
@@ -885,18 +885,18 @@ What changed:
   - iOS session creation defaults updated from `Session` to `Chat` naming.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/Models.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/AtlasTheme.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/App/RootDashboardView.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/Models.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/AtlasTheme.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/App/RootDashboardView.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
 
 Verification:
 - macOS compile succeeded (code-sign disabled, derived data in `/tmp`):
-  - `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' -derivedDataPath /tmp/AtlasMasaMac-DD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+  - `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' -derivedDataPath /tmp/AtlasMasaMac-DD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
   - Result: `** BUILD SUCCEEDED **`
 - iOS build could not complete in this sandbox due missing simulator runtimes (asset compilation dependency):
   - `No available simulator runtimes for platform iphonesimulator`
@@ -932,13 +932,13 @@ What changed:
   - Queue/workspace pending status text for `.failed` now clearly states no response was generated.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Feed/ProactiveFeedCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Feed/ProactiveFeedCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Queue/PromptQueueCard.swift`
 
 Verification:
 - Swift parse passed for all touched files:
@@ -972,12 +972,12 @@ What changed:
     when checkpoint note indicates reconnect wait.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Workspaces/WorkspacesCard.swift`
 
 Verification:
 - Swift parse passed:
@@ -1004,7 +1004,7 @@ Required ledger fields per session:
 
 ### Build Log Ledger (Latest Session)
 1. Command:
-   `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' test`
+   `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' test`
    Scope: macOS tests
    Result: FAILED
    Failure cause: sandbox permission error writing DerivedData/test result bundle.
@@ -1012,7 +1012,7 @@ Required ledger fields per session:
    Artifacts: `/tmp/atlas-macos-test-full.log`
 
 2. Command:
-   `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' -derivedDataPath /tmp/AtlasMasaMac-DD test`
+   `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' -derivedDataPath /tmp/AtlasMasaMac-DD test`
    Scope: macOS tests (derived data redirected)
    Result: FAILED
    Failure cause: missing `Mac Development` signing certificate for team `BW93SGS88H`.
@@ -1020,7 +1020,7 @@ Required ledger fields per session:
    Artifacts: `/tmp/atlas-macos-test-dd.log`
 
 3. Command:
-   `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' -derivedDataPath /tmp/AtlasMasaMac-DD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+   `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS.xcodeproj -scheme AtlasMasaMacOS -destination 'platform=macOS' -derivedDataPath /tmp/AtlasMasaMac-DD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
    Scope: macOS build verification
    Result: SUCCEEDED (`** BUILD SUCCEEDED **`)
    Failure cause: none.
@@ -1028,7 +1028,7 @@ Required ledger fields per session:
    Artifacts: `/tmp/atlas-macos-build-dd.log`
 
 4. Command:
-   `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/AtlasMasaIOS-DD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+   `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/AtlasMasaIOS-DD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
    Scope: iOS build verification (simulator)
    Result: FAILED
    Failure cause: no available simulator runtimes (`SimServiceContext supportedRuntimes=[]`), asset catalog compile step blocked.
@@ -1036,7 +1036,7 @@ Required ledger fields per session:
    Artifacts: `/tmp/atlas-ios-build-dd.log`
 
 5. Command:
-   `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' -derivedDataPath /tmp/AtlasMasaIOS-DD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+   `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' -derivedDataPath /tmp/AtlasMasaIOS-DD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
    Scope: iOS build verification (device generic)
    Result: FAILED
    Failure cause: same simulator-runtime-dependent asset compilation path failed (`No available simulator runtimes for platform iphonesimulator`).
@@ -1064,41 +1064,41 @@ Decisions made:
 - Product copy in iOS/macOS billing surfaces was updated from `2 months + fixed monthly price` to `30 days + usage-based`.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/Models.swift`
-- `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Billing/SubscriptionCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/Models.swift`
+- `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Billing/SubscriptionCard.swift`
 
 ### Build Log Ledger (This Session Addendum)
 8. Command:
-   `cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge && cargo test -p atlas-api cloud_requirements_classify_paths_correctly -- --nocapture`
+   `cd /Users/avrohom/Downloads/BlackHaven/atlas-concierge && cargo test -p atlas-api cloud_requirements_classify_paths_correctly -- --nocapture`
    Scope: backend unit test (cloud requirements)
    Result: SUCCEEDED
    Failure cause: none.
    Environment caveats: none.
 
 9. Command:
-   `cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge && cargo test -p atlas-api guest_session_endpoints_are_limited_to_chat -- --nocapture`
+   `cd /Users/avrohom/Downloads/BlackHaven/atlas-concierge && cargo test -p atlas-api guest_session_endpoints_are_limited_to_chat -- --nocapture`
    Scope: backend unit test (guest endpoint policy)
    Result: SUCCEEDED
    Failure cause: none.
    Environment caveats: none.
 
 10. Command:
-    `swiftc -parse /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/Models.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
+    `swiftc -parse /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/Models.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
     Scope: iOS Swift syntax parse (touched files)
     Result: SUCCEEDED
     Failure cause: none.
     Environment caveats: parse-only verification.
 
 11. Command:
-    `swiftc -parse /Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift /Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/Models.swift /Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Features/Billing/SubscriptionCard.swift`
+    `swiftc -parse /Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/SessionStore.swift /Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/Models.swift /Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Features/Billing/SubscriptionCard.swift`
     Scope: macOS Swift syntax parse (touched files)
     Result: SUCCEEDED
     Failure cause: none.
@@ -1124,32 +1124,32 @@ Implementation notes:
 - iOS queue runtime now hard-fails with clear lock messages when auth/billing is missing.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/APIClient.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/Models.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/APIClient.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift`
 
 ### Build Log Ledger (This Session Addendum 2)
 12. Command:
-    `cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge && cargo test -p atlas-api cloud_requirements_classify_paths_correctly -- --nocapture`
+    `cd /Users/avrohom/Downloads/BlackHaven/atlas-concierge && cargo test -p atlas-api cloud_requirements_classify_paths_correctly -- --nocapture`
     Scope: backend unit test
     Result: SUCCEEDED
     Failure cause: none.
     Environment caveats: none.
 
 13. Command:
-    `cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge && cargo test -p atlas-api guest_session_endpoints_are_disabled -- --nocapture`
+    `cd /Users/avrohom/Downloads/BlackHaven/atlas-concierge && cargo test -p atlas-api guest_session_endpoints_are_disabled -- --nocapture`
     Scope: backend unit test
     Result: SUCCEEDED
     Failure cause: none.
     Environment caveats: none.
 
 14. Command:
-    `swiftc -parse /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/Models.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/APIClient.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
+    `swiftc -parse /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/Models.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/APIClient.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/App/RootDashboardView.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Billing/SubscriptionCard.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Queue/PromptQueueCard.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Workspaces/WorkspacesCard.swift /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
     Scope: iOS Swift syntax parse
     Result: SUCCEEDED
     Failure cause: none.
@@ -1173,12 +1173,12 @@ Implementation notes:
 - Sign-out now clears all account identity fields.
 
 Files changed:
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
-- `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/SessionStore.swift`
+- `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Features/Auth/AppleSignInCard.swift`
 
 ### Build Log Ledger (This Session)
 15. Command:
-    `xcodebuild -project /Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+    `xcodebuild -project /Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS.xcodeproj -scheme AtlasMasaIOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
     Scope: iOS compile/build verification
     Result: SUCCEEDED
     Failure cause: none.

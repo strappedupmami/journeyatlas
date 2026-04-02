@@ -1,11 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SITE_URL, getMetadataBase } from "@/lib/site";
 import styles from "./styles.module.css";
 
 export const metadata: Metadata = {
-  title: "BlackHaven | Command Center + Desktop Apps",
+  metadataBase: getMetadataBase(),
+  title: "BlackHaven | Execution-First Life + Business + Travel AI",
   description:
-    "BlackHaven is the command-center operating system for life and business execution, with desktop apps for macOS and Windows."
+    "BlackHaven is the desktop-first, local-memory command center for life, business, and travel: macOS and Windows run the full local AI, encrypted archive, AMM-aware compute budgeting, and continuity workflows while mobile companions keep capture and control alive away from the desk.",
+  alternates: {
+    canonical: "/blackhaven"
+  },
+  openGraph: {
+    type: "website",
+    url: `${SITE_URL}/blackhaven`,
+    title: "BlackHaven | Execution-First Life + Business + Travel AI",
+    description:
+      "BlackHaven is the desktop-first, local-memory command center for life, business, and travel: macOS and Windows run the full local AI, encrypted archive, AMM-aware compute budgeting, and continuity workflows while mobile companions keep capture and control alive away from the desk.",
+    siteName: "BlackHaven"
+  }
 };
 
 export default function BlackHavenLayout({ children }: { children: React.ReactNode }) {
@@ -24,9 +37,21 @@ export default function BlackHavenLayout({ children }: { children: React.ReactNo
           </Link>
 
           <nav className={styles.nav} aria-label="BlackHaven">
-            <Link href="/blackhaven#command-center">Command Center</Link>
+            <Link href="/blackhaven#how-it-works">How It Works</Link>
+            <Link href="/blackhaven#app-suite">App Suite</Link>
+            <Link href="/blackhaven#state-aware">State-Aware</Link>
+            <Link href="/blackhaven#compute-economics">Compute</Link>
+            <Link href="/blackhaven#hardware-budgeting">Hardware</Link>
+            <Link href="/blackhaven#checklists">Checklists</Link>
+            <Link href="/blackhaven#travel-intelligence">Travel</Link>
+            <Link href="/blackhaven#research">Research</Link>
+            <Link href="/blackhaven#healthy-wealthy">Support</Link>
+            <Link href="/blackhaven#governance">Governance</Link>
+            <Link href="/blackhaven#live-now">Live Vs Next</Link>
             <Link href="/blackhaven#desktop">Desktop Apps</Link>
-            <Link href="/blackhaven#operations">Operations</Link>
+            <Link href="/blackhaven#infrastructure">Resilience Proof</Link>
+            <Link href="/blackhaven#readiness">Readiness</Link>
+            <Link href="/blackhaven/readiness">Checklist</Link>
             <Link href="/blackhaven/downloads" className={styles.navCta}>
               Downloads
             </Link>
@@ -38,7 +63,7 @@ export default function BlackHavenLayout({ children }: { children: React.ReactNo
 
       <footer className={styles.footer}>
         <div className={styles.shell}>
-          <p>BlackHaven is separate from Atlas Masa and focuses on AI command-center software.</p>
+          <p>BlackHaven is the umbrella product story for the desktop command center, local memory vault, and companion-device workflow across the apps in this repo.</p>
           <p>{new Date().getFullYear()} © BlackHaven</p>
         </div>
       </footer>

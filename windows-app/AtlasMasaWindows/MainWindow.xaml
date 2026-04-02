@@ -8,7 +8,7 @@
     mc:Ignorable="d"
     Title="Atlas Windows">
 
-    <Grid Background="#070E1D">
+    <Grid x:Name="RootGrid" Background="#070E1D">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -36,15 +36,227 @@
             <TabViewItem Header="Command Center">
                 <ScrollViewer>
                     <StackPanel Spacing="12" Padding="0,6,0,0">
-                        <Border Background="#121C30" CornerRadius="12" Padding="14">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Why this exists" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" />
-                                <TextBlock Text="Atlas is built to help users execute with precision across life, work, and travel, especially under pressure and uncertainty." TextWrapping="Wrap" Foreground="#D0DBEF" />
-                                <TextBlock Text="This Windows build is local-first and tuned for high-end PCs using multi-worker queue orchestration and persistent state recovery." TextWrapping="Wrap" Foreground="#D0DBEF" />
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind BoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="{Binding RuntimeHealthHeadline}" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" />
+                                <TextBlock Text="BlackHaven will install and prepare local AI directly in the app. No Terminal, no manual model commands, and no confusing runtime logs." TextWrapping="WrapWholeWords" Foreground="#D0DBEF" />
+                                <TextBlock Text="{Binding PerformanceSummary}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Choose local models to install" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                <ListView ItemsSource="{Binding LocalAIInstallOptions}" SelectionMode="None" MaxHeight="220">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="models:LocalAIModelInstallOption">
+                                            <CheckBox
+                                                IsChecked="{x:Bind IsSelected, Mode=OneWay}"
+                                                Checked="LocalAiInstallOption_Checked"
+                                                Unchecked="LocalAiInstallOption_Unchecked">
+                                                <StackPanel Orientation="Vertical" Spacing="3">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{x:Bind RecommendedLabel}" Foreground="#FFC857" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{x:Bind Subtitle}" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock Text="{x:Bind ModelName}" Foreground="#9AB0CF" />
+                                                    <TextBlock Text="{x:Bind ApproximateSizeLabel}" Foreground="#9AB0CF" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <TextBlock Text="{Binding SelectedLocalAiInstallSummary}" Foreground="#9AB0CF" />
+                                <TextBlock Text="{Binding LocalModelRuntimeDetail}" Foreground="#BFD0EB" TextWrapping="WrapWholeWords" />
+                                <ProgressBar Minimum="0" Maximum="1" Value="{Binding LocalModelRuntimeProgress}" Height="8" Foreground="#44C7FF" />
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Button Content="{Binding LocalAiPrimaryActionTitle}" Command="{Binding InstallLocalAiCommand}" />
+                                    <Button Content="Repair / Retry" Command="{Binding RetryLocalAiSetupCommand}" />
+                                    <Button Content="Set Up Later" Command="{Binding DeferLocalAiSetupCommand}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding RuntimeEndpointReachabilityLine}" Foreground="#8FA4C4" />
                             </StackPanel>
                         </Border>
 
-                        <Border Background="#121C30" CornerRadius="12" Padding="14">
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind InverseBoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Welcome to BlackHaven" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" />
+                                <TextBlock Text="To get started on wealth building and life improvement, complete the adaptive deep survey and use local AI to build your execution stream." TextWrapping="Wrap" Foreground="#D0DBEF" />
+                                <TextBlock Text="Windows is now local-first with Rust-backed reasoning, adaptive survey intelligence, and embedded execution guidance in Command." TextWrapping="Wrap" Foreground="#D0DBEF" />
+                                <TextBlock Text="{Binding IntelligenceCoverageLine}" Foreground="#9AB0CF" />
+                                <TextBlock Text="{Binding ExecutionAccessLine}" Foreground="#9AB0CF" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Background="#0E1A2B"
+                            CornerRadius="10"
+                            Padding="12"
+                            Visibility="{x:Bind RuntimeStripVisibility(ViewModel.ShowRuntimeProgressStrip), Mode=OneWay}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{Binding LocalModelRuntimeStatus}" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding LocalModelRuntimeDetail}" Foreground="#BFD0EB" TextWrapping="WrapWholeWords" />
+                                <ProgressBar Minimum="0" Maximum="1" Value="{Binding LocalModelRuntimeProgress}" Height="8" Foreground="#44C7FF" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding LocalModelDownloadSizeText}" Foreground="#9FB2D2" />
+                                    <TextBlock Text="  •  " Foreground="#7F95B7" />
+                                    <TextBlock Text="{Binding LocalModelDownloadEtaText}" Foreground="#9FB2D2" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind InverseBoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Desktop Remote Control" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="Turn this desktop into the always-on home base for remote phone-to-desktop work, local-first file delivery, and long-running AI workloads you can power yourself." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Keep the machine on and plugged in, pair your phone over your own network, and route files into your own computer without depending on a cloud relay or full-time internet access." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Built for privacy, resilience, emergency prep, and energy control: pair BlackHaven with home backup power plus renewable generation so heavy local AI can keep running during outages and unstable network conditions." Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Recommended setup: solar or wind generation plus a home battery/backup system. Founder recommendation: EcoFlow Delta Pro 3." Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding RemoteControlStatus}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding RemoteControlUrl}" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                <TextBox Header="Pairing token" Text="{Binding RemoteControlToken, Mode=OneWay}" IsReadOnly="True" />
+                                <TextBlock Text="{Binding RemoteControlLastAction}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                <Button Content="Regenerate token" Command="{Binding RegenerateRemoteControlTokenCommand}" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind InverseBoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Atlas Concierge" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="Send a message and get a local-first answer with visible thought-process summaries." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding LocalAiChatStatusMessage}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" Visibility="{x:Bind TextVisibility(ViewModel.LocalAiChatStatusMessage), Mode=OneWay}" />
+                                <TextBox
+                                    Header="Message concierge"
+                                    Text="{Binding NewPrompt, Mode=TwoWay}"
+                                    KeyDown="ConciergePrompt_KeyDown"
+                                    AcceptsReturn="True"
+                                    TextWrapping="Wrap"
+                                    MinHeight="96"
+                                    PlaceholderText="Ask Atlas for tactical guidance, planning, execution help, or life/logistics support." />
+                                <Button Content="Send" Command="{Binding EnqueuePromptCommand}" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind InverseBoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Execution Stream Window" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="This stream stays in Command so the user sees what matters without bouncing between tabs." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding ExecutionAccessLine}" Foreground="#9FB2D2" />
+                                <ListView ItemsSource="{Binding ExecutionFeed}" MaxHeight="260">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="models:FeedItem">
+                                            <Border Background="#10192D" CornerRadius="10" Margin="0,4,0,4" Padding="12">
+                                                <StackPanel Spacing="5">
+                                                    <TextBlock Text="{x:Bind Title}" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{x:Bind Summary}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock Text="{x:Bind WhyNow}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock Text="{x:Bind Priority}" Foreground="#8FB1FF" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind InverseBoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="State-Aware Execution" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding OperatorStateSnapshot.Summary}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding OperatorStateSnapshot.NextAction}" Foreground="#F4F7FC" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding OperatorStateSnapshot.Rationale}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding CurrentSupportRecommendation.Title}" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding CurrentSupportRecommendation.Summary}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding CurrentSupportRecommendation.BodyDoublingPrompt}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Button Content="Refresh Support" Command="{Binding RefreshSupportRecommendationCommand}" />
+                                    <Button Content="Generate Activity" Command="{Binding GenerateActivitySuggestionCommand}" />
+                                    <Button Content="Generate Itinerary" Command="{Binding GenerateItineraryPlanCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind InverseBoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Checklist + Itinerary Hub" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding ActiveChecklistPlan.Summary}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <Button Content="Generate Checklist" Command="{Binding GenerateChecklistPlanCommand}" HorizontalAlignment="Left" />
+                                <ListView ItemsSource="{Binding ActiveChecklistPlan.Steps}" MaxHeight="320">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ChecklistStep">
+                                            <Border Background="#10192D" CornerRadius="10" Margin="0,4,0,4" Padding="12">
+                                                <StackPanel Spacing="6">
+                                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                                        <Button Content="Toggle" Command="{Binding DataContext.ToggleChecklistStepCommand, ElementName=RootGrid}" CommandParameter="{Binding}" />
+                                                        <TextBlock Text="{x:Bind Title}" Foreground="#F4F7FC" FontWeight="SemiBold" TextWrapping="WrapWholeWords" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{x:Bind Rationale}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock Text="{x:Bind Instructions}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                                    <TextBox Header="Notes" Text="{x:Bind Notes, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="58" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <TextBlock Text="{Binding CurrentActivitySuggestion.Title}" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding CurrentActivitySuggestion.DurationLabel}" Foreground="#8FB1FF" />
+                                <TextBlock Text="{Binding CurrentActivitySuggestion.Summary}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding CurrentItineraryPlan.Title}" Foreground="#F4F7FC" FontWeight="SemiBold" Margin="0,6,0,0" />
+                                <ItemsControl ItemsSource="{Binding CurrentItineraryPlan.Steps}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ItineraryStep">
+                                            <StackPanel Margin="0,0,0,8">
+                                                <TextBlock Text="{x:Bind TimeLabel}" Foreground="#8FB1FF" FontWeight="SemiBold" />
+                                                <TextBlock Text="{x:Bind Title}" Foreground="#F4F7FC" />
+                                                <TextBlock Text="{x:Bind Summary}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind InverseBoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Recent AI Responses" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <ListView ItemsSource="{Binding Queue}" MaxHeight="520">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="models:QueueRecord">
+                                            <Border Background="#10192D" CornerRadius="10" Margin="0,4,0,4" Padding="12">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Text="{x:Bind Prompt}" Foreground="#F4F7FC" FontWeight="SemiBold" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock Text="{x:Bind CheckpointNote}" Foreground="#9AB0CF" Visibility="{x:Bind TextVisibility(CheckpointNote), Mode=OneWay}" />
+                                                    <TextBlock Text="{x:Bind OutputSummary}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" Visibility="{x:Bind TextVisibility(OutputSummary), Mode=OneWay}" />
+                                                    <TextBlock Text="{x:Bind NextAction}" Foreground="#DDE8FA" TextWrapping="WrapWholeWords" Visibility="{x:Bind TextVisibility(NextAction), Mode=OneWay}" />
+                                                    <Expander Header="Thought process" IsExpanded="False" Visibility="{x:Bind ReasoningVisibility(HasReasoningDetails), Mode=OneWay}">
+                                                        <StackPanel Spacing="8" Padding="0,8,0,0">
+                                                            <TextBlock Text="Why this answer" Foreground="#9FB2D2" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{x:Bind ReasoningSummary}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" Visibility="{x:Bind TextVisibility(ReasoningSummary), Mode=OneWay}" />
+                                                            <TextBlock Text="Alternatives considered" Foreground="#9FB2D2" FontWeight="SemiBold" Visibility="{x:Bind ListVisibility(AlternativesConsidered), Mode=OneWay}" />
+                                                            <ItemsControl ItemsSource="{x:Bind AlternativesConsidered}" Visibility="{x:Bind ListVisibility(AlternativesConsidered), Mode=OneWay}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="x:String">
+                                                                        <TextBlock Text="{Binding}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" Margin="0,0,0,4" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <TextBlock Text="Assumptions" Foreground="#9FB2D2" FontWeight="SemiBold" Visibility="{x:Bind ListVisibility(Assumptions), Mode=OneWay}" />
+                                                            <ItemsControl ItemsSource="{x:Bind Assumptions}" Visibility="{x:Bind ListVisibility(Assumptions), Mode=OneWay}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="x:String">
+                                                                        <TextBlock Text="{Binding}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" Margin="0,0,0,4" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <TextBlock Text="{x:Bind ConfidenceLabel}" Foreground="#8FB1FF" Visibility="{x:Bind TextVisibility(ConfidenceLabel), Mode=OneWay}" />
+                                                        </StackPanel>
+                                                    </Expander>
+                                                    <TextBlock Text="{x:Bind ErrorMessage}" Foreground="#F7B0B5" TextWrapping="WrapWholeWords" Visibility="{x:Bind TextVisibility(ErrorMessage), Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#121C30" CornerRadius="12" Padding="14" Visibility="{x:Bind InverseBoolVisibility(ViewModel.ShouldShowLocalAiSetupExperience), Mode=OneWay}">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Daily execution check-in" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
                                 <TextBox Header="Daily priority" Text="{Binding Session.DailyPriority, Mode=TwoWay}" />
@@ -80,8 +292,10 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Deep survey (branching-ready baseline)" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" />
                                 <TextBlock Text="Questions map economic blockers, resilience factors, and growth opportunities. This is the intelligence substrate for the execution stream." TextWrapping="Wrap" Foreground="#D0DBEF" />
+                                <TextBlock Text="{Binding LocalAiChatStatusMessage}" Foreground="#9AB0CF" TextWrapping="WrapWholeWords" Visibility="{x:Bind TextVisibility(ViewModel.LocalAiChatStatusMessage), Mode=OneWay}" />
                                 <TextBlock Text="{Binding SurveyProgressText}" Foreground="#98A9C7" />
                                 <TextBlock Text="{Binding SurveyCompletionLine}" Foreground="#9AB0CF" />
+                                <TextBlock Text="{Binding IntelligenceCoverageLine}" Foreground="#9AB0CF" />
                             </StackPanel>
                         </Border>
 
@@ -129,7 +343,14 @@
                         <Border Background="#121C30" CornerRadius="12" Padding="14">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Agentic coding workspace" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" />
-                                <TextBlock Text="Code runs through cloud routing only when prepaid credits are active. Frontend design tasks route to Gemini 3.1 Pro; backend/debug/build tasks route to GPT-5.3 Codex." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="Code uses hybrid cloud routing when prepaid credits are active: Gemini 3.1 Pro Preview for frontend/UI exploration, GPT-5.4 for backend/build depth, with local Qwen still available on-device." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <Border Background="#18263F" CornerRadius="8" Padding="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding CodeAgentReadinessLine}" Foreground="#F4F7FC" TextWrapping="WrapWholeWords" />
+                                        <TextBlock Text="{Binding CodeAgentToolingLine}" Foreground="#BFD0EB" TextWrapping="WrapWholeWords" />
+                                        <TextBlock Text="{Binding CodeAgentContextLine}" Foreground="#8FA7CC" TextWrapping="WrapWholeWords" FontSize="12" />
+                                    </StackPanel>
+                                </Border>
 
                                 <Border
                                     Background="#3A1823"
@@ -195,6 +416,23 @@
                             </StackPanel>
                         </Border>
 
+                        <Border
+                            Background="#0E1A2B"
+                            CornerRadius="10"
+                            Padding="12"
+                            Visibility="{x:Bind RuntimeStripVisibility(ViewModel.ShowRuntimeProgressStrip), Mode=OneWay}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{Binding LocalModelRuntimeStatus}" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding LocalModelRuntimeDetail}" Foreground="#BFD0EB" TextWrapping="WrapWholeWords" />
+                                <ProgressBar Minimum="0" Maximum="1" Value="{Binding LocalModelRuntimeProgress}" Height="8" Foreground="#44C7FF" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding LocalModelDownloadSizeText}" Foreground="#9FB2D2" />
+                                    <TextBlock Text="  •  " Foreground="#7F95B7" />
+                                    <TextBlock Text="{Binding LocalModelDownloadEtaText}" Foreground="#9FB2D2" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="Code run history" Foreground="#F4F7FC" FontSize="18" FontWeight="SemiBold" />
                         <ListView ItemsSource="{Binding Queue}">
                             <ListView.ItemTemplate>
@@ -222,8 +460,9 @@
                 <Grid>
                     <StackPanel Spacing="8">
                         <TextBlock Text="Execution stream (survey-gated)" Foreground="#F4F7FC" FontSize="22" FontWeight="SemiBold" Margin="0,6,0,0" />
-                        <TextBlock Text="This output activates once deep survey baseline is complete." Foreground="#C8D6EE" />
+                        <TextBlock Text="This output activates after the full intelligence coverage threshold is reached." Foreground="#C8D6EE" />
                         <TextBlock Text="{Binding ExecutionAccessLine}" Foreground="#9FB2D2" />
+                        <TextBlock Text="{Binding IntelligenceCoverageLine}" Foreground="#9FB2D2" />
                         <ListView ItemsSource="{Binding ExecutionFeed}">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="models:FeedItem">
@@ -251,6 +490,36 @@
                                 <TextBox Header="Title" Text="{Binding NewNoteTitle, Mode=TwoWay}" />
                                 <TextBox Header="Content" Text="{Binding NewNoteContent, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="110" />
                                 <Button Content="Save note" Command="{Binding AddNoteCommand}" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#10192D" CornerRadius="12" Padding="14">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Local Memory Vault" Foreground="#F4F7FC" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="Desktop keeps recent working context, compacted state-preserving summaries, and an encrypted local archive for exact recall. Lossless compaction stays on-device." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding MemoryVaultStatusLine}" Foreground="#A6B6D4" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding MemoryVaultPolicyLine}" Foreground="#8FB1FF" TextWrapping="WrapWholeWords" />
+                                <TextBlock Text="{Binding MemoryVaultOverview}" Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                                <TextBox Header="Recall from archive" Text="{Binding MemoryVaultRecallQuery, Mode=TwoWay}" PlaceholderText="Search raw local memory" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Compact further" Command="{Binding CompactMemoryVaultCommand}" />
+                                    <Button Content="Deep archive" Command="{Binding DeepArchiveMemoryVaultCommand}" />
+                                    <Button Content="Recall raw memory" Command="{Binding RecallMemoryVaultCommand}" />
+                                    <Button Content="Delete local memory" Command="{Binding DeleteLocalMemoryCommand}" />
+                                </StackPanel>
+                                <ListView ItemsSource="{Binding MemoryVaultRecallResults}" MaxHeight="220">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="models:MemoryRecallHit">
+                                            <Border Background="#121C30" CornerRadius="10" Margin="0,4,0,4" Padding="12">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="{x:Bind Summary}" Foreground="#F4F7FC" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock Text="{x:Bind SourceLabel}" Foreground="#9AB0CF" />
+                                                    <TextBlock Text="{x:Bind MatchReason}" Foreground="#8FB1FF" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
                             </StackPanel>
                         </Border>
 
@@ -486,19 +755,69 @@
             </TabViewItem>
 
             <TabViewItem Header="System Output">
-                <ListView ItemsSource="{Binding SystemOutput}">
-                    <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="models:SystemLogLine">
-                            <Border Background="#10192D" CornerRadius="10" Margin="0,4,0,4" Padding="12">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="{x:Bind CreatedAt}" Foreground="#8DA4C7" FontSize="12" />
-                                    <TextBlock Text="{x:Bind Text}" Foreground="#DCE7FA" TextWrapping="WrapWholeWords" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
+                <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                    <Border Grid.Row="0" Background="#0E1A2B" CornerRadius="10" Padding="12">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{Binding LocalModelRuntimeStatus}" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding LocalModelRuntimeDetail}" Foreground="#BFD0EB" TextWrapping="WrapWholeWords" />
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding LocalModelRuntimeProgress}" Height="8" Foreground="#44C7FF" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding LocalModelDownloadSizeText}" Foreground="#9FB2D2" />
+                                <TextBlock Text="  •  " Foreground="#7F95B7" />
+                                <TextBlock Text="{Binding LocalModelDownloadEtaText}" Foreground="#9FB2D2" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <ListView Grid.Row="1" ItemsSource="{Binding SystemOutput}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="models:SystemLogLine">
+                                <Border Background="#10192D" CornerRadius="10" Margin="0,4,0,4" Padding="12">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{x:Bind CreatedAt}" Foreground="#8DA4C7" FontSize="12" />
+                                        <TextBlock Text="{x:Bind Text}" Foreground="#DCE7FA" TextWrapping="WrapWholeWords" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
             </TabViewItem>
         </TabView>
+
+        <Border
+            Grid.RowSpan="2"
+            Background="#A6121C30"
+            Visibility="{x:Bind BoolVisibility(ViewModel.ShowRemoteTransferTutorial), Mode=OneWay}">
+            <Grid VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="760" Margin="24">
+                <Border Background="#10192D" CornerRadius="18" Padding="24">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="Your desktop is now the local home base" Foreground="#F4F7FC" FontSize="28" FontWeight="SemiBold" TextWrapping="WrapWholeWords" />
+                        <TextBlock Text="BlackHaven is built so a phone can push work and files back to the desktop you already own while that machine stays on and plugged in, even when internet service is degraded or unavailable." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                        <TextBlock Text="What this means:" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                        <TextBlock Text="1. Pair your phone to this desktop with the local URL and pairing token in Command Center." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                        <TextBlock Text="2. Keep the destination on your own machine instead of a hosted relay whenever your local network is available, including emergency or internet-down situations." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                        <TextBlock Text="3. Run energy-intensive local AI on infrastructure you control, including the grid, home solar, portable panels, battery systems, or small wind." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                        <TextBlock Text="4. Use BlackHaven as an emergency prepping and management tool that stays useful when internet access drops but local power and local networking remain available." Foreground="#D0DBEF" TextWrapping="WrapWholeWords" />
+                        <Border Background="#162742" CornerRadius="12" Padding="12">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Why this matters" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                <TextBlock Text="Local-first design lets you control the energy source, keep sensitive work closer to home, and sustain heavy long-term AI workloads with backup power plus renewable generation. That makes BlackHaven more useful for resilience planning, outage response, and continuity operations." Foreground="#BFD0EB" TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#1A314F" CornerRadius="12" Padding="12">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Suggested power strategy" Foreground="#F4F7FC" FontWeight="SemiBold" />
+                                <TextBlock Text="We recommend pairing renewable energy generation with home backup power so this desktop can stay available for local AI and emergency coordination. Founder recommendation: EcoFlow Delta Pro 3." Foreground="#BFD0EB" TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="I understand" Command="{Binding DismissRemoteTransferTutorialCommand}" />
+                            <TextBlock Text="The Desktop Remote Control section below has the pairing URL and token." Foreground="#9AB0CF" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

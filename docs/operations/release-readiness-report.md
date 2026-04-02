@@ -1,7 +1,7 @@
 # Atlas/אטלס Release Readiness Report
 
 Date: 2026-02-21
-Repository: `/Users/avrohom/Downloads/journeyatlas`
+Repository: `/Users/avrohom/Downloads/BlackHaven`
 Scope: final production hardening pass for auth/session/OAuth/passkey/billing/memory privacy/mobile UX/feedback/security workflows.
 
 ## Executive status
@@ -20,8 +20,8 @@ Remaining go-live blockers are operational (dashboard + DNS + provider credentia
 - Added explicit unauthorized messaging for missing key/untrusted origin.
 
 Primary files:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/tests/tests/api_integration.rs`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/tests/tests/api_integration.rs`
 
 ### 2) Session, CSRF, and cookie hardening
 - Preserved strict cookie behavior (`HttpOnly`, `Secure`, `SameSite`, domain-scoped).
@@ -29,8 +29,8 @@ Primary files:
 - Added/kept abuse tests for auth endpoint throttling and cross-origin protection.
 
 Primary files:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/tests/tests/api_integration.rs`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/tests/tests/api_integration.rs`
 
 ### 3) Billing/webhook hardening
 - Strengthened Stripe webhook signature verification:
@@ -41,14 +41,15 @@ Primary files:
 - Added tests for valid/replay signature behavior.
 
 Primary files:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
 
 ### 4) Memory privacy/security
 - Privacy and memory behavior remain guarded by opt-in controls and tests already in place.
 - Existing memory tests pass (ingestion, ordering, privacy opt-out).
+- Long-term personalization now also has dedicated psychological profile, vehicle profile, and lifelog API surfaces so profile data is no longer flattened into one generic memory bucket.
 
 Primary files:
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
 
 ### 5) Feedback/reporting with negative-signal path
 - Improved auto-report flow to reduce noisy abuse:
@@ -57,25 +58,25 @@ Primary files:
 - Tightened feedback payload sanitization and bounds checks (message/tags/source/category).
 
 Primary files:
-- `/Users/avrohom/Downloads/journeyatlas/website/concierge-local.html`
-- `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
+- `/Users/avrohom/Downloads/BlackHaven/website/concierge-local.html`
+- `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
 
 ### 6) Mobile/web UX and build reliability
 - Removed dependency on remote Google Fonts at build-time for deterministic builds in restricted/offline environments.
 - Fixed lint issue in Hebrew quoted text.
 
 Primary files:
-- `/Users/avrohom/Downloads/journeyatlas/app/layout.tsx`
-- `/Users/avrohom/Downloads/journeyatlas/app/globals.css`
-- `/Users/avrohom/Downloads/journeyatlas/app/packages/page.tsx`
+- `/Users/avrohom/Downloads/BlackHaven/app/layout.tsx`
+- `/Users/avrohom/Downloads/BlackHaven/app/globals.css`
+- `/Users/avrohom/Downloads/BlackHaven/app/packages/page.tsx`
 
 ### 7) CI + security workflow guardrails
 - CI web job now includes production build step.
 - Security workflow and dependency/audit workflow continue enforcing policy, secret scanning, SAST, and audits.
 
 Primary files:
-- `/Users/avrohom/Downloads/journeyatlas/.github/workflows/ci.yml`
-- `/Users/avrohom/Downloads/journeyatlas/.github/workflows/security-scan.yml`
+- `/Users/avrohom/Downloads/BlackHaven/.github/workflows/ci.yml`
+- `/Users/avrohom/Downloads/BlackHaven/.github/workflows/security-scan.yml`
 
 ## Checks run in this pass
 
@@ -205,6 +206,7 @@ Set these in Railway service variables for the API service:
 - If OAuth provider credentials are missing or mismatch redirect URLs, sign-in callbacks fail.
 - If Stripe webhook secret is missing, subscription state will not sync reliably.
 - If `ATLAS_DATABASE_URL` points to ephemeral storage, long-term personalization will not survive restarts.
+- If you want true semantic lifelog retrieval, you still need to provision a production vector-capable store; current code now preserves the lifelog shape and audit path, but not a managed vector database yet.
 
 ## Go-live verification script (manual)
 

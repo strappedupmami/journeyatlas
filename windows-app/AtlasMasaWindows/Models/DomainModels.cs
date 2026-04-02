@@ -23,6 +23,46 @@ public enum WorkspaceLane
     Output
 }
 
+public enum LocalAIRuntimeStatusCode
+{
+    NotInstalled,
+    InstallingRuntime,
+    StartingRuntime,
+    DownloadingModel,
+    WarmingModel,
+    Ready,
+    Degraded,
+    Error
+}
+
+public sealed class LocalAIModelPack
+{
+    public string Id { get; set; } = "starter";
+    public string Title { get; set; } = string.Empty;
+    public string Subtitle { get; set; } = string.Empty;
+    public string PrimaryModel { get; set; } = "qwen2.5:7b";
+    public List<string> SecondaryModels { get; set; } = [];
+    public List<string> ModelOrder { get; set; } = [];
+    public string ApproximateSize { get; set; } = string.Empty;
+    public string MinimumHardwareTier { get; set; } = "balanced";
+    public bool Recommended { get; set; }
+}
+
+public sealed class LocalAIModelInstallOption : ObservableObject
+{
+    private bool _isSelected;
+
+    public string Id { get; set; } = "qwen2.5:7b";
+    public string Title { get; set; } = string.Empty;
+    public string Subtitle { get; set; } = string.Empty;
+    public string ModelName { get; set; } = "qwen2.5:7b";
+    public double ApproximateSizeGb { get; set; }
+    public bool Recommended { get; set; }
+    public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
+    public string ApproximateSizeLabel => $"{ApproximateSizeGb:0.0} GB";
+    public string RecommendedLabel => Recommended ? "Recommended" : string.Empty;
+}
+
 public sealed class AtlasSessionState : ObservableObject
 {
     private bool _isSignedIn;
@@ -60,6 +100,14 @@ public sealed class AtlasSessionState : ObservableObject
     private DateTimeOffset _lastNatureSignalRefreshAtUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _lastNatureAlertNotificationAtUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _lastWealthReminderNotificationAtUtc = DateTimeOffset.MinValue;
+    private bool _localAiSetupCompleted;
+    private bool _localAiSetupDeferred;
+    private string _selectedLocalAiPackId = "starter";
+    private string _selectedLocalAiModelIds = string.Empty;
+    private string _localAiRuntimeStatusCode = nameof(LocalAIRuntimeStatusCode.NotInstalled);
+    private string _localAiRuntimeLastError = string.Empty;
+    private string _remoteControlToken = string.Empty;
+    private bool _remoteTransferTutorialSeen;
 
     public bool IsSignedIn { get => _isSignedIn; set => SetProperty(ref _isSignedIn, value); }
     public AuthProvider Provider { get => _provider; set => SetProperty(ref _provider, value); }
@@ -96,6 +144,14 @@ public sealed class AtlasSessionState : ObservableObject
     public DateTimeOffset LastNatureSignalRefreshAtUtc { get => _lastNatureSignalRefreshAtUtc; set => SetProperty(ref _lastNatureSignalRefreshAtUtc, value); }
     public DateTimeOffset LastNatureAlertNotificationAtUtc { get => _lastNatureAlertNotificationAtUtc; set => SetProperty(ref _lastNatureAlertNotificationAtUtc, value); }
     public DateTimeOffset LastWealthReminderNotificationAtUtc { get => _lastWealthReminderNotificationAtUtc; set => SetProperty(ref _lastWealthReminderNotificationAtUtc, value); }
+    public bool LocalAiSetupCompleted { get => _localAiSetupCompleted; set => SetProperty(ref _localAiSetupCompleted, value); }
+    public bool LocalAiSetupDeferred { get => _localAiSetupDeferred; set => SetProperty(ref _localAiSetupDeferred, value); }
+    public string SelectedLocalAiPackId { get => _selectedLocalAiPackId; set => SetProperty(ref _selectedLocalAiPackId, value); }
+    public string SelectedLocalAiModelIds { get => _selectedLocalAiModelIds; set => SetProperty(ref _selectedLocalAiModelIds, value); }
+    public string LocalAiRuntimeStatusCode { get => _localAiRuntimeStatusCode; set => SetProperty(ref _localAiRuntimeStatusCode, value); }
+    public string LocalAiRuntimeLastError { get => _localAiRuntimeLastError; set => SetProperty(ref _localAiRuntimeLastError, value); }
+    public string RemoteControlToken { get => _remoteControlToken; set => SetProperty(ref _remoteControlToken, value); }
+    public bool RemoteTransferTutorialSeen { get => _remoteTransferTutorialSeen; set => SetProperty(ref _remoteTransferTutorialSeen, value); }
 }
 
 public sealed class SystemLogLine
@@ -145,6 +201,8 @@ public sealed class QueueRecord : ObservableObject
     private string? _errorMessage;
     private DateTimeOffset? _startedAt;
     private DateTimeOffset? _completedAt;
+    private string? _reasoningSummary;
+    private string? _confidenceLabel;
 
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Prompt { get; set; } = string.Empty;
@@ -159,6 +217,15 @@ public sealed class QueueRecord : ObservableObject
     public string? NextAction { get => _nextAction; set => SetProperty(ref _nextAction, value); }
     public double? Confidence { get => _confidence; set => SetProperty(ref _confidence, value); }
     public string? ErrorMessage { get => _errorMessage; set => SetProperty(ref _errorMessage, value); }
+    public string? ReasoningSummary { get => _reasoningSummary; set => SetProperty(ref _reasoningSummary, value); }
+    public string? ConfidenceLabel { get => _confidenceLabel; set => SetProperty(ref _confidenceLabel, value); }
+    public List<string> AlternativesConsidered { get; set; } = [];
+    public List<string> Assumptions { get; set; } = [];
+    public bool HasReasoningDetails =>
+        !string.IsNullOrWhiteSpace(ReasoningSummary) ||
+        AlternativesConsidered.Count > 0 ||
+        Assumptions.Count > 0 ||
+        !string.IsNullOrWhiteSpace(ConfidenceLabel);
 }
 
 public sealed class MemoryRecord
@@ -226,6 +293,83 @@ public sealed class FeedItem
     [JsonPropertyName("why_now")]
     public string WhyNow { get; set; } = string.Empty;
     public string Priority { get; set; } = "normal";
+    public string? SourceType { get; set; }
+}
+
+public sealed class OperatorStateSnapshot
+{
+    public string Id { get; set; } = "operator-state";
+    public string Mode { get; set; } = "short_idle_window";
+    public string Summary { get; set; } = string.Empty;
+    public string NextAction { get; set; } = string.Empty;
+    public string Rationale { get; set; } = string.Empty;
+    public bool ContinuityRiskActive { get; set; }
+    public int EnergyLevel { get; set; } = 3;
+    public string Mood { get; set; } = "Focused";
+    public string? BlockerSummary { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class ChecklistStep : ObservableObject
+{
+    private bool _isCompleted;
+    private string? _notes;
+
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Title { get; set; } = string.Empty;
+    public string Rationale { get; set; } = string.Empty;
+    public string Instructions { get; set; } = string.Empty;
+    public List<string> ExternalLinks { get; set; } = [];
+    public List<string> FileReferences { get; set; } = [];
+    public bool IsCompleted { get => _isCompleted; set => SetProperty(ref _isCompleted, value); }
+    public string? Notes { get => _notes; set => SetProperty(ref _notes, value); }
+}
+
+public sealed class ChecklistPlan
+{
+    public string Id { get; set; } = "active-checklist-plan";
+    public string Title { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public string CreatedFrom { get; set; } = string.Empty;
+    public List<ChecklistStep> Steps { get; set; } = [];
+    public DateTimeOffset GeneratedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class ActivitySuggestion
+{
+    public string Id { get; set; } = "activity-suggestion";
+    public string Title { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public string DurationLabel { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public DateTimeOffset GeneratedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class ItineraryStep
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string TimeLabel { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+}
+
+public sealed class ItineraryPlan
+{
+    public string Id { get; set; } = "itinerary-plan";
+    public string Title { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public string Kind { get; set; } = "workday";
+    public List<ItineraryStep> Steps { get; set; } = [];
+    public DateTimeOffset GeneratedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SupportRecommendation
+{
+    public string Id { get; set; } = "support-recommendation";
+    public string Title { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public string? BodyDoublingPrompt { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class NatureSignalTile
@@ -272,8 +416,76 @@ public sealed class AtlasDataEnvelope
     public List<SurveyAnswer> SurveyAnswers { get; set; } = [];
     public List<AdaptiveBusinessQuestion> AdaptiveBusinessQuestions { get; set; } = [];
     public List<NatureSignalTile> NatureSignalTiles { get; set; } = [];
+    public OperatorStateSnapshot? OperatorStateSnapshot { get; set; }
+    public ChecklistPlan? ActiveChecklistPlan { get; set; }
+    public ActivitySuggestion? CurrentActivitySuggestion { get; set; }
+    public ItineraryPlan? CurrentItineraryPlan { get; set; }
+    public SupportRecommendation? CurrentSupportRecommendation { get; set; }
     public List<AuthCookieRecord> ApiAuthCookies { get; set; } = [];
     public DateTimeOffset LastSavedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class MemoryVaultPolicy
+{
+    public string HardwareTier { get; set; } = "balanced";
+    public int ContextBudgetTokens { get; set; } = 6000;
+    public int CompactionThresholdTokens { get; set; } = 4800;
+    public int RetrievalDepth { get; set; } = 4;
+    public int ResponseBudgetTokens { get; set; } = 820;
+    public string ArchiveSearchMode { get; set; } = "native_encrypted_local_index";
+    public string ModelGuidance { get; set; } = "balanced_local_model";
+}
+
+public sealed class MemoryVaultRawRecord
+{
+    public string RecordId { get; set; } = Guid.NewGuid().ToString();
+    public string SourceType { get; set; } = string.Empty;
+    public string SourceLabel { get; set; } = string.Empty;
+    public List<string> Tags { get; set; } = [];
+    public string Content { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public bool DeepArchived { get; set; }
+}
+
+public sealed class MemoryVaultCompactedRecord
+{
+    public string RecordId { get; set; } = Guid.NewGuid().ToString();
+    public string Title { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public List<string> SourceRecordIds { get; set; } = [];
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string TriggerReason { get; set; } = string.Empty;
+}
+
+public sealed class MemoryVaultArtifactRecord
+{
+    public string ArtifactId { get; set; } = Guid.NewGuid().ToString();
+    public string ArtifactType { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class MemoryVaultSnapshot
+{
+    public int SchemaVersion { get; set; } = 1;
+    public List<MemoryVaultRawRecord> RawRecords { get; set; } = [];
+    public List<MemoryVaultCompactedRecord> CompactedRecords { get; set; } = [];
+    public List<MemoryVaultArtifactRecord> ArtifactRecords { get; set; } = [];
+    public MemoryVaultPolicy LastPolicy { get; set; } = new();
+    public int LastTokenPressure { get; set; }
+    public string LastCompactionReason { get; set; } = "none";
+    public string LastArchiveMode { get; set; } = "raw";
+    public string LastSyncReason { get; set; } = "startup";
+    public DateTimeOffset? LastCompactedAt { get; set; }
+    public DateTimeOffset LastSavedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class MemoryRecallHit
+{
+    public string Summary { get; set; } = string.Empty;
+    public string SourceLabel { get; set; } = string.Empty;
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+    public string MatchReason { get; set; } = string.Empty;
 }
 
 public sealed class LocalReasoningOutput
@@ -283,4 +495,8 @@ public sealed class LocalReasoningOutput
     public string NextAction { get; set; } = string.Empty;
     public double Confidence { get; set; }
     public DateTimeOffset GeneratedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? ReasoningSummary { get; set; }
+    public List<string> AlternativesConsidered { get; set; } = [];
+    public List<string> Assumptions { get; set; } = [];
+    public string? ConfidenceLabel { get; set; }
 }

@@ -54,10 +54,10 @@ From **App Store Connect -> My Apps -> + New App**:
 ## 5) Generate Xcode projects
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas/ios-app
+cd /Users/avrohom/Downloads/BlackHaven/ios-app
 xcodegen generate
 
-cd /Users/avrohom/Downloads/journeyatlas/macos-app
+cd /Users/avrohom/Downloads/BlackHaven/macos-app
 xcodegen generate
 ```
 

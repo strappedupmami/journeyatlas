@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-ROOT = Path('/Users/avrohom/Downloads/journeyatlas')
+ROOT = Path('/Users/avrohom/Downloads/BlackHaven')
 DEFAULT_OUT = ROOT / 'atlas-concierge/kb/training/scientific_papers_openalex.jsonl'
 DEFAULT_QUERY_FILE = ROOT / 'atlas-concierge/kb/training/openalex_atlas_queries.txt'
 

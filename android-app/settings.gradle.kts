@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AtlasMasaAndroid"
+rootProject.name = "BlackHavenAndroid"
 include(":app")

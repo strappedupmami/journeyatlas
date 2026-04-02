@@ -42,7 +42,7 @@ Browser UI option (from website static files):
 - Serve homepage over HTTP (cookies will not work on `file://`):
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ./scripts/serve-homepage-local.sh
 ```
 

@@ -14,11 +14,37 @@ repos:
     hooks:
       - id: detect-secrets
         args:
+          - --baseline
+          - .secrets.baseline
           - --exclude-files
           - (^|/)(package-lock\.json|Cargo\.lock)$
 
   - repo: local
     hooks:
+      - id: cargo-fmt
+        name: cargo-fmt
+        entry: bash -lc 'cd atlas-concierge && cargo fmt --all --check'
+        language: system
+        pass_filenames: false
+
+      - id: cargo-check
+        name: cargo-check
+        entry: bash -lc 'cd atlas-concierge && cargo check --workspace --locked'
+        language: system
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo-clippy
+        entry: bash -lc 'cd atlas-concierge && cargo clippy --workspace --all-targets -- -D warnings'
+        language: system
+        pass_filenames: false
+
+      - id: cargo-audit
+        name: cargo-audit
+        entry: bash -lc 'cd atlas-concierge && cargo audit --deny warnings'
+        language: system
+        pass_filenames: false
+
       - id: verify-lockfiles
         name: verify-lockfiles
         entry: ./scripts/verify-lockfiles.sh presence

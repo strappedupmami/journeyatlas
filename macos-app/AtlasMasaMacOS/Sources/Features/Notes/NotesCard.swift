@@ -220,6 +220,56 @@ struct NotesCard: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AtlasTheme.accentWarm)
 
+                        Text(session.memoryVaultStatusLine)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Text(session.memoryVaultPolicyLine)
+                            .font(.caption)
+                            .foregroundStyle(AtlasTheme.accentWarm)
+
+                        TextField("Recall local raw memory", text: $session.memoryVaultRecallQuery)
+                            .textFieldStyle(.roundedBorder)
+
+                        HStack(spacing: 10) {
+                            Button("Compact Further") {
+                                session.compactMemoryVault()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+
+                            Button("Deep Archive") {
+                                session.deepArchiveMemoryVault()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+
+                            Button("Recall Raw Memory") {
+                                session.recallMemoryVault()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        if !session.memoryVaultRecallResults.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(session.memoryVaultRecallResults) { hit in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(hit.summary)
+                                            .font(.caption.weight(.semibold))
+                                        Text("\(hit.sourceLabel) · \(hit.timestamp) · \(hit.matchReason)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(10)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(nsColor: .controlBackgroundColor))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AtlasTheme.border, lineWidth: 1))
+                                }
+                            }
+                        }
+
                         Button("Delete Local Memory", role: .destructive) {
                             session.deleteLocalMemory()
                         }

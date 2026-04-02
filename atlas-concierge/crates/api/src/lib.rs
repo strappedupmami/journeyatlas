@@ -53,6 +53,7 @@ const MAX_MEMORY_TEXT_LEN: usize = 800;
 const MAX_MEMORY_RECORDS_PER_USER: usize = 3_000;
 const DEFAULT_MEMORY_RETRIEVAL_LIMIT: usize = 12;
 const MAX_MEMORY_RETRIEVAL_LIMIT: usize = 64;
+const MAX_MEMORY_BATCH_EXPORT_ITEMS: usize = 128;
 const TRANSIENT_MEMORY_TTL_DAYS: i64 = 14;
 const MAX_REMINDER_TITLE_LEN: usize = 180;
 const MAX_REMINDER_DETAILS_LEN: usize = 1_500;
@@ -64,6 +65,10 @@ const MAX_SHORTCUTS_URL_LEN: usize = 1_900;
 const MAX_FEEDBACK_MESSAGE_LEN: usize = 2_000;
 const MAX_FEEDBACK_TAGS: usize = 20;
 const MAX_FEEDBACK_TAG_LEN: usize = 40;
+const MAX_RND_PROMPT_LEN: usize = 24_000;
+const MAX_RND_CHANGE_REQUEST_LEN: usize = 4_000;
+const MAX_RND_RESEARCH_SUMMARY_LEN: usize = 16_000;
+const MAX_RND_LOCAL_PLANNING_NOTE_LEN: usize = 12_000;
 const MAX_SHOPIFY_SOURCE_LEN: usize = 80;
 const MAX_SHOPIFY_NOTES_LEN: usize = 1_600;
 const MAX_SHOPIFY_REPORTS_PER_USER: usize = 10_000;
@@ -87,15 +92,19 @@ pub struct ApiState {
     pub db_pool: Option<SqlitePool>,
     pub users: Arc<RwLock<HashMap<String, UserRecord>>>,
     pub sessions: Arc<RwLock<HashMap<String, SessionRecord>>>,
+    pub psychological_profiles: Arc<RwLock<HashMap<String, PsychologicalProfileRecord>>>,
+    pub vehicle_profiles: Arc<RwLock<HashMap<String, VehicleProfileRecord>>>,
     pub studio_preferences: Arc<RwLock<HashMap<String, StudioPreferencesRecord>>>,
     pub survey_states: Arc<RwLock<HashMap<String, SurveyStateRecord>>>,
     pub feedback_items: Arc<RwLock<Vec<FeedbackRecord>>>,
     pub user_notes: Arc<RwLock<HashMap<String, Vec<UserNoteRecord>>>>,
     pub user_memories: Arc<RwLock<HashMap<String, Vec<MemoryRecord>>>>,
+    pub lifelogs: Arc<RwLock<HashMap<String, Vec<LifelogRecord>>>>,
     pub execution_checkins: Arc<RwLock<HashMap<String, Vec<ExecutionCheckinRecord>>>>,
     pub execution_controls: Arc<RwLock<HashMap<String, ExecutionControlsRecord>>>,
     pub execution_task_states:
         Arc<RwLock<HashMap<String, HashMap<String, ExecutionTaskStateRecord>>>>,
+    pub rnd_jobs: Arc<RwLock<HashMap<String, RndJobRecord>>>,
     pub oauth_states: Arc<RwLock<HashMap<String, OAuthStateRecord>>>,
     pub google_oauth: Option<GoogleOAuthConfig>,
     pub apple_oauth: Option<AppleOAuthConfig>,
@@ -168,6 +177,7 @@ struct GeminiRuntimeConfig {
     temperature: f32,
     max_output_tokens: u32,
     thinking_level: Option<String>,
+    context_cache_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -307,6 +317,57 @@ struct ProfileUpsertRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+struct UserScopedQuery {
+    user_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PsychologicalProfileRecord {
+    user_id: String,
+    comfort_zone_vs_novelty_index: f32,
+    routine_rigidity_score: f32,
+    stress_load_score: f32,
+    recovery_bias: String,
+    historical_feedback_summary: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PsychologicalProfileUpsertRequest {
+    user_id: Option<String>,
+    comfort_zone_vs_novelty_index: Option<f32>,
+    routine_rigidity_score: Option<f32>,
+    stress_load_score: Option<f32>,
+    recovery_bias: Option<String>,
+    historical_feedback_summary: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct VehicleProfileRecord {
+    user_id: String,
+    vehicle_kind: String,
+    model_name: Option<String>,
+    length_cm: Option<i32>,
+    height_cm: Option<i32>,
+    battery_capacity_ah: Option<i32>,
+    solar_capacity_watts: Option<i32>,
+    nvh_sensitivity: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct VehicleProfileUpsertRequest {
+    user_id: Option<String>,
+    vehicle_kind: Option<String>,
+    model_name: Option<String>,
+    length_cm: Option<i32>,
+    height_cm: Option<i32>,
+    battery_capacity_ah: Option<i32>,
+    solar_capacity_watts: Option<i32>,
+    nvh_sensitivity: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 struct ChatRequest {
     session_id: Option<String>,
     text: String,
@@ -324,6 +385,10 @@ struct StudioPreferencesUpsertRequest {
     user_id: Option<String>,
     preferred_format: Option<String>,
     response_depth: Option<String>,
+    memory_depth: Option<String>,
+    compute_mode: Option<String>,
+    cloud_cost_guardrail: Option<String>,
+    local_resource_guardrail: Option<String>,
     response_tone: Option<String>,
     proactive_mode: Option<String>,
     reminders_app: Option<String>,
@@ -336,6 +401,10 @@ struct StudioPreferencesRecord {
     user_id: String,
     preferred_format: String,
     response_depth: String,
+    memory_depth: String,
+    compute_mode: String,
+    cloud_cost_guardrail: String,
+    local_resource_guardrail: String,
     response_tone: String,
     proactive_mode: String,
     reminders_app: String,
@@ -412,6 +481,18 @@ struct ProactiveFeedResponse {
     gate_reason: Option<String>,
     required_minutes: u32,
     company_status: CompanyStatusRecord,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AmmDiagnostics {
+    active_mode: String,
+    compaction_applied: bool,
+    trigger_reason: String,
+    pinned_context_preserved: bool,
+    estimated_cloud_input_cost_usd: f64,
+    estimated_local_memory_mb: u32,
+    estimated_local_storage_mb: u32,
+    tradeoff_summary: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -831,6 +912,19 @@ struct MemoryRecord {
     fingerprint: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LifelogRecord {
+    lifelog_id: String,
+    user_id: String,
+    memory_id: Option<String>,
+    summary: String,
+    source: String,
+    tags: Vec<String>,
+    embedding_json: Option<Vec<f32>>,
+    created_at: String,
+    updated_at: String,
+}
+
 #[derive(Debug, Clone)]
 struct MemoryIngestEvent {
     memory_type: String,
@@ -845,6 +939,13 @@ struct MemoryIngestEvent {
 
 #[derive(Debug, Clone, Deserialize)]
 struct MemoryRecordsQuery {
+    user_id: Option<String>,
+    q: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct LifelogRecordsQuery {
     user_id: Option<String>,
     q: Option<String>,
     limit: Option<usize>,
@@ -904,6 +1005,696 @@ struct MemoryImportRequest {
     items: Vec<MemoryImportItem>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct MemoryBatchExportRequest {
+    user_id: Option<String>,
+    provider: Option<String>,
+    q: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct MemoryBatchExportManifest {
+    provider: String,
+    model: String,
+    operation: String,
+    generated_at: String,
+    query: String,
+    item_count: usize,
+    cache_strategy: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndJobCreateRequest {
+    product_type: Option<String>,
+    prompt: String,
+    locale: Option<String>,
+    client_research_summary: Option<String>,
+    client_local_planning_note: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndPlanReviseRequest {
+    revision_prompt: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndStageApproveRequest {
+    note: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndPauseRequest {
+    pause_after_current_stage: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndChangeRequest {
+    scope: Option<String>,
+    target_part_id: Option<String>,
+    request: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndReviewRecordRequest {
+    title: Option<String>,
+    status: Option<String>,
+    note: Option<String>,
+    requirement_ids: Option<Vec<String>>,
+    decision_ids: Option<Vec<String>>,
+    evidence_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndReportGenerateRequest {
+    title: Option<String>,
+    report_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndDocumentGenerateRequest {
+    document_type: String,
+    audience_mode: Option<String>,
+    title: Option<String>,
+    platform_name: Option<String>,
+    revision_label: Option<String>,
+    purpose: Option<String>,
+    target_audience: Option<String>,
+    author: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndDocumentBundleGenerateRequest {
+    audience_mode: Option<String>,
+    title_prefix: Option<String>,
+    platform_name: Option<String>,
+    revision_label: Option<String>,
+    author: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RndApprovalRecordRequest {
+    reviewer_name: String,
+    reviewer_role: String,
+    reviewer_org: Option<String>,
+    authority_kind: Option<String>,
+    approval_state: Option<String>,
+    scope_type: Option<String>,
+    scope_id: Option<String>,
+    comment: Option<String>,
+    conditions: Option<Vec<String>>,
+    create_baseline_if_approved: Option<bool>,
+    baseline_title: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndCitationRecord {
+    id: String,
+    label: String,
+    source_type: String,
+    detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndContextPackRecord {
+    user_preference_summary: String,
+    memory_summary: String,
+    prior_job_summary: String,
+    research_summary: String,
+    explicit_constraints: Vec<String>,
+    citations: Vec<RndCitationRecord>,
+    research_confidence: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndPlanStageRecord {
+    id: String,
+    title: String,
+    objective: String,
+    estimated_minutes: u32,
+    approval_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndPlanRecord {
+    version: u32,
+    generated_at: String,
+    goals: Vec<String>,
+    constraints: Vec<String>,
+    risks: Vec<String>,
+    assumptions: Vec<String>,
+    required_research_domains: Vec<String>,
+    proposed_parts: Vec<String>,
+    execution_stages: Vec<RndPlanStageRecord>,
+    user_explanation: String,
+    simple_summary: String,
+    citations: Vec<RndCitationRecord>,
+    executable: bool,
+    blocking_issues: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum RndStageKind {
+    PlanReview,
+    ProblemFraming,
+    RequirementsExtraction,
+    ResearchSynthesis,
+    SystemArchitecture,
+    PartDecomposition,
+    PartGeneration,
+    PartValidation,
+    PackageAssembly,
+    ReviewHandoff,
+    Completed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum RndPartStatus {
+    Queued,
+    Generated,
+    Validated,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndPartRecord {
+    part_id: String,
+    name: String,
+    purpose: String,
+    interfaces: Vec<String>,
+    geometry_constraints: Vec<String>,
+    material_assumptions: Vec<String>,
+    manufacturing_assumptions: Vec<String>,
+    validation_tasks: Vec<String>,
+    dependencies: Vec<String>,
+    status: RndPartStatus,
+    retries: u32,
+    risk_flags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndArtifactRecord {
+    artifact_id: String,
+    part_id: Option<String>,
+    artifact_type: String,
+    title: String,
+    format: String,
+    content: String,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndTimelineStageRecord {
+    stage: RndStageKind,
+    status: String,
+    estimated_minutes: u32,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+    note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndEtaRecord {
+    estimated_total_minutes: u32,
+    estimated_remaining_minutes: u32,
+    current_stage_estimated_minutes: u32,
+    confidence_label: String,
+    current_bottleneck: String,
+    slippage_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndRoutingSummaryRecord {
+    local_only_tasks: Vec<String>,
+    gemini_escalated_tasks: Vec<String>,
+    gpt_escalated_tasks: Vec<String>,
+    executor_tasks: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndRequirementRecord {
+    requirement_id: String,
+    title: String,
+    description: String,
+    requirement_kind: String,
+    status: String,
+    source_plan_version: u32,
+    linked_component_ids: Vec<String>,
+    linked_decision_ids: Vec<String>,
+    linked_evidence_ids: Vec<String>,
+    linked_report_ids: Vec<String>,
+    linked_approval_ids: Vec<String>,
+    verification_notes: Vec<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndDesignDecisionRecord {
+    decision_id: String,
+    title: String,
+    context: String,
+    decision: String,
+    rationale: String,
+    status: String,
+    source_plan_version: u32,
+    supersedes_decision_id: Option<String>,
+    requirement_ids: Vec<String>,
+    component_ids: Vec<String>,
+    evidence_ids: Vec<String>,
+    affected_artifact_ids: Vec<String>,
+    review_ids: Vec<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndDesignReviewRecord {
+    review_id: String,
+    title: String,
+    status: String,
+    note: String,
+    source_plan_version: u32,
+    requirement_ids: Vec<String>,
+    decision_ids: Vec<String>,
+    evidence_ids: Vec<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndEvidenceArtifactRecord {
+    evidence_id: String,
+    artifact_id: Option<String>,
+    run_id: Option<String>,
+    title: String,
+    evidence_kind: String,
+    source_stage: String,
+    status: String,
+    requirement_ids: Vec<String>,
+    decision_ids: Vec<String>,
+    component_ids: Vec<String>,
+    artifact_ids: Vec<String>,
+    summary: String,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndTestSimulationRunRecord {
+    run_id: String,
+    title: String,
+    run_type: String,
+    status: String,
+    requirement_ids: Vec<String>,
+    decision_ids: Vec<String>,
+    component_ids: Vec<String>,
+    input_artifact_ids: Vec<String>,
+    output_artifact_ids: Vec<String>,
+    summary: String,
+    executed_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndComplianceReportRecord {
+    report_id: String,
+    title: String,
+    report_type: String,
+    status: String,
+    version: u32,
+    markdown: String,
+    provenance: Vec<String>,
+    requirement_ids: Vec<String>,
+    decision_ids: Vec<String>,
+    evidence_ids: Vec<String>,
+    run_ids: Vec<String>,
+    approval_ids: Vec<String>,
+    open_issues: Vec<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndApprovalRecord {
+    approval_id: String,
+    reviewer_name: String,
+    reviewer_role: String,
+    reviewer_org: Option<String>,
+    authority_kind: String,
+    approval_state: String,
+    scope_type: String,
+    scope_id: String,
+    conditions: Vec<String>,
+    comment: String,
+    baseline_id: Option<String>,
+    legally_binding: bool,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndAuditEventRecord {
+    event_id: String,
+    event_type: String,
+    actor: String,
+    actor_role: String,
+    detail: String,
+    related_ids: Vec<String>,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndApprovedBaselineRecord {
+    baseline_id: String,
+    title: String,
+    status: String,
+    artifact_ids: Vec<String>,
+    requirement_ids: Vec<String>,
+    decision_ids: Vec<String>,
+    report_ids: Vec<String>,
+    approval_ids: Vec<String>,
+    snapshot_hash: String,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndGovernanceSummaryRecord {
+    requirement_count: usize,
+    decision_count: usize,
+    evidence_count: usize,
+    report_count: usize,
+    approval_count: usize,
+    unresolved_item_count: usize,
+    readiness_status: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndTraceabilityRowRecord {
+    requirement_id: String,
+    title: String,
+    component_ids: Vec<String>,
+    decision_ids: Vec<String>,
+    evidence_ids: Vec<String>,
+    report_ids: Vec<String>,
+    approval_ids: Vec<String>,
+    unresolved_items: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndGovernanceResponse {
+    job_id: String,
+    summary: RndGovernanceSummaryRecord,
+    requirements: Vec<RndRequirementRecord>,
+    decisions: Vec<RndDesignDecisionRecord>,
+    reviews: Vec<RndDesignReviewRecord>,
+    evidence_artifacts: Vec<RndEvidenceArtifactRecord>,
+    simulation_runs: Vec<RndTestSimulationRunRecord>,
+    reports: Vec<RndComplianceReportRecord>,
+    approvals: Vec<RndApprovalRecord>,
+    baselines: Vec<RndApprovedBaselineRecord>,
+    audit_events: Vec<RndAuditEventRecord>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndTraceabilityResponse {
+    job_id: String,
+    rows: Vec<RndTraceabilityRowRecord>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndDoctrineResponse {
+    job_id: String,
+    profile: RndDoctrineProfileRecord,
+    checks: Vec<RndDoctrineCheckRecord>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndDocumentsResponse {
+    job_id: String,
+    bundles: Vec<RndDocumentationBundleRecord>,
+    documents: Vec<RndDocumentRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndDoctrineProfileRecord {
+    profile_id: String,
+    title: String,
+    principles: Vec<String>,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndDoctrineCheckRecord {
+    check_id: String,
+    doctrine_area: String,
+    severity: String,
+    passed: bool,
+    explanation: String,
+    suggested_fix: String,
+    linked_module_ids: Vec<String>,
+    linked_artifact_ids: Vec<String>,
+    linked_decision_ids: Vec<String>,
+    gating: bool,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndModuleDefinitionRecord {
+    module_id: String,
+    title: String,
+    purpose: String,
+    affordability_notes: String,
+    manufacturability_notes: String,
+    serviceability_notes: String,
+    repairability_notes: String,
+    linked_artifact_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndToolRequirementRecord {
+    tool_id: String,
+    name: String,
+    category: String,
+    reason: String,
+    commonality: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndBomItemRecord {
+    bom_id: String,
+    name: String,
+    quantity: String,
+    notes: String,
+    module_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndAssemblyStepRecord {
+    step_id: String,
+    module_id: Option<String>,
+    title: String,
+    instructions: String,
+    safety_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndServiceAccessPointRecord {
+    access_id: String,
+    module_id: Option<String>,
+    title: String,
+    location: String,
+    visibility: String,
+    notes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndInspectionChecklistItemRecord {
+    item_id: String,
+    module_id: Option<String>,
+    title: String,
+    verification: String,
+    severity: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndRevisionRecord {
+    revision_id: String,
+    label: String,
+    source_plan_version: u32,
+    reason: String,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndDocumentSectionRecord {
+    section_id: String,
+    heading: String,
+    body_markdown: String,
+    order_index: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndDocumentExportRecord {
+    export_id: String,
+    format: String,
+    audience_mode: String,
+    revision_label: String,
+    generated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndDocumentRecord {
+    document_id: String,
+    document_type: String,
+    audience_mode: String,
+    title: String,
+    project_name: String,
+    platform_name: String,
+    revision_label: String,
+    source_job_id: String,
+    source_plan_version: u32,
+    artifact_ids: Vec<String>,
+    module_ids: Vec<String>,
+    purpose: String,
+    target_audience: String,
+    author: String,
+    assumptions: Vec<String>,
+    safety_notes: Vec<String>,
+    tools_required: Vec<RndToolRequirementRecord>,
+    materials_required: Vec<String>,
+    bom_summary: Vec<RndBomItemRecord>,
+    sections: Vec<RndDocumentSectionRecord>,
+    manufacturability_notes: Vec<String>,
+    affordability_notes: Vec<String>,
+    repairability_notes: Vec<String>,
+    serviceability_notes: Vec<String>,
+    public_benefit_rationale: String,
+    exports: Vec<RndDocumentExportRecord>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndDocumentationBundleRecord {
+    bundle_id: String,
+    title: String,
+    audience_mode: String,
+    revision_label: String,
+    document_ids: Vec<String>,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RndJobRecord {
+    job_id: String,
+    user_id: String,
+    product_type: String,
+    design_domain: String,
+    locale: String,
+    prompt: String,
+    accepted_plan_version: Option<u32>,
+    current_stage: RndStageKind,
+    waiting_on_user: bool,
+    auto_run_enabled: bool,
+    paused_after_current_stage: bool,
+    created_at: String,
+    updated_at: String,
+    plans: Vec<RndPlanRecord>,
+    context_pack: RndContextPackRecord,
+    parts: Vec<RndPartRecord>,
+    artifacts: Vec<RndArtifactRecord>,
+    timeline: Vec<RndTimelineStageRecord>,
+    eta: RndEtaRecord,
+    risk_flags: Vec<String>,
+    latest_validation_summary: String,
+    #[serde(default)]
+    requirements: Vec<RndRequirementRecord>,
+    #[serde(default)]
+    decisions: Vec<RndDesignDecisionRecord>,
+    #[serde(default)]
+    design_reviews: Vec<RndDesignReviewRecord>,
+    #[serde(default)]
+    evidence_artifacts: Vec<RndEvidenceArtifactRecord>,
+    #[serde(default)]
+    simulation_runs: Vec<RndTestSimulationRunRecord>,
+    #[serde(default)]
+    compliance_reports: Vec<RndComplianceReportRecord>,
+    #[serde(default)]
+    approval_records: Vec<RndApprovalRecord>,
+    #[serde(default)]
+    audit_events: Vec<RndAuditEventRecord>,
+    #[serde(default)]
+    approved_baselines: Vec<RndApprovedBaselineRecord>,
+    #[serde(default)]
+    doctrine_profile: Option<RndDoctrineProfileRecord>,
+    #[serde(default)]
+    doctrine_checks: Vec<RndDoctrineCheckRecord>,
+    #[serde(default)]
+    module_definitions: Vec<RndModuleDefinitionRecord>,
+    #[serde(default)]
+    tool_requirements: Vec<RndToolRequirementRecord>,
+    #[serde(default)]
+    bom_items: Vec<RndBomItemRecord>,
+    #[serde(default)]
+    assembly_steps: Vec<RndAssemblyStepRecord>,
+    #[serde(default)]
+    service_access_points: Vec<RndServiceAccessPointRecord>,
+    #[serde(default)]
+    inspection_checklist_items: Vec<RndInspectionChecklistItemRecord>,
+    #[serde(default)]
+    revision_history: Vec<RndRevisionRecord>,
+    #[serde(default)]
+    document_records: Vec<RndDocumentRecord>,
+    #[serde(default)]
+    documentation_bundles: Vec<RndDocumentationBundleRecord>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndPartCounts {
+    queued: usize,
+    running: usize,
+    blocked: usize,
+    completed: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndJobResponse {
+    job_id: String,
+    product_type: String,
+    design_domain: String,
+    current_stage: RndStageKind,
+    waiting_on_user: bool,
+    auto_run_enabled: bool,
+    paused_after_current_stage: bool,
+    accepted_plan_version: Option<u32>,
+    latest_plan: Option<RndPlanRecord>,
+    eta: RndEtaRecord,
+    part_counts: RndPartCounts,
+    risk_flags: Vec<String>,
+    latest_validation_summary: String,
+    latest_artifacts: Vec<RndArtifactRecord>,
+    routing_summary: RndRoutingSummaryRecord,
+    governance_summary: RndGovernanceSummaryRecord,
+    progress_percent: u8,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndArtifactsResponse {
+    job_id: String,
+    artifacts: Vec<RndArtifactRecord>,
+    inspection_guide: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RndTimelineResponse {
+    job_id: String,
+    current_stage: RndStageKind,
+    waiting_on_user: bool,
+    eta: RndEtaRecord,
+    timeline: Vec<RndTimelineStageRecord>,
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 struct AuthResponse {
     token: String,
@@ -937,14 +1728,18 @@ struct SessionRecord {
 struct PersistedState {
     users: HashMap<String, UserRecord>,
     sessions: HashMap<String, SessionRecord>,
+    psychological_profiles: HashMap<String, PsychologicalProfileRecord>,
+    vehicle_profiles: HashMap<String, VehicleProfileRecord>,
     studio_preferences: HashMap<String, StudioPreferencesRecord>,
     survey_states: HashMap<String, SurveyStateRecord>,
     feedback_items: Vec<FeedbackRecord>,
     user_notes: HashMap<String, Vec<UserNoteRecord>>,
     user_memories: HashMap<String, Vec<MemoryRecord>>,
+    lifelogs: HashMap<String, Vec<LifelogRecord>>,
     execution_checkins: HashMap<String, Vec<ExecutionCheckinRecord>>,
     execution_controls: HashMap<String, ExecutionControlsRecord>,
     execution_task_states: HashMap<String, HashMap<String, ExecutionTaskStateRecord>>,
+    rnd_jobs: HashMap<String, RndJobRecord>,
     passkeys_by_user: HashMap<String, Vec<PasskeyRecord>>,
     shopify_profit_share_reports: HashMap<String, Vec<ShopifyProfitShareRecord>>,
 }
@@ -1054,14 +1849,18 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         db_pool,
         users: Arc::new(RwLock::new(persisted_state.users)),
         sessions: Arc::new(RwLock::new(persisted_state.sessions)),
+        psychological_profiles: Arc::new(RwLock::new(persisted_state.psychological_profiles)),
+        vehicle_profiles: Arc::new(RwLock::new(persisted_state.vehicle_profiles)),
         studio_preferences: Arc::new(RwLock::new(persisted_state.studio_preferences)),
         survey_states: Arc::new(RwLock::new(persisted_state.survey_states)),
         feedback_items: Arc::new(RwLock::new(persisted_state.feedback_items)),
         user_notes: Arc::new(RwLock::new(persisted_state.user_notes)),
         user_memories: Arc::new(RwLock::new(persisted_state.user_memories)),
+        lifelogs: Arc::new(RwLock::new(persisted_state.lifelogs)),
         execution_checkins: Arc::new(RwLock::new(persisted_state.execution_checkins)),
         execution_controls: Arc::new(RwLock::new(persisted_state.execution_controls)),
         execution_task_states: Arc::new(RwLock::new(persisted_state.execution_task_states)),
+        rnd_jobs: Arc::new(RwLock::new(persisted_state.rnd_jobs)),
         oauth_states: Arc::new(RwLock::new(HashMap::new())),
         google_oauth,
         apple_oauth,
@@ -1085,6 +1884,24 @@ pub async fn build_app(kb_root: impl AsRef<Path>) -> Result<Router> {
         cookie_secure,
         cookie_same_site,
     };
+
+    let lifelog_user_ids = state
+        .user_memories
+        .read()
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    for user_id in lifelog_user_ids {
+        let needs_sync = state
+            .lifelogs
+            .read()
+            .get(&user_id)
+            .map(|items| items.is_empty())
+            .unwrap_or(true);
+        if needs_sync {
+            sync_lifelogs_from_memories(&state, user_id.as_str());
+        }
+    }
 
     Ok(build_router(state))
 }
@@ -1121,12 +1938,67 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/v1/auth/social_login", post(social_login))
         .route("/v1/auth/logout", post(auth_logout))
         .route("/v1/profile/upsert", post(profile_upsert))
+        .route(
+            "/v1/profile/psychological",
+            get(psychological_profile_get).post(psychological_profile_upsert),
+        )
+        .route(
+            "/v1/profile/vehicle",
+            get(vehicle_profile_get).post(vehicle_profile_upsert),
+        )
         .route("/v1/auth/me", get(auth_me))
         .route("/v1/notes", get(notes_list))
         .route("/v1/notes/upsert", post(note_upsert))
         .route("/v1/notes/rewrite", post(note_rewrite))
         .route("/v1/memory/import", post(memory_import))
         .route("/v1/memory/records", get(memory_records_list))
+        .route("/v1/memory/batch/export", post(memory_batch_export))
+        .route("/v1/rnd/jobs", post(rnd_job_create))
+        .route("/v1/rnd/jobs/:job_id", get(rnd_job_get))
+        .route(
+            "/v1/rnd/jobs/:job_id/plan/revise",
+            post(rnd_job_plan_revise),
+        )
+        .route(
+            "/v1/rnd/jobs/:job_id/plan/approve",
+            post(rnd_job_plan_approve),
+        )
+        .route(
+            "/v1/rnd/jobs/:job_id/stage/approve",
+            post(rnd_job_stage_approve),
+        )
+        .route("/v1/rnd/jobs/:job_id/pause", post(rnd_job_pause))
+        .route(
+            "/v1/rnd/jobs/:job_id/change_request",
+            post(rnd_job_change_request),
+        )
+        .route("/v1/rnd/jobs/:job_id/artifacts", get(rnd_job_artifacts))
+        .route("/v1/rnd/jobs/:job_id/timeline", get(rnd_job_timeline))
+        .route("/v1/rnd/jobs/:job_id/governance", get(rnd_job_governance))
+        .route("/v1/rnd/jobs/:job_id/doctrine", get(rnd_job_doctrine))
+        .route("/v1/rnd/jobs/:job_id/traceability", get(rnd_job_traceability))
+        .route("/v1/rnd/jobs/:job_id/documents", get(rnd_job_documents))
+        .route(
+            "/v1/rnd/jobs/:job_id/reviews/record",
+            post(rnd_job_review_record),
+        )
+        .route(
+            "/v1/rnd/jobs/:job_id/documents/generate",
+            post(rnd_job_document_generate),
+        )
+        .route(
+            "/v1/rnd/jobs/:job_id/documents/bundle/generate",
+            post(rnd_job_document_bundle_generate),
+        )
+        .route(
+            "/v1/rnd/jobs/:job_id/reports/generate",
+            post(rnd_job_report_generate),
+        )
+        .route(
+            "/v1/rnd/jobs/:job_id/approvals/record",
+            post(rnd_job_approval_record),
+        )
+        .route("/v1/lifelog/records", get(lifelog_records_list))
         .route("/v1/memory/upsert", post(memory_upsert))
         .route("/v1/memory/delete", post(memory_delete))
         .route("/v1/memory/clear", post(memory_clear))
@@ -2498,11 +3370,19 @@ async fn chat(
                 let execution_controls = get_execution_controls(&state, &user.user_id);
                 let execution_task_states = get_execution_task_states(&state, &user.user_id);
                 let latest_checkin = latest_execution_checkin(&state, &user.user_id);
-                let memory_context = retrieve_user_memory_context(
+                let psychological_profile = current_psychological_profile(&state, &user);
+                let vehicle_profile = current_vehicle_profile(&state, &user.user_id);
+                let raw_memory_context = retrieve_user_memory_context(
                     &state,
                     user.user_id.as_str(),
                     request.text.as_str(),
-                    DEFAULT_MEMORY_RETRIEVAL_LIMIT,
+                    memory_limit_for_preferences(&effective_studio_pref),
+                );
+                let (memory_context, amm_diagnostics) = apply_amm_policy(
+                    &request,
+                    note_items.as_slice(),
+                    raw_memory_context,
+                    &effective_studio_pref,
                 );
 
                 // Base suggested actions that make daily follow-through easier.
@@ -2543,7 +3423,19 @@ async fn chat(
                         "studio_preferences".to_string(),
                         serde_json::json!(effective_studio_pref),
                     );
+                    payload_obj.insert(
+                        "amm_diagnostics".to_string(),
+                        serde_json::json!(amm_diagnostics),
+                    );
                     payload_obj.insert("survey_hints".to_string(), serde_json::json!(survey_hints));
+                    payload_obj.insert(
+                        "psychological_profile".to_string(),
+                        serde_json::json!(psychological_profile),
+                    );
+                    payload_obj.insert(
+                        "vehicle_profile".to_string(),
+                        serde_json::json!(vehicle_profile),
+                    );
                     payload_obj.insert(
                         "memory_context".to_string(),
                         serde_json::json!(memory_context.clone()),
@@ -2636,6 +3528,8 @@ async fn chat(
                             .map(|item| item.cloud_storage_enabled)
                             .unwrap_or(false),
                         "memory_persistence": "account_persistent",
+                        "local_core_available": true,
+                        "optional_cloud_add_on": true,
                     }),
                 );
                 if let Some(subscription) = subscription_access.as_ref() {
@@ -2660,17 +3554,30 @@ async fn chat(
                             .unwrap_or_default()
                     })
                     .unwrap_or_default();
-                let memory_context = premium_user
+                let effective_prefs = premium_user
+                    .as_ref()
+                    .map(|user| {
+                        state
+                            .studio_preferences
+                            .read()
+                            .get(&user.user_id)
+                            .cloned()
+                            .unwrap_or_else(|| default_studio_preferences(&user.user_id))
+                    })
+                    .unwrap_or_else(|| default_studio_preferences("guest"));
+                let raw_memory_context = premium_user
                     .as_ref()
                     .map(|user| {
                         retrieve_user_memory_context(
                             &state,
                             user.user_id.as_str(),
                             request.text.as_str(),
-                            DEFAULT_MEMORY_RETRIEVAL_LIMIT,
+                            memory_limit_for_preferences(&effective_prefs),
                         )
                     })
                     .unwrap_or_default();
+                let (memory_context, amm_diagnostics) =
+                    apply_amm_policy(&request, &notes, raw_memory_context, &effective_prefs);
 
                 let mut selected_backend: Option<CloudAiBackend> = None;
                 for backend in configured_cloud_backends.iter().copied() {
@@ -2718,10 +3625,12 @@ async fn chat(
                         );
                         payload_obj.insert(
                             "ai_model".to_string(),
-                            serde_json::json!(
-                                cloud_ai_model_name_for_route(&state, backend, code_agent_route)
-                                    .unwrap_or_default()
-                            ),
+                            serde_json::json!(cloud_ai_model_name_for_route(
+                                &state,
+                                backend,
+                                code_agent_route
+                            )
+                            .unwrap_or_default()),
                         );
                         if let Some(route) = code_agent_route {
                             payload_obj.insert(
@@ -2729,6 +3638,10 @@ async fn chat(
                                 serde_json::json!(route.as_str()),
                             );
                         }
+                        payload_obj.insert(
+                            "amm_diagnostics".to_string(),
+                            serde_json::json!(amm_diagnostics),
+                        );
                     }
                 }
             } else if !configured_cloud_backends.is_empty() {
@@ -2877,6 +3790,11 @@ async fn profile_upsert(
         user.clone()
     };
     let _ = persist_user_if_configured(&state, &user_clone).await;
+    let _ = persist_psychological_profile_if_configured(
+        &state,
+        &current_psychological_profile(&state, &user_clone),
+    )
+    .await;
     if !user_clone.memory_opt_in {
         let _ = clear_user_memories_by_scope(&state, user_clone.user_id.as_str(), "all").await;
     }
@@ -2886,6 +3804,242 @@ async fn profile_upsert(
         Json(serde_json::json!({
             "ok": true,
             "user": user_clone
+        })),
+    )
+        .into_response()
+}
+
+fn default_psychological_profile(user: &UserRecord) -> PsychologicalProfileRecord {
+    let novelty_index = match user.trip_style.as_deref().unwrap_or("mixed") {
+        "nature" | "desert" | "north" => 0.72,
+        "business" => 0.38,
+        "beach" => 0.55,
+        _ => 0.5,
+    };
+    let rigidity = match user.risk_preference.as_deref().unwrap_or("medium") {
+        "low" => 0.7,
+        "high" => 0.32,
+        _ => 0.5,
+    };
+    PsychologicalProfileRecord {
+        user_id: user.user_id.clone(),
+        comfort_zone_vs_novelty_index: novelty_index,
+        routine_rigidity_score: rigidity,
+        stress_load_score: 0.35,
+        recovery_bias: "balanced".to_string(),
+        historical_feedback_summary: String::new(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+fn default_vehicle_profile(user_id: &str) -> VehicleProfileRecord {
+    VehicleProfileRecord {
+        user_id: user_id.to_string(),
+        vehicle_kind: "unknown".to_string(),
+        model_name: None,
+        length_cm: None,
+        height_cm: None,
+        battery_capacity_ah: None,
+        solar_capacity_watts: None,
+        nvh_sensitivity: "medium".to_string(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+fn clamp_profile_score(value: f32) -> f32 {
+    value.clamp(0.0, 1.0)
+}
+
+fn current_psychological_profile(
+    state: &ApiState,
+    user: &UserRecord,
+) -> PsychologicalProfileRecord {
+    state
+        .psychological_profiles
+        .read()
+        .get(&user.user_id)
+        .cloned()
+        .unwrap_or_else(|| default_psychological_profile(user))
+}
+
+fn current_vehicle_profile(state: &ApiState, user_id: &str) -> VehicleProfileRecord {
+    state
+        .vehicle_profiles
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_else(|| default_vehicle_profile(user_id))
+}
+
+async fn psychological_profile_get(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Query(query): Query<UserScopedQuery>,
+) -> impl IntoResponse {
+    let Some(user) = resolve_user_from_scope(&state, &headers, query.user_id) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "not_authenticated",
+                "message": "sign in first"
+            })),
+        )
+            .into_response();
+    };
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "profile": current_psychological_profile(&state, &user)
+        })),
+    )
+        .into_response()
+}
+
+async fn psychological_profile_upsert(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<PsychologicalProfileUpsertRequest>,
+) -> impl IntoResponse {
+    let Some(user) = resolve_user_from_scope(&state, &headers, input.user_id.clone()) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "not_authenticated",
+                "message": "sign in first"
+            })),
+        )
+            .into_response();
+    };
+
+    let profile = {
+        let mut profiles = state.psychological_profiles.write();
+        let profile = profiles
+            .entry(user.user_id.clone())
+            .or_insert_with(|| default_psychological_profile(&user));
+        if let Some(value) = input.comfort_zone_vs_novelty_index {
+            profile.comfort_zone_vs_novelty_index = clamp_profile_score(value);
+        }
+        if let Some(value) = input.routine_rigidity_score {
+            profile.routine_rigidity_score = clamp_profile_score(value);
+        }
+        if let Some(value) = input.stress_load_score {
+            profile.stress_load_score = clamp_profile_score(value);
+        }
+        if let Some(value) = input.recovery_bias {
+            profile.recovery_bias = sanitize_enum_value(
+                sanitize_limited_text(value.as_str(), MAX_PROFILE_FIELD_LEN).as_str(),
+                &["balanced", "restorative", "novelty"],
+                "balanced",
+            );
+        }
+        if let Some(value) = input.historical_feedback_summary {
+            profile.historical_feedback_summary =
+                sanitize_limited_text(value.as_str(), MAX_MEMORY_TEXT_LEN);
+        }
+        profile.updated_at = chrono::Utc::now().to_rfc3339();
+        profile.clone()
+    };
+    let _ = persist_psychological_profile_if_configured(&state, &profile).await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "profile": profile
+        })),
+    )
+        .into_response()
+}
+
+async fn vehicle_profile_get(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Query(query): Query<UserScopedQuery>,
+) -> impl IntoResponse {
+    let Some(user) = resolve_user_from_scope(&state, &headers, query.user_id) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "not_authenticated",
+                "message": "sign in first"
+            })),
+        )
+            .into_response();
+    };
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "profile": current_vehicle_profile(&state, &user.user_id)
+        })),
+    )
+        .into_response()
+}
+
+async fn vehicle_profile_upsert(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<VehicleProfileUpsertRequest>,
+) -> impl IntoResponse {
+    let Some(user) = resolve_user_from_scope(&state, &headers, input.user_id.clone()) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "not_authenticated",
+                "message": "sign in first"
+            })),
+        )
+            .into_response();
+    };
+
+    let profile = {
+        let mut profiles = state.vehicle_profiles.write();
+        let profile = profiles
+            .entry(user.user_id.clone())
+            .or_insert_with(|| default_vehicle_profile(&user.user_id));
+        if let Some(value) = input.vehicle_kind {
+            profile.vehicle_kind = sanitize_enum_value(
+                sanitize_limited_text(value.as_str(), MAX_PROFILE_FIELD_LEN).as_str(),
+                &["unknown", "van", "rv", "truck", "suv", "car"],
+                "unknown",
+            );
+        }
+        if let Some(value) = input.model_name {
+            let value = sanitize_limited_text(value.as_str(), MAX_NOTE_TITLE_LEN);
+            profile.model_name = if value.is_empty() { None } else { Some(value) };
+        }
+        if let Some(value) = input.length_cm {
+            profile.length_cm = Some(value.clamp(200, 2_000));
+        }
+        if let Some(value) = input.height_cm {
+            profile.height_cm = Some(value.clamp(100, 500));
+        }
+        if let Some(value) = input.battery_capacity_ah {
+            profile.battery_capacity_ah = Some(value.clamp(0, 5_000));
+        }
+        if let Some(value) = input.solar_capacity_watts {
+            profile.solar_capacity_watts = Some(value.clamp(0, 10_000));
+        }
+        if let Some(value) = input.nvh_sensitivity {
+            profile.nvh_sensitivity = sanitize_enum_value(
+                sanitize_limited_text(value.as_str(), MAX_PROFILE_FIELD_LEN).as_str(),
+                &["low", "medium", "high"],
+                "medium",
+            );
+        }
+        profile.updated_at = chrono::Utc::now().to_rfc3339();
+        profile.clone()
+    };
+    let _ = persist_vehicle_profile_if_configured(&state, &profile).await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "profile": profile
         })),
     )
         .into_response()
@@ -2903,12 +4057,19 @@ async fn auth_me(State(state): State<ApiState>, headers: HeaderMap) -> impl Into
     };
 
     let subscription = subscription_access_for_user(&state, &user).await;
+    let preferences = state
+        .studio_preferences
+        .read()
+        .get(&user.user_id)
+        .cloned()
+        .unwrap_or_else(|| default_studio_preferences(&user.user_id));
 
     (
         StatusCode::OK,
         Json(serde_json::json!({
             "user": user,
-            "subscription": subscription
+            "subscription": subscription,
+            "preferences": preferences
         })),
     )
         .into_response()
@@ -3393,6 +4554,162 @@ async fn memory_records_list(
         .into_response()
 }
 
+async fn memory_batch_export(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<MemoryBatchExportRequest>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, input.user_id.clone()) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    if !user_memory_opt_in(&state, user_id.as_str()) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "memory_opt_out",
+                "message": "memory export is disabled for this profile"
+            })),
+        )
+            .into_response();
+    }
+
+    let provider = sanitize_batch_provider(input.provider.as_deref().unwrap_or("openai"));
+    if provider.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "invalid_provider",
+                "message": "provider must be openai or generic_jsonl"
+            })),
+        )
+            .into_response();
+    }
+
+    let limit = input
+        .limit
+        .unwrap_or(DEFAULT_MEMORY_RETRIEVAL_LIMIT)
+        .clamp(1, MAX_MEMORY_BATCH_EXPORT_ITEMS);
+    let query = sanitize_limited_text(input.q.as_deref().unwrap_or_default(), 240);
+    let items = retrieve_user_memory_context(&state, user_id.as_str(), query.as_str(), limit);
+    let manifest = MemoryBatchExportManifest {
+        provider: provider.clone(),
+        model: batch_export_model_name(&state, provider.as_str()),
+        operation: "memory_compaction".to_string(),
+        generated_at: chrono::Utc::now().to_rfc3339(),
+        query: query.clone(),
+        item_count: items.len(),
+        cache_strategy: "stable_prefix_context_then_dynamic_task".to_string(),
+    };
+    let jsonl = build_memory_batch_export_jsonl(&state, provider.as_str(), items.as_slice());
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "count": items.len(),
+            "manifest": manifest,
+            "jsonl": jsonl
+        })),
+    )
+        .into_response()
+}
+
+fn score_lifelog_record(query: &str, record: &LifelogRecord) -> f32 {
+    if query.trim().is_empty() {
+        return 1.0;
+    }
+    let query_tokens = tokenize_memory_text(query);
+    if query_tokens.is_empty() {
+        return 0.0;
+    }
+    let mut corpus = record.summary.clone();
+    if !record.tags.is_empty() {
+        corpus.push(' ');
+        corpus.push_str(record.tags.join(" ").as_str());
+    }
+    let record_tokens = tokenize_memory_text(corpus.as_str());
+    if record_tokens.is_empty() {
+        return 0.0;
+    }
+    let overlap = query_tokens
+        .iter()
+        .filter(|token| record_tokens.contains(*token))
+        .count();
+    overlap as f32 / query_tokens.len() as f32
+}
+
+async fn lifelog_records_list(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Query(query): Query<LifelogRecordsQuery>,
+) -> impl IntoResponse {
+    let user_id = match resolve_user_id(&state, &headers, query.user_id) {
+        Some(value) => value,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "not_authenticated",
+                    "message": "sign in first"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    if !user_memory_opt_in(&state, user_id.as_str()) {
+        let items: Vec<LifelogRecord> = Vec::new();
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "memory_opt_in": false,
+                "count": 0,
+                "items": items
+            })),
+        )
+            .into_response();
+    }
+
+    let search = query.q.unwrap_or_default();
+    let limit = query
+        .limit
+        .unwrap_or(DEFAULT_MEMORY_RETRIEVAL_LIMIT)
+        .clamp(1, MAX_MEMORY_RETRIEVAL_LIMIT);
+    let mut items = state
+        .lifelogs
+        .read()
+        .get(&user_id)
+        .cloned()
+        .unwrap_or_default();
+    items.sort_by(|lhs, rhs| {
+        score_lifelog_record(search.as_str(), rhs)
+            .total_cmp(&score_lifelog_record(search.as_str(), lhs))
+    });
+    items.retain(|item| score_lifelog_record(search.as_str(), item) > 0.0 || search.is_empty());
+    items.truncate(limit);
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "memory_opt_in": true,
+            "count": items.len(),
+            "items": items
+        })),
+    )
+        .into_response()
+}
+
 async fn memory_upsert(
     State(state): State<ApiState>,
     headers: HeaderMap,
@@ -3516,7 +4833,9 @@ async fn memory_delete(
         }
     };
     if deleted {
+        sync_lifelogs_from_memories(&state, user_id.as_str());
         let _ = persist_memories_if_configured(&state, user_id.as_str()).await;
+        let _ = persist_lifelogs_if_configured(&state, user_id.as_str()).await;
     }
 
     (
@@ -5472,6 +6791,3811 @@ async fn plan_trip(
     }
 }
 
+async fn rnd_job_create(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<RndJobCreateRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+
+    let prompt = sanitize_limited_text(input.prompt.trim(), MAX_RND_PROMPT_LEN);
+    if prompt.len() < 24 {
+        return rnd_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_prompt",
+            "prompt must be more detailed before R&D planning can start",
+        );
+    }
+
+    let product_type = normalize_rnd_product_type(input.product_type.as_deref());
+    if !rnd_product_type_supported(product_type.as_str()) {
+        return rnd_error_response(
+            StatusCode::BAD_REQUEST,
+            "unsupported_product_type",
+            "unsupported R&D product type",
+        );
+    }
+    if prompt_requests_unsupported_domain(prompt.as_str()) {
+        return rnd_error_response(
+            StatusCode::BAD_REQUEST,
+            "unsupported_domain",
+            "unsupported design domain",
+        );
+    }
+    let design_domain = rnd_design_domain(product_type.as_str()).to_string();
+
+    let locale = detect_locale(
+        Some(atlas_core::Locale::from_optional_str(
+            input.locale.as_deref().or(Some(user.locale.as_str())),
+        )),
+        prompt.as_str(),
+    )
+    .as_code()
+    .to_string();
+    let research_summary = sanitize_limited_text(
+        input.client_research_summary.unwrap_or_default().trim(),
+        MAX_RND_RESEARCH_SUMMARY_LEN,
+    );
+    let local_planning_note = sanitize_limited_text(
+        input.client_local_planning_note.unwrap_or_default().trim(),
+        MAX_RND_LOCAL_PLANNING_NOTE_LEN,
+    );
+
+    let context_pack = build_rnd_context_pack(
+        &state,
+        &user,
+        product_type.as_str(),
+        prompt.as_str(),
+        research_summary.as_str(),
+        local_planning_note.as_str(),
+    );
+    let plan = build_rnd_plan(
+        product_type.as_str(),
+        prompt.as_str(),
+        locale.as_str(),
+        &context_pack,
+        1,
+        None,
+    );
+    let now = chrono::Utc::now().to_rfc3339();
+    let job_id = format!("rnd-{}", uuid::Uuid::new_v4());
+    let mut job = RndJobRecord {
+        job_id: job_id.clone(),
+        user_id: user.user_id.clone(),
+        product_type,
+        design_domain,
+        locale,
+        prompt,
+        accepted_plan_version: None,
+        current_stage: RndStageKind::PlanReview,
+        waiting_on_user: true,
+        auto_run_enabled: false,
+        paused_after_current_stage: false,
+        created_at: now.clone(),
+        updated_at: now,
+        plans: vec![plan.clone()],
+        context_pack,
+        parts: Vec::new(),
+        artifacts: Vec::new(),
+        timeline: build_rnd_initial_timeline(plan.execution_stages.as_slice()),
+        eta: compute_rnd_eta(
+            plan.execution_stages.as_slice(),
+            &[],
+            RndStageKind::PlanReview,
+            true,
+            "Awaiting plan approval",
+        ),
+        risk_flags: plan.blocking_issues.clone(),
+        latest_validation_summary:
+            "No validation runs yet. Plan review is required before execution.".to_string(),
+        requirements: Vec::new(),
+        decisions: Vec::new(),
+        design_reviews: Vec::new(),
+        evidence_artifacts: Vec::new(),
+        simulation_runs: Vec::new(),
+        compliance_reports: Vec::new(),
+        approval_records: Vec::new(),
+        audit_events: Vec::new(),
+        approved_baselines: Vec::new(),
+        doctrine_profile: None,
+        doctrine_checks: Vec::new(),
+        module_definitions: Vec::new(),
+        tool_requirements: Vec::new(),
+        bom_items: Vec::new(),
+        assembly_steps: Vec::new(),
+        service_access_points: Vec::new(),
+        inspection_checklist_items: Vec::new(),
+        revision_history: Vec::new(),
+        document_records: Vec::new(),
+        documentation_bundles: Vec::new(),
+    };
+    seed_rnd_governance_from_plan(&mut job, &plan);
+    sync_rnd_doctrine_and_structure_state(&mut job);
+    let create_related_ids = vec![job.job_id.clone(), format!("plan-v{}", plan.version)];
+    append_rnd_audit_event(
+        &mut job,
+        "job_created",
+        user.email.as_str(),
+        "job_owner",
+        "R&D job created with seeded requirements and design decisions.",
+        create_related_ids,
+    );
+    job.eta = compute_rnd_eta(
+        plan.execution_stages.as_slice(),
+        job.parts.as_slice(),
+        job.current_stage.clone(),
+        job.waiting_on_user,
+        "Awaiting plan approval",
+    );
+    state.rnd_jobs.write().insert(job_id, job.clone());
+    if let Err(error) = persist_rnd_job_if_configured(&state, &job).await {
+        tracing::warn!("failed to persist R&D job create: {error:#}");
+    }
+
+    (StatusCode::OK, Json(rnd_job_response(&job))).into_response()
+}
+
+async fn rnd_job_get(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let Some(job) = get_rnd_job_for_user(&state, user.user_id.as_str(), job_id.as_str()) else {
+        return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+    };
+    (StatusCode::OK, Json(rnd_job_response(&job))).into_response()
+}
+
+async fn rnd_job_plan_revise(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndPlanReviseRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let revision_prompt =
+        sanitize_limited_text(input.revision_prompt.trim(), MAX_RND_CHANGE_REQUEST_LEN);
+    if revision_prompt.is_empty() {
+        return rnd_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_revision",
+            "revision prompt is required",
+        );
+    }
+
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        let next_version = job.plans.last().map(|plan| plan.version + 1).unwrap_or(1);
+        let amended_prompt = format!(
+            "{}\n\nRevision request:\n{}",
+            job.prompt.trim(),
+            revision_prompt
+        );
+        let plan = build_rnd_plan(
+            job.product_type.as_str(),
+            amended_prompt.as_str(),
+            job.locale.as_str(),
+            &job.context_pack,
+            next_version,
+            Some(revision_prompt.as_str()),
+        );
+        job.prompt = amended_prompt;
+        job.accepted_plan_version = None;
+        job.current_stage = RndStageKind::PlanReview;
+        job.waiting_on_user = true;
+        job.updated_at = chrono::Utc::now().to_rfc3339();
+        job.risk_flags = plan.blocking_issues.clone();
+        job.latest_validation_summary =
+            "Plan revised. Review the new technical plan before execution.".to_string();
+        job.timeline = build_rnd_initial_timeline(plan.execution_stages.as_slice());
+        job.eta = compute_rnd_eta(
+            plan.execution_stages.as_slice(),
+            job.parts.as_slice(),
+            job.current_stage.clone(),
+            true,
+            "Plan revised and awaiting approval",
+        );
+        job.plans.push(plan);
+        sync_rnd_doctrine_and_structure_state(job);
+        append_rnd_audit_event(
+            job,
+            "plan_revised",
+            user.email.as_str(),
+            "job_owner",
+            "Technical plan revised.",
+            vec![job.job_id.clone(), format!("plan-v{}", next_version)],
+        );
+        job.clone()
+    };
+
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D revised plan: {error:#}");
+    }
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_plan_approve(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        let Some(plan) = job.plans.last().cloned() else {
+            return rnd_error_response(StatusCode::CONFLICT, "plan_missing", "plan missing");
+        };
+        if !plan.executable {
+            return rnd_error_response(
+                StatusCode::CONFLICT,
+                "plan_blocked",
+                "plan is blocked until research or constraint gaps are resolved",
+            );
+        }
+        sync_rnd_doctrine_and_structure_state(job);
+        if rnd_has_major_doctrine_failures(job) {
+            return rnd_error_response(
+                StatusCode::CONFLICT,
+                "doctrine_gated",
+                "major doctrine violations must be resolved before plan approval",
+            );
+        }
+        job.accepted_plan_version = Some(plan.version);
+        job.current_stage = RndStageKind::ProblemFraming;
+        job.waiting_on_user = false;
+        job.auto_run_enabled = true;
+        job.paused_after_current_stage = false;
+        job.updated_at = chrono::Utc::now().to_rfc3339();
+        job.timeline = build_rnd_initial_timeline(plan.execution_stages.as_slice());
+        mark_rnd_stage_active(&mut job.timeline, RndStageKind::ProblemFraming);
+        job.eta = compute_rnd_eta(
+            plan.execution_stages.as_slice(),
+            job.parts.as_slice(),
+            job.current_stage.clone(),
+            false,
+            "Execution launched",
+        );
+        job.latest_validation_summary =
+            "Plan accepted. Long-running execution is now starting in the background.".to_string();
+        append_rnd_audit_event(
+            job,
+            "plan_approved",
+            user.email.as_str(),
+            "job_owner",
+            "Accepted plan approved for execution.",
+            vec![job.job_id.clone(), format!("plan-v{}", plan.version)],
+        );
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D plan approval: {error:#}");
+    }
+    spawn_rnd_job_runner(state.clone(), updated.job_id.clone());
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_stage_approve(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndStageApproveRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let note = input
+        .note
+        .map(|value| sanitize_limited_text(value.trim(), MAX_RND_CHANGE_REQUEST_LEN));
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        let Some(plan) = accepted_rnd_plan(job) else {
+            return rnd_error_response(
+                StatusCode::CONFLICT,
+                "plan_not_accepted",
+                "accept a plan before approving execution stages",
+            );
+        };
+        sync_rnd_doctrine_and_structure_state(job);
+        if rnd_has_major_doctrine_failures(job) {
+            return rnd_error_response(
+                StatusCode::CONFLICT,
+                "doctrine_gated",
+                "major doctrine violations must be resolved before stage approval",
+            );
+        }
+        if !job.waiting_on_user && job.auto_run_enabled {
+            return rnd_error_response(
+                StatusCode::CONFLICT,
+                "stage_already_running",
+                "execution is already running",
+            );
+        }
+        if matches!(job.current_stage, RndStageKind::Completed) {
+            return rnd_error_response(
+                StatusCode::CONFLICT,
+                "job_complete",
+                "R&D job already completed",
+            );
+        }
+        if job.waiting_on_user {
+            job.waiting_on_user = false;
+            job.auto_run_enabled = true;
+            job.paused_after_current_stage = false;
+            job.updated_at = chrono::Utc::now().to_rfc3339();
+            job.eta = compute_rnd_eta(
+                plan.execution_stages.as_slice(),
+                job.parts.as_slice(),
+                job.current_stage.clone(),
+                false,
+                note.as_deref().unwrap_or("Execution resumed"),
+            );
+            job.latest_validation_summary = format!(
+                "Execution resumed from {}. Atlas will continue moving through the remaining stages.",
+                job.current_stage_label()
+            );
+        } else {
+            advance_rnd_job(job, &plan, note.as_deref());
+            job.auto_run_enabled = true;
+            job.waiting_on_user = false;
+        }
+        append_rnd_audit_event(
+            job,
+            "stage_approved",
+            user.email.as_str(),
+            "job_owner",
+            "Execution stage approved/resumed.",
+            vec![job.job_id.clone(), job.current_stage_label().to_string()],
+        );
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D stage approval: {error:#}");
+    }
+    spawn_rnd_job_runner(state.clone(), updated.job_id.clone());
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_pause(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndPauseRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        job.paused_after_current_stage = input.pause_after_current_stage.unwrap_or(true);
+        job.latest_validation_summary = if job.paused_after_current_stage {
+            "Atlas will pause after the current stage finishes.".to_string()
+        } else {
+            "Pause request cleared.".to_string()
+        };
+        job.updated_at = chrono::Utc::now().to_rfc3339();
+        append_rnd_audit_event(
+            job,
+            "pause_updated",
+            user.email.as_str(),
+            "job_owner",
+            "Pause-after-stage preference updated.",
+            vec![job.job_id.clone()],
+        );
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D pause: {error:#}");
+    }
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_change_request(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndChangeRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let request = sanitize_limited_text(input.request.trim(), MAX_RND_CHANGE_REQUEST_LEN);
+    if request.is_empty() {
+        return rnd_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_change_request",
+            "change request text is required",
+        );
+    }
+    let scope = sanitize_enum_value(
+        input
+            .scope
+            .unwrap_or_else(|| "orchestration".to_string())
+            .as_str(),
+        &["part", "orchestration"],
+        "orchestration",
+    )
+    .to_string();
+
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        let target_label = if scope == "part" {
+            input
+                .target_part_id
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| "unspecified part".to_string())
+        } else {
+            "system architecture".to_string()
+        };
+        let revision_prompt = format!("{} change request for {}: {}", scope, target_label, request);
+        let next_version = job.plans.last().map(|plan| plan.version + 1).unwrap_or(1);
+        let plan = build_rnd_plan(
+            job.product_type.as_str(),
+            format!("{}\n\n{}", job.prompt, revision_prompt).as_str(),
+            job.locale.as_str(),
+            &job.context_pack,
+            next_version,
+            Some(revision_prompt.as_str()),
+        );
+        job.current_stage = RndStageKind::PlanReview;
+        job.waiting_on_user = true;
+        job.accepted_plan_version = None;
+        job.updated_at = chrono::Utc::now().to_rfc3339();
+        job.risk_flags = plan.blocking_issues.clone();
+        job.timeline = build_rnd_initial_timeline(plan.execution_stages.as_slice());
+        job.eta = compute_rnd_eta(
+            plan.execution_stages.as_slice(),
+            job.parts.as_slice(),
+            job.current_stage.clone(),
+            true,
+            "Change request submitted; awaiting revised plan approval",
+        );
+        job.latest_validation_summary = format!(
+            "Change request captured for {}. Review the revised plan before continuing.",
+            target_label
+        );
+        job.plans.push(plan);
+        append_rnd_audit_event(
+            job,
+            "change_request_submitted",
+            user.email.as_str(),
+            "job_owner",
+            "Change request submitted and revised plan generated.",
+            vec![job.job_id.clone(), target_label],
+        );
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D change request: {error:#}");
+    }
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_artifacts(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let Some(job) = get_rnd_job_for_user(&state, user.user_id.as_str(), job_id.as_str()) else {
+        return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+    };
+    (
+        StatusCode::OK,
+        Json(RndArtifactsResponse {
+            job_id: job.job_id.clone(),
+            artifacts: job.artifacts.clone(),
+            inspection_guide: build_rnd_inspection_guide(&job),
+        }),
+    )
+        .into_response()
+}
+
+async fn rnd_job_timeline(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let Some(job) = get_rnd_job_for_user(&state, user.user_id.as_str(), job_id.as_str()) else {
+        return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+    };
+    (
+        StatusCode::OK,
+        Json(RndTimelineResponse {
+            job_id: job.job_id.clone(),
+            current_stage: job.current_stage.clone(),
+            waiting_on_user: job.waiting_on_user,
+            eta: job.eta.clone(),
+            timeline: job.timeline.clone(),
+        }),
+    )
+        .into_response()
+}
+
+async fn rnd_job_governance(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let Some(mut job) = get_rnd_job_for_user(&state, user.user_id.as_str(), job_id.as_str()) else {
+        return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+    };
+    sync_rnd_traceability_state(&mut job);
+    (StatusCode::OK, Json(build_rnd_governance_response(&job))).into_response()
+}
+
+async fn rnd_job_doctrine(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let Some(mut job) = get_rnd_job_for_user(&state, user.user_id.as_str(), job_id.as_str()) else {
+        return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+    };
+    sync_rnd_traceability_state(&mut job);
+    sync_rnd_doctrine_and_structure_state(&mut job);
+    (
+        StatusCode::OK,
+        Json(RndDoctrineResponse {
+            job_id: job.job_id.clone(),
+            profile: job
+                .doctrine_profile
+                .clone()
+                .unwrap_or_else(default_rnd_doctrine_profile),
+            checks: job.doctrine_checks.clone(),
+        }),
+    )
+        .into_response()
+}
+
+async fn rnd_job_traceability(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let Some(mut job) = get_rnd_job_for_user(&state, user.user_id.as_str(), job_id.as_str()) else {
+        return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+    };
+    sync_rnd_traceability_state(&mut job);
+    (
+        StatusCode::OK,
+        Json(RndTraceabilityResponse {
+            job_id: job.job_id.clone(),
+            rows: build_rnd_traceability_rows(&job),
+        }),
+    )
+        .into_response()
+}
+
+async fn rnd_job_documents(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let Some(mut job) = get_rnd_job_for_user(&state, user.user_id.as_str(), job_id.as_str()) else {
+        return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+    };
+    sync_rnd_traceability_state(&mut job);
+    sync_rnd_doctrine_and_structure_state(&mut job);
+    (
+        StatusCode::OK,
+        Json(RndDocumentsResponse {
+            job_id: job.job_id.clone(),
+            bundles: job.documentation_bundles.clone(),
+            documents: job.document_records.clone(),
+        }),
+    )
+        .into_response()
+}
+
+async fn rnd_job_review_record(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndReviewRecordRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        let review = RndDesignReviewRecord {
+            review_id: format!("review-{}", uuid::Uuid::new_v4()),
+            title: trim_for_storage(
+                input.title.as_deref().unwrap_or("Structured design review"),
+                120,
+            ),
+            status: sanitize_enum_value(
+                input.status.as_deref().unwrap_or("in_review"),
+                &["draft", "in_review", "approved", "needs_changes", "superseded"],
+                "in_review",
+            )
+            .to_string(),
+            note: trim_for_storage(input.note.as_deref().unwrap_or(""), 1200),
+            source_plan_version: job.accepted_plan_version.unwrap_or_default(),
+            requirement_ids: input.requirement_ids.unwrap_or_default(),
+            decision_ids: input.decision_ids.unwrap_or_default(),
+            evidence_ids: input.evidence_ids.unwrap_or_default(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
+        let review_id = review.review_id.clone();
+        job.design_reviews.push(review);
+        append_rnd_audit_event(
+            job,
+            "design_review_recorded",
+            user.email.as_str(),
+            "job_owner",
+            "Structured design review recorded.",
+            vec![review_id],
+        );
+        sync_rnd_traceability_state(job);
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D review record: {error:#}");
+    }
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_document_generate(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndDocumentGenerateRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        sync_rnd_traceability_state(job);
+        sync_rnd_doctrine_and_structure_state(job);
+        let audience_mode = sanitize_enum_value(
+            input.audience_mode.as_deref().unwrap_or("private"),
+            &["public", "private"],
+            "private",
+        )
+        .to_string();
+        let document_type = sanitize_enum_value(
+            input.document_type.as_str(),
+            &[
+                "manufacturing_build_guide",
+                "module_assembly_guide",
+                "service_manual",
+                "repair_guide",
+                "qa_inspection_checklist",
+                "public_project_story",
+                "engineering_compliance_packet",
+            ],
+            "manufacturing_build_guide",
+        )
+        .to_string();
+        if audience_mode == "private" && rnd_has_major_doctrine_failures(job) {
+            return rnd_error_response(
+                StatusCode::CONFLICT,
+                "doctrine_gated",
+                "major doctrine violations must be resolved before private manufacturing/service/repair documents can be generated",
+            );
+        }
+        let document = generate_rnd_document(
+            job,
+            document_type.as_str(),
+            audience_mode.as_str(),
+            input.title.as_deref(),
+            input.platform_name.as_deref(),
+            input.revision_label.as_deref(),
+            input.purpose.as_deref(),
+            input.target_audience.as_deref(),
+            input.author.as_deref().unwrap_or(user.email.as_str()),
+        );
+        append_rnd_audit_event(
+            job,
+            "document_generated",
+            user.email.as_str(),
+            "job_owner",
+            "Structured documentation generated from stored R&D state.",
+            vec![document.document_id.clone()],
+        );
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D document generation: {error:#}");
+    }
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_document_bundle_generate(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndDocumentBundleGenerateRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        sync_rnd_traceability_state(job);
+        sync_rnd_doctrine_and_structure_state(job);
+        let audience_mode = sanitize_enum_value(
+            input.audience_mode.as_deref().unwrap_or("private"),
+            &["public", "private"],
+            "private",
+        )
+        .to_string();
+        if audience_mode == "private" && rnd_has_major_doctrine_failures(job) {
+            return rnd_error_response(
+                StatusCode::CONFLICT,
+                "doctrine_gated",
+                "major doctrine violations must be resolved before private documentation bundles can be generated",
+            );
+        }
+        let bundle = generate_rnd_document_bundle(
+            job,
+            audience_mode.as_str(),
+            input.title_prefix.as_deref(),
+            input.platform_name.as_deref(),
+            input.revision_label.as_deref(),
+            input.author.as_deref().unwrap_or(user.email.as_str()),
+        );
+        append_rnd_audit_event(
+            job,
+            "document_bundle_generated",
+            user.email.as_str(),
+            "job_owner",
+            "Core documentation bundle generated from stored R&D state.",
+            vec![bundle.bundle_id.clone()],
+        );
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D document bundle generation: {error:#}");
+    }
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_report_generate(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndReportGenerateRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        let report_type = sanitize_enum_value(
+            input.report_type.as_deref().unwrap_or("engineering_compliance_packet"),
+            &["engineering_compliance_packet", "external_review_packet", "internal_release_packet"],
+            "engineering_compliance_packet",
+        )
+        .to_string();
+        let report = generate_rnd_compliance_report(job, input.title.as_deref(), report_type.as_str());
+        append_rnd_audit_event(
+            job,
+            "compliance_report_generated",
+            user.email.as_str(),
+            "job_owner",
+            "Compliance report generated from stored job state.",
+            vec![report.report_id],
+        );
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D report: {error:#}");
+    }
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+async fn rnd_job_approval_record(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(input): Json<RndApprovalRecordRequest>,
+) -> impl IntoResponse {
+    let Some(user) = session_user_from_headers(&state, &headers) else {
+        return rnd_error_response(
+            StatusCode::UNAUTHORIZED,
+            "not_authenticated",
+            "sign in required",
+        );
+    };
+    let reviewer_name = trim_for_storage(input.reviewer_name.as_str(), 120);
+    let reviewer_role = trim_for_storage(input.reviewer_role.as_str(), 120);
+    if reviewer_name.is_empty() || reviewer_role.is_empty() {
+        return rnd_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_approval",
+            "reviewer name and reviewer role are required",
+        );
+    }
+    let updated = {
+        let mut jobs = state.rnd_jobs.write();
+        let Some(job) = jobs.get_mut(job_id.as_str()) else {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        };
+        if job.user_id != user.user_id {
+            return rnd_error_response(StatusCode::NOT_FOUND, "job_not_found", "R&D job not found");
+        }
+        let authority_kind = sanitize_enum_value(
+            input.authority_kind.as_deref().unwrap_or("internal_engineering_approval"),
+            &["ai_recommendation", "internal_engineering_approval", "external_certified_signoff"],
+            "internal_engineering_approval",
+        )
+        .to_string();
+        let mut approval_state = sanitize_enum_value(
+            input.approval_state.as_deref().unwrap_or("approved"),
+            &["recommended", "approved", "needs_changes", "rejected"],
+            "approved",
+        )
+        .to_string();
+        if authority_kind == "ai_recommendation" && approval_state == "approved" {
+            approval_state = "recommended".to_string();
+        }
+        let scope_type = sanitize_enum_value(
+            input.scope_type.as_deref().unwrap_or("job"),
+            &["job", "report", "requirement", "decision"],
+            "job",
+        )
+        .to_string();
+        let scope_id = input
+            .scope_id
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| job.job_id.clone());
+        let approval_id = format!("approval-{}", uuid::Uuid::new_v4());
+        let mut approval = RndApprovalRecord {
+            approval_id: approval_id.clone(),
+            reviewer_name,
+            reviewer_role,
+            reviewer_org: input.reviewer_org.map(|value| trim_for_storage(value.as_str(), 120)),
+            authority_kind: authority_kind.clone(),
+            approval_state: approval_state.clone(),
+            scope_type: scope_type.clone(),
+            scope_id: scope_id.clone(),
+            conditions: input
+                .conditions
+                .unwrap_or_default()
+                .into_iter()
+                .map(|value| trim_for_storage(value.as_str(), 200))
+                .filter(|value| !value.is_empty())
+                .collect(),
+            comment: trim_for_storage(input.comment.as_deref().unwrap_or(""), 1200),
+            baseline_id: None,
+            legally_binding: authority_kind == "external_certified_signoff",
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+        if input.create_baseline_if_approved.unwrap_or(false)
+            && approval_state == "approved"
+            && authority_kind != "ai_recommendation"
+        {
+            let baseline = create_rnd_approved_baseline(
+                job,
+                input
+                    .baseline_title
+                    .as_deref()
+                    .unwrap_or("Approved engineering baseline"),
+                approval_id.as_str(),
+            );
+            approval.baseline_id = Some(baseline.baseline_id.clone());
+            job.approved_baselines.push(baseline);
+        }
+        job.approval_records.push(approval);
+        append_rnd_audit_event(
+            job,
+            "approval_recorded",
+            user.email.as_str(),
+            "job_owner",
+            "Approval/sign-off record captured.",
+            vec![approval_id, scope_id],
+        );
+        sync_rnd_traceability_state(job);
+        job.clone()
+    };
+    if let Err(error) = persist_rnd_job_if_configured(&state, &updated).await {
+        tracing::warn!("failed to persist R&D approval: {error:#}");
+    }
+    (StatusCode::OK, Json(rnd_job_response(&updated))).into_response()
+}
+
+fn rnd_error_response(status: StatusCode, error: &str, message: &str) -> Response {
+    (
+        status,
+        Json(serde_json::json!({
+            "error": error,
+            "message": message,
+        })),
+    )
+        .into_response()
+}
+
+fn normalize_rnd_product_type(raw: Option<&str>) -> String {
+    sanitize_enum_value(
+        raw.unwrap_or("mechanical_vehicle"),
+        &[
+            "mechanical_vehicle",
+            "mechanical_product",
+            "vehicle_part",
+            "electronic_product",
+            "pcb_assembly",
+            "general_product",
+        ],
+        "mechanical_vehicle",
+    )
+    .to_string()
+}
+
+fn rnd_product_type_supported(product_type: &str) -> bool {
+    matches!(
+        product_type,
+        "mechanical_vehicle"
+            | "mechanical_product"
+            | "vehicle_part"
+            | "electronic_product"
+            | "pcb_assembly"
+            | "general_product"
+    )
+}
+
+fn rnd_design_domain(product_type: &str) -> &'static str {
+    match product_type {
+        "electronic_product" | "pcb_assembly" => "electronics",
+        "general_product" => "general_product",
+        _ => "mechanical_cad",
+    }
+}
+
+fn prompt_requests_unsupported_domain(_prompt: &str) -> bool {
+    false
+}
+
+fn get_rnd_job_for_user(state: &ApiState, user_id: &str, job_id: &str) -> Option<RndJobRecord> {
+    state
+        .rnd_jobs
+        .read()
+        .get(job_id)
+        .filter(|job| job.user_id == user_id)
+        .cloned()
+}
+
+fn build_rnd_context_pack(
+    state: &ApiState,
+    user: &UserRecord,
+    product_type: &str,
+    prompt: &str,
+    research_summary: &str,
+    local_planning_note: &str,
+) -> RndContextPackRecord {
+    let memory_items = retrieve_user_memory_context(state, user.user_id.as_str(), prompt, 6);
+    let memory_summary = if memory_items.is_empty() {
+        "No high-relevance user memory records were retrieved for this design prompt.".to_string()
+    } else {
+        memory_items
+            .iter()
+            .map(|item| format!("{} ({})", item.text, item.memory_type))
+            .collect::<Vec<_>>()
+            .join(" | ")
+    };
+    let preference_summary = format!(
+        "Locale: {} | Trip style: {} | Risk preference: {} | Product type: {}",
+        user.locale,
+        user.trip_style
+            .clone()
+            .unwrap_or_else(|| "not_set".to_string()),
+        user.risk_preference
+            .clone()
+            .unwrap_or_else(|| "not_set".to_string()),
+        product_type
+    );
+    let prior_job_summary = state
+        .rnd_jobs
+        .read()
+        .values()
+        .filter(|job| job.user_id == user.user_id)
+        .take(3)
+        .map(|job| {
+            format!(
+                "{}:{}:{}",
+                job.job_id,
+                job.product_type,
+                job.current_stage_label()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let retrieval_hits = state.agent.kb_search(prompt, 5);
+    let mut citations = retrieval_hits
+        .iter()
+        .enumerate()
+        .map(|(idx, hit)| RndCitationRecord {
+            id: format!("kb-{}", idx + 1),
+            label: format!("KB hit {}", idx + 1),
+            source_type: "knowledge_base".to_string(),
+            detail: hit.source_path.clone(),
+        })
+        .collect::<Vec<_>>();
+    citations.extend(
+        memory_items
+            .iter()
+            .enumerate()
+            .map(|(idx, item)| RndCitationRecord {
+                id: format!("memory-{}", idx + 1),
+                label: format!("Memory {}", idx + 1),
+                source_type: "user_memory".to_string(),
+                detail: item.memory_id.clone(),
+            }),
+    );
+    if !research_summary.is_empty() {
+        citations.push(RndCitationRecord {
+            id: "client-research-summary".to_string(),
+            label: "Client research summary".to_string(),
+            source_type: "client_research".to_string(),
+            detail: trim_for_storage(research_summary, 220),
+        });
+    }
+    if !local_planning_note.is_empty() {
+        citations.push(RndCitationRecord {
+            id: "client-local-planning-note".to_string(),
+            label: "Local planning note".to_string(),
+            source_type: "client_local_ai".to_string(),
+            detail: trim_for_storage(local_planning_note, 220),
+        });
+    }
+    let mut explicit_constraints = extract_prompt_constraints(prompt);
+    if explicit_constraints.is_empty() {
+        explicit_constraints.push("No explicit constraints extracted; require user review before treating outputs as serious engineering direction.".to_string());
+    }
+    let confidence = if !research_summary.is_empty() || !retrieval_hits.is_empty() {
+        0.72
+    } else {
+        0.34
+    };
+    let research_summary_full = if research_summary.is_empty() && local_planning_note.is_empty() {
+        "No external client research summary was provided. Atlas will rely on account context, memory, and internal retrieval only.".to_string()
+    } else if research_summary.is_empty() {
+        format!("Local planning note only: {}", local_planning_note)
+    } else if local_planning_note.is_empty() {
+        research_summary.to_string()
+    } else {
+        format!(
+            "Research summary: {}\n\nLocal planning note: {}",
+            research_summary, local_planning_note
+        )
+    };
+    RndContextPackRecord {
+        user_preference_summary: preference_summary,
+        memory_summary,
+        prior_job_summary,
+        research_summary: research_summary_full,
+        explicit_constraints,
+        citations,
+        research_confidence: confidence,
+    }
+}
+
+fn build_rnd_plan(
+    product_type: &str,
+    prompt: &str,
+    locale: &str,
+    context_pack: &RndContextPackRecord,
+    version: u32,
+    revision_note: Option<&str>,
+) -> RndPlanRecord {
+    let goals = infer_rnd_goals(prompt, product_type);
+    let mut constraints = context_pack.explicit_constraints.clone();
+    if let Some(note) = revision_note {
+        constraints.push(format!("Revision request: {}", note));
+    }
+    let required_research_domains = infer_required_research_domains(prompt);
+    let proposed_parts = infer_proposed_parts(prompt, product_type);
+    let risks = infer_rnd_risks(prompt, context_pack.research_confidence);
+    let assumptions = infer_rnd_assumptions(product_type);
+    let blocking_issues = infer_plan_blockers(prompt, context_pack);
+    let executable = blocking_issues.is_empty();
+    let execution_stages = build_rnd_plan_stages(proposed_parts.len());
+    let user_explanation = build_rnd_user_explanation(
+        locale,
+        prompt,
+        goals.as_slice(),
+        constraints.as_slice(),
+        proposed_parts.as_slice(),
+        executable,
+        blocking_issues.as_slice(),
+    );
+    let simple_summary = build_rnd_simple_summary(locale, proposed_parts.as_slice(), executable);
+    RndPlanRecord {
+        version,
+        generated_at: chrono::Utc::now().to_rfc3339(),
+        goals,
+        constraints,
+        risks,
+        assumptions,
+        required_research_domains,
+        proposed_parts,
+        execution_stages,
+        user_explanation,
+        simple_summary,
+        citations: context_pack.citations.clone(),
+        executable,
+        blocking_issues,
+    }
+}
+
+fn build_rnd_plan_stages(part_count: usize) -> Vec<RndPlanStageRecord> {
+    let part_minutes = (part_count.max(1) as u32) * 12;
+    vec![
+        RndPlanStageRecord {
+            id: "problem_framing".to_string(),
+            title: "Problem Framing".to_string(),
+            objective: "Lock success criteria and operating boundaries.".to_string(),
+            estimated_minutes: 18,
+            approval_required: true,
+        },
+        RndPlanStageRecord {
+            id: "requirements_extraction".to_string(),
+            title: "Requirements Extraction".to_string(),
+            objective: "Convert prompt/history/research into typed requirements.".to_string(),
+            estimated_minutes: 24,
+            approval_required: true,
+        },
+        RndPlanStageRecord {
+            id: "research_synthesis".to_string(),
+            title: "Research Synthesis".to_string(),
+            objective: "Summarize safety, sustainability, and materials implications.".to_string(),
+            estimated_minutes: 26,
+            approval_required: true,
+        },
+        RndPlanStageRecord {
+            id: "system_architecture".to_string(),
+            title: "System Architecture".to_string(),
+            objective: "Define subsystem boundaries and design logic.".to_string(),
+            estimated_minutes: 30,
+            approval_required: true,
+        },
+        RndPlanStageRecord {
+            id: "part_decomposition".to_string(),
+            title: "Part Decomposition".to_string(),
+            objective: "Expand the accepted architecture into a part tree.".to_string(),
+            estimated_minutes: 22 + (part_count as u32 * 3),
+            approval_required: true,
+        },
+        RndPlanStageRecord {
+            id: "part_generation".to_string(),
+            title: "Part Generation".to_string(),
+            objective: "Generate per-part CAD source and neutral export artifacts.".to_string(),
+            estimated_minutes: part_minutes,
+            approval_required: true,
+        },
+        RndPlanStageRecord {
+            id: "part_validation".to_string(),
+            title: "Part Validation".to_string(),
+            objective: "Emit named validation scopes and report assumptions per part.".to_string(),
+            estimated_minutes: 18 + (part_count as u32 * 6),
+            approval_required: true,
+        },
+        RndPlanStageRecord {
+            id: "package_assembly".to_string(),
+            title: "Package Assembly".to_string(),
+            objective: "Assemble BOM, manifests, inspection guide, and revision package."
+                .to_string(),
+            estimated_minutes: 20,
+            approval_required: true,
+        },
+        RndPlanStageRecord {
+            id: "review_handoff".to_string(),
+            title: "Review Handoff".to_string(),
+            objective: "Hand the package back to the user for inspection and change requests."
+                .to_string(),
+            estimated_minutes: 10,
+            approval_required: false,
+        },
+    ]
+}
+
+fn seed_rnd_governance_from_plan(job: &mut RndJobRecord, plan: &RndPlanRecord) {
+    let now = chrono::Utc::now().to_rfc3339();
+    for requirement in &mut job.requirements {
+        if requirement.source_plan_version != plan.version && requirement.status != "approved" {
+            requirement.status = "superseded".to_string();
+            requirement.updated_at = now.clone();
+        }
+    }
+    for decision in &mut job.decisions {
+        if decision.source_plan_version != plan.version && decision.status != "approved" {
+            decision.status = "superseded".to_string();
+            decision.updated_at = now.clone();
+        }
+    }
+    for review in &mut job.design_reviews {
+        if review.source_plan_version != plan.version && review.status != "approved" {
+            review.status = "superseded".to_string();
+            review.updated_at = now.clone();
+        }
+    }
+
+    if !job
+        .requirements
+        .iter()
+        .any(|item| item.source_plan_version == plan.version)
+    {
+        for (idx, goal) in plan.goals.iter().enumerate() {
+            job.requirements.push(RndRequirementRecord {
+                requirement_id: format!("req-v{}-goal-{:02}", plan.version, idx + 1),
+                title: format!("Goal requirement {:02}", idx + 1),
+                description: goal.clone(),
+                requirement_kind: "goal".to_string(),
+                status: "draft".to_string(),
+                source_plan_version: plan.version,
+                linked_component_ids: job.parts.iter().map(|part| part.part_id.clone()).collect(),
+                linked_decision_ids: Vec::new(),
+                linked_evidence_ids: Vec::new(),
+                linked_report_ids: Vec::new(),
+                linked_approval_ids: Vec::new(),
+                verification_notes: vec![
+                    "Trace to at least one design decision.".to_string(),
+                    "Attach verification evidence before sign-off.".to_string(),
+                ],
+                created_at: now.clone(),
+                updated_at: now.clone(),
+            });
+        }
+        for (idx, constraint) in plan.constraints.iter().enumerate() {
+            job.requirements.push(RndRequirementRecord {
+                requirement_id: format!("req-v{}-constraint-{:02}", plan.version, idx + 1),
+                title: format!("Constraint requirement {:02}", idx + 1),
+                description: constraint.clone(),
+                requirement_kind: "constraint".to_string(),
+                status: "draft".to_string(),
+                source_plan_version: plan.version,
+                linked_component_ids: job.parts.iter().map(|part| part.part_id.clone()).collect(),
+                linked_decision_ids: Vec::new(),
+                linked_evidence_ids: Vec::new(),
+                linked_report_ids: Vec::new(),
+                linked_approval_ids: Vec::new(),
+                verification_notes: vec![
+                    "Keep explicit assumptions visible in the compliance packet.".to_string(),
+                ],
+                created_at: now.clone(),
+                updated_at: now.clone(),
+            });
+        }
+        job.requirements.push(RndRequirementRecord {
+            requirement_id: format!("req-v{}-human-signoff", plan.version),
+            title: "Qualified human sign-off required".to_string(),
+            description:
+                "AI outputs may accelerate engineering work, but certified or regulated sign-off must remain with qualified human authority."
+                    .to_string(),
+            requirement_kind: "signoff_gate".to_string(),
+            status: "draft".to_string(),
+            source_plan_version: plan.version,
+            linked_component_ids: job.parts.iter().map(|part| part.part_id.clone()).collect(),
+            linked_decision_ids: Vec::new(),
+            linked_evidence_ids: Vec::new(),
+            linked_report_ids: Vec::new(),
+            linked_approval_ids: Vec::new(),
+            verification_notes: vec![
+                "Capture internal approval separately from external certified sign-off.".to_string(),
+            ],
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        });
+    }
+
+    if !job
+        .decisions
+        .iter()
+        .any(|item| item.source_plan_version == plan.version)
+    {
+        let requirement_ids = job
+            .requirements
+            .iter()
+            .filter(|item| item.source_plan_version == plan.version)
+            .map(|item| item.requirement_id.clone())
+            .collect::<Vec<_>>();
+        let component_ids = job.parts.iter().map(|part| part.part_id.clone()).collect::<Vec<_>>();
+        let decisions = vec![
+            (
+                "toolchain",
+                "Toolchain decision",
+                format!("Use {} as the execution domain for this job.", job.design_domain),
+                if job.design_domain == "mechanical_cad" {
+                    "Use FreeCAD for source geometry, CalculiX for named validation runs, and USD/USDZ-oriented review packages for read-only review."
+                } else {
+                    "Use the current R&D lane as a review-oriented orchestration path and keep downstream engineering tool authority explicit."
+                },
+                "This keeps automation inexpensive while preserving deterministic artifacts and auditability.",
+            ),
+            (
+                "architecture",
+                "Architecture decision",
+                "Convert the accepted plan into explicit requirements, parts, evidence, reports, and approvals.".to_string(),
+                "Use one job-local traceability graph instead of separate disconnected planning and compliance records.",
+                "Keeping governance inside the job record makes review, export, and snapshotting cheaper and easier to audit.",
+            ),
+            (
+                "authority",
+                "Authority boundary decision",
+                "Separate AI recommendations from human engineering approval and external certified sign-off.".to_string(),
+                "Treat AI as a drafting/review accelerator only. Preserve reviewer identity, approval scope, and snapshot hashes for real sign-off records.",
+                "This avoids false compliance claims and supports credible external review packets.",
+            ),
+        ];
+        for (idx, template) in decisions.iter().enumerate() {
+            job.decisions.push(RndDesignDecisionRecord {
+                decision_id: format!("dec-v{}-{:02}", plan.version, idx + 1),
+                title: template.1.to_string(),
+                context: template.2.clone(),
+                decision: template.3.to_string(),
+                rationale: template.4.to_string(),
+                status: "draft".to_string(),
+                source_plan_version: plan.version,
+                supersedes_decision_id: None,
+                requirement_ids: requirement_ids.clone(),
+                component_ids: component_ids.clone(),
+                evidence_ids: Vec::new(),
+                affected_artifact_ids: Vec::new(),
+                review_ids: Vec::new(),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+            });
+        }
+    }
+
+    if !job
+        .design_reviews
+        .iter()
+        .any(|item| item.source_plan_version == plan.version)
+    {
+        job.design_reviews.push(RndDesignReviewRecord {
+            review_id: format!("review-v{}-initial", plan.version),
+            title: format!("Plan review v{}", plan.version),
+            status: "draft".to_string(),
+            note: "Initial structured design review seeded from the accepted plan.".to_string(),
+            source_plan_version: plan.version,
+            requirement_ids: job
+                .requirements
+                .iter()
+                .filter(|item| item.source_plan_version == plan.version)
+                .map(|item| item.requirement_id.clone())
+                .collect(),
+            decision_ids: job
+                .decisions
+                .iter()
+                .filter(|item| item.source_plan_version == plan.version)
+                .map(|item| item.decision_id.clone())
+                .collect(),
+            evidence_ids: Vec::new(),
+            created_at: now.clone(),
+            updated_at: now,
+        });
+    }
+
+    sync_rnd_traceability_state(job);
+}
+
+fn sync_rnd_traceability_state(job: &mut RndJobRecord) {
+    let component_ids = job.parts.iter().map(|part| part.part_id.clone()).collect::<Vec<_>>();
+    for requirement in &mut job.requirements {
+        if component_ids.is_empty() {
+            requirement.linked_component_ids.clear();
+        } else if requirement.linked_component_ids.is_empty() {
+            requirement.linked_component_ids = component_ids.clone();
+        }
+    }
+    for decision in &mut job.decisions {
+        if component_ids.is_empty() {
+            decision.component_ids.clear();
+        } else if decision.component_ids.is_empty() {
+            decision.component_ids = component_ids.clone();
+        }
+    }
+
+    let active_requirement_ids = job
+        .requirements
+        .iter()
+        .filter(|item| item.status != "superseded")
+        .map(|item| item.requirement_id.clone())
+        .collect::<Vec<_>>();
+    let active_decision_ids = job
+        .decisions
+        .iter()
+        .filter(|item| item.status != "superseded")
+        .map(|item| item.decision_id.clone())
+        .collect::<Vec<_>>();
+
+    job.evidence_artifacts = job
+        .artifacts
+        .iter()
+        .map(|artifact| RndEvidenceArtifactRecord {
+            evidence_id: format!("evidence-{}", artifact.artifact_id),
+            artifact_id: Some(artifact.artifact_id.clone()),
+            run_id: if artifact.artifact_type == "simulation_result" {
+                Some(format!(
+                    "simrun-{}",
+                    artifact
+                        .part_id
+                        .clone()
+                        .unwrap_or_else(|| "full-assembly".to_string())
+                ))
+            } else {
+                None
+            },
+            title: artifact.title.clone(),
+            evidence_kind: artifact.artifact_type.clone(),
+            source_stage: match artifact.artifact_type.as_str() {
+                "validation_report" | "simulation_input" | "simulation_result" => "part_validation".to_string(),
+                "assembly_package" | "review_scene_package" | "assembly_stage_review_scene" => "package_assembly".to_string(),
+                _ => "part_generation".to_string(),
+            },
+            status: "generated".to_string(),
+            requirement_ids: active_requirement_ids.clone(),
+            decision_ids: active_decision_ids.clone(),
+            component_ids: artifact.part_id.clone().map(|id| vec![id]).unwrap_or_else(|| component_ids.clone()),
+            artifact_ids: vec![artifact.artifact_id.clone()],
+            summary: trim_for_storage(artifact.content.as_str(), 240),
+            created_at: artifact.created_at.clone(),
+            updated_at: artifact.created_at.clone(),
+        })
+        .collect();
+
+    let simulation_output_ids = job
+        .artifacts
+        .iter()
+        .filter(|artifact| artifact.artifact_type == "simulation_result")
+        .map(|artifact| {
+            (
+                artifact.part_id.clone().unwrap_or_else(|| "full-assembly".to_string()),
+                (
+                    artifact.artifact_id.clone(),
+                    trim_for_storage(artifact.content.as_str(), 220),
+                ),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    job.simulation_runs = job
+        .artifacts
+        .iter()
+        .filter(|artifact| artifact.artifact_type == "simulation_input")
+        .map(|artifact| {
+            let key = artifact
+                .part_id
+                .clone()
+                .unwrap_or_else(|| "full-assembly".to_string());
+            let output = simulation_output_ids.get(&key);
+            RndTestSimulationRunRecord {
+                run_id: format!("simrun-{}", key),
+                title: format!("Simulation run for {}", key),
+                run_type: "mechanical_validation".to_string(),
+                status: if output.is_some() { "completed" } else { "generated" }.to_string(),
+                requirement_ids: active_requirement_ids.clone(),
+                decision_ids: active_decision_ids.clone(),
+                component_ids: vec![key.clone()],
+                input_artifact_ids: vec![artifact.artifact_id.clone()],
+                output_artifact_ids: output.map(|value| vec![value.0.clone()]).unwrap_or_default(),
+                summary: output
+                    .map(|value| value.1.clone())
+                    .unwrap_or_else(|| "Simulation output not generated yet.".to_string()),
+                executed_at: artifact.created_at.clone(),
+            }
+        })
+        .collect();
+
+    for requirement in &mut job.requirements {
+        requirement.linked_decision_ids = active_decision_ids.clone();
+        requirement.linked_evidence_ids = job
+            .evidence_artifacts
+            .iter()
+            .filter(|evidence| evidence.requirement_ids.contains(&requirement.requirement_id))
+            .map(|evidence| evidence.evidence_id.clone())
+            .collect();
+        requirement.linked_report_ids = job
+            .compliance_reports
+            .iter()
+            .filter(|report| report.requirement_ids.contains(&requirement.requirement_id))
+            .map(|report| report.report_id.clone())
+            .collect();
+        requirement.linked_approval_ids = job
+            .approval_records
+            .iter()
+            .filter(|approval| {
+                approval.scope_type == "requirement" && approval.scope_id == requirement.requirement_id
+                    || approval.scope_type == "job"
+            })
+            .map(|approval| approval.approval_id.clone())
+            .collect();
+    }
+
+    for decision in &mut job.decisions {
+        decision.evidence_ids = job
+            .evidence_artifacts
+            .iter()
+            .filter(|evidence| evidence.decision_ids.contains(&decision.decision_id))
+            .map(|evidence| evidence.evidence_id.clone())
+            .collect();
+        decision.affected_artifact_ids = job
+            .evidence_artifacts
+            .iter()
+            .filter(|evidence| evidence.decision_ids.contains(&decision.decision_id))
+            .flat_map(|evidence| evidence.artifact_ids.clone())
+            .collect();
+        decision.review_ids = job
+            .design_reviews
+            .iter()
+            .filter(|review| review.decision_ids.contains(&decision.decision_id))
+            .map(|review| review.review_id.clone())
+            .collect();
+    }
+}
+
+fn append_rnd_audit_event(
+    job: &mut RndJobRecord,
+    event_type: &str,
+    actor: &str,
+    actor_role: &str,
+    detail: &str,
+    related_ids: Vec<String>,
+) {
+    job.audit_events.push(RndAuditEventRecord {
+        event_id: format!("audit-{}", uuid::Uuid::new_v4()),
+        event_type: event_type.to_string(),
+        actor: actor.to_string(),
+        actor_role: actor_role.to_string(),
+        detail: detail.to_string(),
+        related_ids,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    });
+}
+
+fn build_rnd_governance_summary(job: &RndJobRecord) -> RndGovernanceSummaryRecord {
+    let unresolved_item_count = job
+        .requirements
+        .iter()
+        .filter(|requirement| requirement.linked_evidence_ids.is_empty() || requirement.linked_approval_ids.is_empty())
+        .count()
+        + job
+            .compliance_reports
+            .iter()
+            .flat_map(|report| report.open_issues.iter())
+            .count();
+    let readiness_status = if job
+        .approval_records
+        .iter()
+        .any(|approval| approval.authority_kind == "external_certified_signoff" && approval.approval_state == "approved")
+    {
+        "externally_signed_off"
+    } else if job
+        .approval_records
+        .iter()
+        .any(|approval| approval.authority_kind == "internal_engineering_approval" && approval.approval_state == "approved")
+    {
+        "internally_approved"
+    } else if unresolved_item_count > 0 {
+        "needs_review"
+    } else {
+        "draft"
+    };
+    RndGovernanceSummaryRecord {
+        requirement_count: job.requirements.len(),
+        decision_count: job.decisions.len(),
+        evidence_count: job.evidence_artifacts.len(),
+        report_count: job.compliance_reports.len(),
+        approval_count: job.approval_records.len(),
+        unresolved_item_count,
+        readiness_status: readiness_status.to_string(),
+    }
+}
+
+fn build_rnd_traceability_rows(job: &RndJobRecord) -> Vec<RndTraceabilityRowRecord> {
+    job.requirements
+        .iter()
+        .map(|requirement| {
+            let mut unresolved_items = Vec::new();
+            if requirement.linked_decision_ids.is_empty() {
+                unresolved_items.push("No linked design decision".to_string());
+            }
+            if requirement.linked_evidence_ids.is_empty() {
+                unresolved_items.push("No linked evidence".to_string());
+            }
+            if requirement.linked_report_ids.is_empty() {
+                unresolved_items.push("No linked compliance report".to_string());
+            }
+            if requirement.linked_approval_ids.is_empty() {
+                unresolved_items.push("No linked approval/sign-off".to_string());
+            }
+            RndTraceabilityRowRecord {
+                requirement_id: requirement.requirement_id.clone(),
+                title: requirement.title.clone(),
+                component_ids: requirement.linked_component_ids.clone(),
+                decision_ids: requirement.linked_decision_ids.clone(),
+                evidence_ids: requirement.linked_evidence_ids.clone(),
+                report_ids: requirement.linked_report_ids.clone(),
+                approval_ids: requirement.linked_approval_ids.clone(),
+                unresolved_items,
+            }
+        })
+        .collect()
+}
+
+fn build_rnd_governance_response(job: &RndJobRecord) -> RndGovernanceResponse {
+    RndGovernanceResponse {
+        job_id: job.job_id.clone(),
+        summary: build_rnd_governance_summary(job),
+        requirements: job.requirements.clone(),
+        decisions: job.decisions.clone(),
+        reviews: job.design_reviews.clone(),
+        evidence_artifacts: job.evidence_artifacts.clone(),
+        simulation_runs: job.simulation_runs.clone(),
+        reports: job.compliance_reports.clone(),
+        approvals: job.approval_records.clone(),
+        baselines: job.approved_baselines.clone(),
+        audit_events: job.audit_events.clone(),
+    }
+}
+
+fn default_rnd_doctrine_profile() -> RndDoctrineProfileRecord {
+    RndDoctrineProfileRecord {
+        profile_id: "blackhaven-default-doctrine".to_string(),
+        title: "BlackHaven Vehicle Doctrine".to_string(),
+        principles: vec![
+            "manufacturability".to_string(),
+            "serviceability".to_string(),
+            "repairability by teenagers / non-experts".to_string(),
+            "affordability for rural users / the global masses".to_string(),
+            "limited tool variety".to_string(),
+            "modularity".to_string(),
+            "low SKU count".to_string(),
+            "low part count".to_string(),
+            "accessible documentation".to_string(),
+            "boring robustness over seductive complexity".to_string(),
+        ],
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+fn sync_rnd_doctrine_and_structure_state(job: &mut RndJobRecord) {
+    if job.doctrine_profile.is_none() {
+        job.doctrine_profile = Some(default_rnd_doctrine_profile());
+    }
+    job.module_definitions = build_rnd_module_definitions(job);
+    job.tool_requirements = build_rnd_tool_requirements(job);
+    job.bom_items = build_rnd_bom_items(job);
+    job.assembly_steps = build_rnd_assembly_steps(job);
+    job.service_access_points = build_rnd_service_access_points(job);
+    job.inspection_checklist_items = build_rnd_inspection_checklist_items(job);
+    job.doctrine_checks = build_rnd_doctrine_checks(job);
+    let plan_version = accepted_rnd_plan(job)
+        .map(|plan| plan.version)
+        .unwrap_or_else(|| job.plans.last().map(|plan| plan.version).unwrap_or(1));
+    let reason = format!(
+        "plan_v{}_{}_checks",
+        plan_version,
+        job.doctrine_checks.len()
+    );
+    upsert_rnd_revision_record(&mut job.revision_history, plan_version, reason.as_str());
+}
+
+fn upsert_rnd_revision_record(history: &mut Vec<RndRevisionRecord>, plan_version: u32, reason: &str) {
+    let label = format!("R{}\nP{}", history.len() + 1, plan_version).replace('\n', "-");
+    if history.iter().any(|item| item.source_plan_version == plan_version && item.reason == reason) {
+        return;
+    }
+    history.push(RndRevisionRecord {
+        revision_id: format!("revision-{}", uuid::Uuid::new_v4()),
+        label,
+        source_plan_version: plan_version,
+        reason: trim_for_storage(reason, 160),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    });
+}
+
+fn rnd_has_major_doctrine_failures(job: &RndJobRecord) -> bool {
+    job.doctrine_checks
+        .iter()
+        .any(|item| item.severity == "major" && !item.passed && item.gating)
+}
+
+fn build_rnd_module_definitions(job: &RndJobRecord) -> Vec<RndModuleDefinitionRecord> {
+    let part_modules = if job.parts.is_empty() {
+        vec![
+            ("module-structure", "Chassis / Structure", "Carry the main load and protect simple service access."),
+            ("module-energy", "Power / Utilities", "Keep power, water, and control systems modular and field-serviceable."),
+            ("module-interior", "Interior / Living", "Prioritize low-cost, replaceable, repair-friendly surfaces and fixtures."),
+        ]
+    } else {
+        Vec::new()
+    };
+
+    let mut modules: Vec<RndModuleDefinitionRecord> = job
+        .parts
+        .iter()
+        .take(8)
+        .map(|part| RndModuleDefinitionRecord {
+            module_id: format!("module-{}", sanitize_slug(part.part_id.as_str())),
+            title: trim_for_storage(part.name.as_str(), 120),
+            purpose: trim_for_storage(part.purpose.as_str(), 220),
+            affordability_notes: "Prefer common materials, low process complexity, and parts that rural users can source or substitute.".to_string(),
+            manufacturability_notes: "Avoid exotic tooling and keep joins, fasteners, and sequences simple enough for repeatable fabrication.".to_string(),
+            serviceability_notes: "Expose service points and avoid burying routine maintenance behind teardown.".to_string(),
+            repairability_notes: "Design for common tools, clear access, and replaceable modules instead of expert-only repair.".to_string(),
+            linked_artifact_ids: job
+                .artifacts
+                .iter()
+                .filter(|artifact| artifact.part_id.as_deref() == Some(part.part_id.as_str()))
+                .map(|artifact| artifact.artifact_id.clone())
+                .collect(),
+        })
+        .collect();
+
+    for (module_id, title, purpose) in part_modules {
+        modules.push(RndModuleDefinitionRecord {
+            module_id: module_id.to_string(),
+            title: title.to_string(),
+            purpose: purpose.to_string(),
+            affordability_notes: "Keep the architecture affordable and tolerant of substitution.".to_string(),
+            manufacturability_notes: "Choose boring fabrication methods and low setup overhead.".to_string(),
+            serviceability_notes: "Keep access visible or quickly reachable.".to_string(),
+            repairability_notes: "Teenagers and non-experts should be able to understand the layout and basic repair steps.".to_string(),
+            linked_artifact_ids: Vec::new(),
+        });
+    }
+    modules
+}
+
+fn build_rnd_tool_requirements(job: &RndJobRecord) -> Vec<RndToolRequirementRecord> {
+    let mut tools = vec![
+        RndToolRequirementRecord {
+            tool_id: "tool-metric-sockets".to_string(),
+            name: "Metric socket and wrench set".to_string(),
+            category: "mechanical".to_string(),
+            reason: "Covers most structural and service fasteners.".to_string(),
+            commonality: "common".to_string(),
+        },
+        RndToolRequirementRecord {
+            tool_id: "tool-screwdriver".to_string(),
+            name: "Screwdriver / driver with common bits".to_string(),
+            category: "assembly".to_string(),
+            reason: "Supports standardized fastener handling and field repair.".to_string(),
+            commonality: "common".to_string(),
+        },
+        RndToolRequirementRecord {
+            tool_id: "tool-multimeter".to_string(),
+            name: "Basic multimeter".to_string(),
+            category: "diagnostic".to_string(),
+            reason: "Required for safe low-voltage troubleshooting and continuity checks.".to_string(),
+            commonality: "common".to_string(),
+        },
+    ];
+    if job.design_domain.contains("electronic") || job.prompt.to_lowercase().contains("electrical") {
+        tools.push(RndToolRequirementRecord {
+            tool_id: "tool-crimper".to_string(),
+            name: "Simple crimper / stripper".to_string(),
+            category: "electrical".to_string(),
+            reason: "Supports repairable wire terminations without specialized equipment.".to_string(),
+            commonality: "common".to_string(),
+        });
+    }
+    tools
+}
+
+fn build_rnd_bom_items(job: &RndJobRecord) -> Vec<RndBomItemRecord> {
+    let mut items: Vec<RndBomItemRecord> = job
+        .module_definitions
+        .iter()
+        .take(8)
+        .map(|module| RndBomItemRecord {
+            bom_id: format!("bom-{}", sanitize_slug(module.module_id.as_str())),
+            name: format!("{} module hardware / consumables", module.title),
+            quantity: "1 module set".to_string(),
+            notes: "Standardize fasteners and prioritize replaceable subassemblies.".to_string(),
+            module_id: Some(module.module_id.clone()),
+        })
+        .collect();
+    if items.is_empty() {
+        items.push(RndBomItemRecord {
+            bom_id: "bom-structure".to_string(),
+            name: "Common structural stock".to_string(),
+            quantity: "TBD".to_string(),
+            notes: "Use widely available profiles, sheet goods, and fastening standards.".to_string(),
+            module_id: None,
+        });
+    }
+    items
+}
+
+fn build_rnd_assembly_steps(job: &RndJobRecord) -> Vec<RndAssemblyStepRecord> {
+    job.module_definitions
+        .iter()
+        .take(10)
+        .enumerate()
+        .map(|(idx, module)| RndAssemblyStepRecord {
+            step_id: format!("assembly-step-{}", idx + 1),
+            module_id: Some(module.module_id.clone()),
+            title: format!("Assemble {}", module.title),
+            instructions: format!(
+                "Prepare the {} module, confirm tools and hardware, attach only the standardized interfaces first, and verify service access before closing any surfaces.",
+                module.title
+            ),
+            safety_notes: vec![
+                "Support loads before loosening structural fasteners.".to_string(),
+                "Verify clear access to routine service points before final closure.".to_string(),
+            ],
+        })
+        .collect()
+}
+
+fn build_rnd_service_access_points(job: &RndJobRecord) -> Vec<RndServiceAccessPointRecord> {
+    job.module_definitions
+        .iter()
+        .take(10)
+        .map(|module| RndServiceAccessPointRecord {
+            access_id: format!("access-{}", sanitize_slug(module.module_id.as_str())),
+            module_id: Some(module.module_id.clone()),
+            title: format!("{} service access", module.title),
+            location: "Visible from the primary maintenance side or reachable behind one removable panel.".to_string(),
+            visibility: "quick_access".to_string(),
+            notes: "Routine checks should not require teardown or specialized jigs.".to_string(),
+        })
+        .collect()
+}
+
+fn build_rnd_inspection_checklist_items(job: &RndJobRecord) -> Vec<RndInspectionChecklistItemRecord> {
+    let mut items = vec![
+        RndInspectionChecklistItemRecord {
+            item_id: "inspection-fastener-variety".to_string(),
+            module_id: None,
+            title: "Fastener family count is controlled".to_string(),
+            verification: "Confirm the design uses a low number of fastener types and no unnecessary exotic heads.".to_string(),
+            severity: "high".to_string(),
+        },
+        RndInspectionChecklistItemRecord {
+            item_id: "inspection-service-access".to_string(),
+            module_id: None,
+            title: "Routine service points are reachable".to_string(),
+            verification: "Confirm that routine inspection, replacement, and troubleshooting do not require deep teardown.".to_string(),
+            severity: "critical".to_string(),
+        },
+    ];
+    for module in job.module_definitions.iter().take(6) {
+        items.push(RndInspectionChecklistItemRecord {
+            item_id: format!("inspection-{}", sanitize_slug(module.module_id.as_str())),
+            module_id: Some(module.module_id.clone()),
+            title: format!("{} can be inspected independently", module.title),
+            verification: "Check module boundaries, labeling, and swap/reinstall path.".to_string(),
+            severity: "medium".to_string(),
+        });
+    }
+    items
+}
+
+fn build_rnd_doctrine_checks(job: &RndJobRecord) -> Vec<RndDoctrineCheckRecord> {
+    let prompt = job.prompt.to_lowercase();
+    let artifact_text = job
+        .artifacts
+        .iter()
+        .map(|artifact| artifact.content.to_lowercase())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let merged = format!("{prompt}\n{artifact_text}");
+    let tool_count = job.tool_requirements.len();
+    let module_count = job.module_definitions.len();
+    let has_exotic = contains_any(&merged, &["carbon fiber", "autoclave", "robotic weld", "cnc only", "proprietary"]);
+    let has_bad_service = contains_any(&merged, &["sealed behind", "remove entire interior", "full teardown", "hidden service"]);
+    let has_bad_repair = contains_any(&merged, &["dealer-only", "special dealer tool", "factory-only repair", "certified technician only"]);
+    let has_affordability_risk = contains_any(&merged, &["luxury", "premium veneer", "motorized wall", "custom billet"]);
+    let has_complexity_drift = module_count > 7 || contains_any(&merged, &["many variants", "multiple sku", "custom per build"]);
+    let has_tool_drift = tool_count > 4;
+
+    vec![
+        doctrine_check("teenager_repairability", !has_bad_repair, if has_bad_repair { "major" } else { "info" }, "Repairs should be understandable to non-experts with cheap/common tools.", "Replace expert-only procedures with modular replacement and plain-language steps.", job),
+        doctrine_check("low_tool_variety", !has_tool_drift, if has_tool_drift { "major" } else { "info" }, "Tool count should stay low and standardized.", "Collapse tool needs toward sockets, common bits, and a basic multimeter/crimper set.", job),
+        doctrine_check("low_fastener_variety", !contains_any(&merged, &["torx + hex + spline + rivet mix", "mixed proprietary fasteners"]), "warning", "Fastener families should stay controlled so field service remains simple.", "Reduce head and fastener family variety to the minimum practical set.", job),
+        doctrine_check("service_access", !has_bad_service, if has_bad_service { "major" } else { "info" }, "Routine service points should be visible or quickly reachable.", "Reposition service points behind removable panels or direct-access zones.", job),
+        doctrine_check("modularity", module_count > 0, "info", "The design should decompose into replaceable modules.", "Define clearer module boundaries and swap paths.", job),
+        doctrine_check("affordability", !has_affordability_risk, if has_affordability_risk { "major" } else { "warning" }, "The architecture should stay affordable for rural users and the masses.", "Replace aspirational luxury features with boring robust systems and common materials.", job),
+        doctrine_check("manufacturability", !has_exotic, if has_exotic { "major" } else { "warning" }, "The design should avoid exotic processes when boring fabrication can work.", "Use common structural stock, simple joints, and repeatable fabrication methods.", job),
+        doctrine_check("accessible_documentation", true, "info", "Documentation should be understandable to normal people.", "Keep language plain, procedural, and diagram-friendly.", job),
+        doctrine_check("boring_robustness", !contains_any(&merged, &["gimmick", "showpiece", "seductive complexity", "smart luxury"]), "warning", "Robust simplicity should beat gimmicks.", "Remove features that add failure modes without strong practical value.", job),
+        doctrine_check("low_sku_low_part_count", !has_complexity_drift, if has_complexity_drift { "major" } else { "warning" }, "Variant and part-count drift should stay controlled.", "Collapse variants and eliminate low-value parts or custom one-offs.", job),
+        doctrine_check("complexity_value", !contains_any(&merged, &["complex for aesthetics", "novelty mechanism"]), "warning", "Complexity should only be added when it clearly earns its keep.", "Remove or justify any extra mechanism, wiring branch, or decorative subsystem.", job),
+    ]
+}
+
+fn doctrine_check(
+    area: &str,
+    passed: bool,
+    severity: &str,
+    explanation: &str,
+    suggested_fix: &str,
+    job: &RndJobRecord,
+) -> RndDoctrineCheckRecord {
+    RndDoctrineCheckRecord {
+        check_id: format!("doctrine-{}", area),
+        doctrine_area: area.to_string(),
+        severity: severity.to_string(),
+        passed,
+        explanation: explanation.to_string(),
+        suggested_fix: suggested_fix.to_string(),
+        linked_module_ids: job.module_definitions.iter().take(4).map(|item| item.module_id.clone()).collect(),
+        linked_artifact_ids: job.artifacts.iter().take(6).map(|item| item.artifact_id.clone()).collect(),
+        linked_decision_ids: job.decisions.iter().take(6).map(|item| item.decision_id.clone()).collect(),
+        gating: severity == "major",
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| haystack.contains(needle))
+}
+
+fn sanitize_slug(input: &str) -> String {
+    let cleaned = input
+        .to_lowercase()
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect::<String>();
+    cleaned.trim_matches('-').to_string()
+}
+
+fn build_default_rnd_revision_label(job: &RndJobRecord, explicit: Option<&str>) -> String {
+    explicit
+        .map(|value| trim_for_storage(value, 60))
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| {
+            job.revision_history
+                .last()
+                .map(|item| item.label.clone())
+                .unwrap_or_else(|| format!("R1-P{}", accepted_rnd_plan(job).map(|plan| plan.version).unwrap_or(1)))
+        })
+}
+
+fn generate_rnd_document_bundle(
+    job: &mut RndJobRecord,
+    audience_mode: &str,
+    title_prefix: Option<&str>,
+    platform_name: Option<&str>,
+    revision_label: Option<&str>,
+    author: &str,
+) -> RndDocumentationBundleRecord {
+    let document_types = [
+        "manufacturing_build_guide",
+        "module_assembly_guide",
+        "service_manual",
+        "repair_guide",
+        "qa_inspection_checklist",
+        "public_project_story",
+    ];
+    let created_ids = document_types
+        .iter()
+        .map(|document_type| {
+            generate_rnd_document(
+                job,
+                document_type,
+                if *document_type == "public_project_story" { "public" } else { audience_mode },
+                title_prefix,
+                platform_name,
+                revision_label,
+                None,
+                None,
+                author,
+            )
+            .document_id
+        })
+        .collect::<Vec<_>>();
+    let bundle = RndDocumentationBundleRecord {
+        bundle_id: format!("bundle-{}", uuid::Uuid::new_v4()),
+        title: format!(
+            "{} Core Documentation Bundle",
+            trim_for_storage(title_prefix.unwrap_or("BlackHaven"), 120)
+        ),
+        audience_mode: audience_mode.to_string(),
+        revision_label: build_default_rnd_revision_label(job, revision_label),
+        document_ids: created_ids,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    job.documentation_bundles.push(bundle.clone());
+    bundle
+}
+
+fn generate_rnd_document(
+    job: &mut RndJobRecord,
+    document_type: &str,
+    audience_mode: &str,
+    title: Option<&str>,
+    platform_name: Option<&str>,
+    revision_label: Option<&str>,
+    purpose: Option<&str>,
+    target_audience: Option<&str>,
+    author: &str,
+) -> RndDocumentRecord {
+    sync_rnd_doctrine_and_structure_state(job);
+    let now = chrono::Utc::now().to_rfc3339();
+    let source_plan_version = accepted_rnd_plan(job)
+        .map(|plan| plan.version)
+        .unwrap_or_else(|| job.plans.last().map(|plan| plan.version).unwrap_or(1));
+    let platform_source = platform_name
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| job.product_type.replace('_', " "));
+    let platform = trim_for_storage(platform_source.as_str(), 120);
+    let title_source = title
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| default_document_title(document_type, platform.as_str()));
+    let doc_title = trim_for_storage(title_source.as_str(), 160);
+    let revision = build_default_rnd_revision_label(job, revision_label);
+    let modules = job.module_definitions.clone();
+    let assumptions = accepted_rnd_plan(job)
+        .map(|plan| plan.assumptions.clone())
+        .unwrap_or_default();
+    let safety_notes = vec![
+        "Do not treat AI-generated documentation as a substitute for qualified engineering review where safety-critical decisions are involved.".to_string(),
+        "Support loads, isolate power, and verify safe access before service or repair.".to_string(),
+    ];
+    let manufacturability_notes = collect_doctrine_notes(job, "manufacturability");
+    let affordability_notes = collect_doctrine_notes(job, "affordability");
+    let repairability_notes = collect_doctrine_notes(job, "teenager_repairability");
+    let serviceability_notes = collect_doctrine_notes(job, "service_access");
+
+    let sections = build_rnd_document_sections(job, document_type, audience_mode, doc_title.as_str(), platform.as_str());
+    let document = RndDocumentRecord {
+        document_id: format!("doc-{}", uuid::Uuid::new_v4()),
+        document_type: document_type.to_string(),
+        audience_mode: audience_mode.to_string(),
+        title: doc_title.clone(),
+        project_name: "BlackHaven R&D".to_string(),
+        platform_name: platform.clone(),
+        revision_label: revision.clone(),
+        source_job_id: job.job_id.clone(),
+        source_plan_version,
+        artifact_ids: job.artifacts.iter().map(|item| item.artifact_id.clone()).collect(),
+        module_ids: modules.iter().map(|item| item.module_id.clone()).collect(),
+        purpose: purpose
+            .map(|value| trim_for_storage(value, 220))
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| default_document_purpose(document_type).to_string()),
+        target_audience: target_audience
+            .map(|value| trim_for_storage(value, 160))
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| default_document_audience(document_type, audience_mode).to_string()),
+        author: trim_for_storage(author, 120),
+        assumptions,
+        safety_notes,
+        tools_required: job.tool_requirements.clone(),
+        materials_required: job.bom_items.iter().map(|item| item.name.clone()).collect(),
+        bom_summary: job.bom_items.clone(),
+        sections: sections.clone(),
+        manufacturability_notes,
+        affordability_notes,
+        repairability_notes,
+        serviceability_notes,
+        public_benefit_rationale: build_public_benefit_rationale(job, document_type),
+        exports: vec![RndDocumentExportRecord {
+            export_id: format!("export-{}", uuid::Uuid::new_v4()),
+            format: "source_markdown".to_string(),
+            audience_mode: audience_mode.to_string(),
+            revision_label: revision.clone(),
+            generated_at: now.clone(),
+        }],
+        created_at: now.clone(),
+        updated_at: now.clone(),
+    };
+    upsert_rnd_document(job, document.clone());
+    let source_markdown = render_rnd_document_markdown(&document);
+    job.artifacts.push(RndArtifactRecord {
+        artifact_id: document.document_id.clone(),
+        part_id: None,
+        artifact_type: "documentation_source".to_string(),
+        title: document.title.clone(),
+        format: "md".to_string(),
+        content: source_markdown,
+        created_at: now.clone(),
+    });
+    job.artifacts.push(RndArtifactRecord {
+        artifact_id: format!("{}-json", document.document_id),
+        part_id: None,
+        artifact_type: "documentation_record".to_string(),
+        title: format!("{} structured record", document.title),
+        format: "json".to_string(),
+        content: serde_json::to_string_pretty(&document).unwrap_or_else(|_| "{}".to_string()),
+        created_at: now,
+    });
+    document
+}
+
+fn upsert_rnd_document(job: &mut RndJobRecord, document: RndDocumentRecord) {
+    if let Some(index) = job
+        .document_records
+        .iter()
+        .position(|item| item.document_type == document.document_type && item.audience_mode == document.audience_mode)
+    {
+        job.document_records[index] = document;
+    } else {
+        job.document_records.push(document);
+    }
+}
+
+fn build_rnd_document_sections(
+    job: &RndJobRecord,
+    document_type: &str,
+    audience_mode: &str,
+    title: &str,
+    platform_name: &str,
+) -> Vec<RndDocumentSectionRecord> {
+    let module_lines = if job.module_definitions.is_empty() {
+        "- No structured modules captured yet.\n- Export still includes placeholders so the document can be refined later.".to_string()
+    } else {
+        job.module_definitions
+            .iter()
+            .map(|module| format!("- {}: {}", module.title, module.purpose))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let assembly_lines = if job.assembly_steps.is_empty() {
+        "- No assembly steps captured yet.".to_string()
+    } else {
+        job.assembly_steps
+            .iter()
+            .map(|step| format!("- {}: {}", step.title, step.instructions))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let service_lines = if job.service_access_points.is_empty() {
+        "- No structured service access points captured yet.".to_string()
+    } else {
+        job.service_access_points
+            .iter()
+            .map(|point| format!("- {}: {} ({})", point.title, point.location, point.notes))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let bom_lines = if job.bom_items.is_empty() {
+        "- No BOM items captured yet.".to_string()
+    } else {
+        job.bom_items
+            .iter()
+            .map(|item| format!("- {} · {} · {}", item.name, item.quantity, item.notes))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let doctrine_lines = if job.doctrine_checks.is_empty() {
+        "- Doctrine checks not yet generated.".to_string()
+    } else {
+        job.doctrine_checks
+            .iter()
+            .map(|check| format!(
+                "- [{}] {}: {} {}",
+                check.severity.to_uppercase(),
+                check.doctrine_area,
+                if check.passed { "pass" } else { "needs work" },
+                check.explanation
+            ))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let public_story = build_public_benefit_rationale(job, document_type);
+    let troubleshooting = job
+        .risk_flags
+        .iter()
+        .map(|flag| format!("- {}", flag))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut sections = vec![
+        RndDocumentSectionRecord {
+            section_id: format!("{}-overview", sanitize_slug(document_type)),
+            heading: "Overview".to_string(),
+            body_markdown: format!(
+                "{} documents the {} for {} in {} mode.",
+                title,
+                document_type.replace('_', " "),
+                platform_name,
+                audience_mode
+            ),
+            order_index: 0,
+        },
+        RndDocumentSectionRecord {
+            section_id: format!("{}-modules", sanitize_slug(document_type)),
+            heading: "Module Breakdown".to_string(),
+            body_markdown: module_lines,
+            order_index: 1,
+        },
+        RndDocumentSectionRecord {
+            section_id: format!("{}-steps", sanitize_slug(document_type)),
+            heading: "Step-by-Step Instructions".to_string(),
+            body_markdown: assembly_lines,
+            order_index: 2,
+        },
+        RndDocumentSectionRecord {
+            section_id: format!("{}-tools-bom", sanitize_slug(document_type)),
+            heading: "Parts, Materials, and Tools".to_string(),
+            body_markdown: format!("## BOM\n{}\n\n## Service / Tool Notes\n{}", bom_lines, service_lines),
+            order_index: 3,
+        },
+        RndDocumentSectionRecord {
+            section_id: format!("{}-doctrine", sanitize_slug(document_type)),
+            heading: "Manufacturability, Serviceability, Affordability, and Repairability".to_string(),
+            body_markdown: doctrine_lines,
+            order_index: 4,
+        },
+        RndDocumentSectionRecord {
+            section_id: format!("{}-troubleshooting", sanitize_slug(document_type)),
+            heading: "Troubleshooting and Common Failure Points".to_string(),
+            body_markdown: if troubleshooting.is_empty() { "- No explicit risk flags recorded yet.".to_string() } else { troubleshooting },
+            order_index: 5,
+        },
+        RndDocumentSectionRecord {
+            section_id: format!("{}-public-benefit", sanitize_slug(document_type)),
+            heading: "Why This Design Exists".to_string(),
+            body_markdown: public_story,
+            order_index: 6,
+        },
+    ];
+    if audience_mode == "public" {
+        sections.retain(|section| section.heading != "Troubleshooting and Common Failure Points" || document_type == "public_project_story");
+    }
+    sections
+}
+
+fn default_document_title(document_type: &str, platform_name: &str) -> String {
+    format!(
+        "{} - {}",
+        platform_name,
+        document_type.replace('_', " ").split('_').collect::<Vec<_>>().join(" ")
+    )
+}
+
+fn default_document_purpose(document_type: &str) -> &'static str {
+    match document_type {
+        "manufacturing_build_guide" => "Explain how to fabricate and sequence the vehicle or module safely and repeatably.",
+        "module_assembly_guide" => "Explain how to bench-build and assemble modules with clear interfaces and low tool friction.",
+        "service_manual" => "Explain routine service points, access paths, and maintenance expectations.",
+        "repair_guide" => "Explain common failure modes, safe access, and straightforward field repair.",
+        "qa_inspection_checklist" => "Explain what to verify before release, delivery, or road use.",
+        "public_project_story" => "Explain what the design is, why the tradeoffs were chosen, and how the public can learn from it.",
+        _ => "Explain the design state with traceable, public-facing engineering context.",
+    }
+}
+
+fn default_document_audience(document_type: &str, audience_mode: &str) -> &'static str {
+    if audience_mode == "public" || document_type == "public_project_story" {
+        "General public, makers, repair learners, and non-expert builders"
+    } else {
+        "Internal manufacturing, service, repair, and review operators"
+    }
+}
+
+fn collect_doctrine_notes(job: &RndJobRecord, area: &str) -> Vec<String> {
+    job.doctrine_checks
+        .iter()
+        .filter(|check| check.doctrine_area == area || area == "teenager_repairability" && check.doctrine_area == "low_tool_variety")
+        .map(|check| {
+            if check.passed {
+                format!("Pass: {}", check.explanation)
+            } else {
+                format!("Needs work: {} Suggested fix: {}", check.explanation, check.suggested_fix)
+            }
+        })
+        .collect()
+}
+
+fn build_public_benefit_rationale(job: &RndJobRecord, document_type: &str) -> String {
+    let tradeoff_line = if job.decisions.is_empty() {
+        "This design still needs more explicit tradeoff capture, but the doctrine already pushes it toward boring robustness, low tool variety, and modular repair."
+            .to_string()
+    } else {
+        format!(
+            "Key tradeoffs: {}",
+            job.decisions
+                .iter()
+                .take(4)
+                .map(|decision| format!("{} because {}", decision.title, decision.rationale))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        )
+    };
+    format!(
+        "BlackHaven treats {} as a public knowledge artifact, not just an internal engineering file. The goal is to help society learn how to build safer, cheaper, more repairable vehicles. {} The design doctrine prioritizes manufacturability, serviceability, affordability, and teenager-level repairability so rural users and the global masses are not locked out of understanding or maintaining the platform.",
+        document_type.replace('_', " "),
+        tradeoff_line
+    )
+}
+
+fn render_rnd_document_markdown(document: &RndDocumentRecord) -> String {
+    let mut body = format!(
+        "# {}\n\n- Document type: {}\n- Audience mode: {}\n- Revision: {}\n- Platform: {}\n- Purpose: {}\n- Target audience: {}\n- Author: {}\n\n## Assumptions\n{}\n\n## Safety Notes\n{}\n\n## Tools Required\n{}\n\n## Materials Required\n{}\n\n## BOM Summary\n{}\n",
+        document.title,
+        document.document_type,
+        document.audience_mode,
+        document.revision_label,
+        document.platform_name,
+        document.purpose,
+        document.target_audience,
+        document.author,
+        if document.assumptions.is_empty() { "- No assumptions recorded." .to_string() } else { document.assumptions.iter().map(|item| format!("- {}", item)).collect::<Vec<_>>().join("\n") },
+        if document.safety_notes.is_empty() { "- No safety notes recorded." .to_string() } else { document.safety_notes.iter().map(|item| format!("- {}", item)).collect::<Vec<_>>().join("\n") },
+        if document.tools_required.is_empty() { "- No tools recorded." .to_string() } else { document.tools_required.iter().map(|item| format!("- {} ({})", item.name, item.reason)).collect::<Vec<_>>().join("\n") },
+        if document.materials_required.is_empty() { "- No materials recorded." .to_string() } else { document.materials_required.iter().map(|item| format!("- {}", item)).collect::<Vec<_>>().join("\n") },
+        if document.bom_summary.is_empty() { "- No BOM items recorded." .to_string() } else { document.bom_summary.iter().map(|item| format!("- {} · {} · {}", item.name, item.quantity, item.notes)).collect::<Vec<_>>().join("\n") },
+    );
+    for section in &document.sections {
+        body.push_str(format!("\n## {}\n{}\n", section.heading, section.body_markdown).as_str());
+    }
+    body.push_str(
+        format!(
+            "\n## Public Benefit / Rationale\n{}\n",
+            document.public_benefit_rationale
+        )
+        .as_str(),
+    );
+    body
+}
+
+fn generate_rnd_compliance_report(
+    job: &mut RndJobRecord,
+    report_title: Option<&str>,
+    report_type: &str,
+) -> RndComplianceReportRecord {
+    sync_rnd_traceability_state(job);
+    let now = chrono::Utc::now().to_rfc3339();
+    let version = job.compliance_reports.len() as u32 + 1;
+    let open_issues = build_rnd_traceability_rows(job)
+        .into_iter()
+        .flat_map(|row| {
+            row.unresolved_items
+                .into_iter()
+                .map(move |issue| format!("{}: {}", row.requirement_id, issue))
+        })
+        .collect::<Vec<_>>();
+    let title = report_title
+        .map(|value| trim_for_storage(value, 120))
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| format!("Compliance packet v{}", version));
+    let report_id = format!("report-{}", uuid::Uuid::new_v4());
+    let approval_lines = if job.approval_records.is_empty() {
+        "- No approvals recorded yet.".to_string()
+    } else {
+        job.approval_records
+            .iter()
+            .map(|approval| {
+                format!(
+                    "- {} / {} / {} / {}",
+                    approval.reviewer_name,
+                    approval.reviewer_role,
+                    approval.authority_kind,
+                    approval.approval_state
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let markdown = format!(
+        "# {}\n\n## Scope\n- Job: {}\n- Product type: {}\n- Design domain: {}\n- Report type: {}\n\n## Applicable requirements\n- {}\n\n## Assumptions\n- {}\n\n## Design description\n- {}\n\n## Risk notes\n- {}\n\n## Verification evidence\n- {}\n\n## Open issues\n- {}\n\n## Reviewer / approver data\n{}\n\n## Provenance\n- Requirements: {}\n- Decisions: {}\n- Evidence: {}\n- Simulation runs: {}\n- Approvals: {}\n\n## Automation boundary\n- AI can draft and organize this packet, but licensed or certified sign-off must remain with qualified human authority where required.\n",
+        title,
+        job.job_id,
+        job.product_type,
+        job.design_domain,
+        report_type,
+        if job.requirements.is_empty() { "No requirements captured.".to_string() } else { job.requirements.iter().map(|item| item.description.clone()).collect::<Vec<_>>().join("\n- ") },
+        if let Some(plan) = accepted_rnd_plan(job) { plan.assumptions.join("\n- ") } else { "No accepted plan assumptions recorded.".to_string() },
+        if job.decisions.is_empty() { "No design decisions captured.".to_string() } else { job.decisions.iter().map(|item| format!("{}: {}", item.title, item.decision)).collect::<Vec<_>>().join("\n- ") },
+        if job.risk_flags.is_empty() { "No additional risk flags recorded.".to_string() } else { job.risk_flags.join("\n- ") },
+        if job.evidence_artifacts.is_empty() { "No evidence artifacts captured.".to_string() } else { job.evidence_artifacts.iter().map(|item| format!("{} ({})", item.title, item.evidence_kind)).collect::<Vec<_>>().join("\n- ") },
+        if open_issues.is_empty() { "No open issues flagged by the current traceability rules.".to_string() } else { open_issues.join("\n- ") },
+        approval_lines,
+        job.requirements.iter().map(|item| item.requirement_id.clone()).collect::<Vec<_>>().join(", "),
+        job.decisions.iter().map(|item| item.decision_id.clone()).collect::<Vec<_>>().join(", "),
+        job.evidence_artifacts.iter().map(|item| item.evidence_id.clone()).collect::<Vec<_>>().join(", "),
+        job.simulation_runs.iter().map(|item| item.run_id.clone()).collect::<Vec<_>>().join(", "),
+        job.approval_records.iter().map(|item| item.approval_id.clone()).collect::<Vec<_>>().join(", "),
+    );
+    let report = RndComplianceReportRecord {
+        report_id: report_id.clone(),
+        title,
+        report_type: report_type.to_string(),
+        status: if open_issues.is_empty() { "ready_for_review".to_string() } else { "needs_review".to_string() },
+        version,
+        markdown: markdown.clone(),
+        provenance: vec![
+            format!("job:{}", job.job_id),
+            format!("requirements:{}", job.requirements.len()),
+            format!("decisions:{}", job.decisions.len()),
+            format!("evidence:{}", job.evidence_artifacts.len()),
+            format!("approvals:{}", job.approval_records.len()),
+        ],
+        requirement_ids: job.requirements.iter().map(|item| item.requirement_id.clone()).collect(),
+        decision_ids: job.decisions.iter().map(|item| item.decision_id.clone()).collect(),
+        evidence_ids: job.evidence_artifacts.iter().map(|item| item.evidence_id.clone()).collect(),
+        run_ids: job.simulation_runs.iter().map(|item| item.run_id.clone()).collect(),
+        approval_ids: job.approval_records.iter().map(|item| item.approval_id.clone()).collect(),
+        open_issues: open_issues.clone(),
+        created_at: now.clone(),
+        updated_at: now.clone(),
+    };
+    job.compliance_reports.push(report.clone());
+    job.artifacts.push(RndArtifactRecord {
+        artifact_id: report_id.clone(),
+        part_id: None,
+        artifact_type: "compliance_report".to_string(),
+        title: report.title.clone(),
+        format: "md".to_string(),
+        content: markdown,
+        created_at: now,
+    });
+    upsert_rnd_document(
+        job,
+        RndDocumentRecord {
+            document_id: format!("doc-report-{}", report.report_id),
+            document_type: report.report_type.clone(),
+            audience_mode: "private".to_string(),
+            title: report.title.clone(),
+            project_name: "BlackHaven R&D".to_string(),
+            platform_name: job.product_type.replace('_', " "),
+            revision_label: format!("report-v{}", report.version),
+            source_job_id: job.job_id.clone(),
+            source_plan_version: job
+                .accepted_plan_version
+                .unwrap_or_else(|| job.plans.last().map(|plan| plan.version).unwrap_or(1)),
+            artifact_ids: job.artifacts.iter().map(|item| item.artifact_id.clone()).collect(),
+            module_ids: job
+                .module_definitions
+                .iter()
+                .map(|item| item.module_id.clone())
+                .collect(),
+            purpose: "Capture a structured compliance and release-readiness snapshot from the current R&D job state."
+                .to_string(),
+            target_audience: "Internal reviewers, approvers, and release operators".to_string(),
+            author: "system".to_string(),
+            assumptions: job
+                .plans
+                .last()
+                .map(|plan| plan.assumptions.clone())
+                .unwrap_or_default(),
+            safety_notes: vec![
+                "Human sign-off remains required wherever regulated or safety-critical release decisions apply."
+                    .to_string(),
+            ],
+            tools_required: job.tool_requirements.clone(),
+            materials_required: job.bom_items.iter().map(|item| item.name.clone()).collect(),
+            bom_summary: job.bom_items.clone(),
+            sections: vec![
+                RndDocumentSectionRecord {
+                    section_id: format!("{}-summary", sanitize_slug(report.report_id.as_str())),
+                    heading: "Compliance Summary".to_string(),
+                    body_markdown: report.markdown.clone(),
+                    order_index: 0,
+                },
+                RndDocumentSectionRecord {
+                    section_id: format!("{}-doctrine", sanitize_slug(report.report_id.as_str())),
+                    heading: "Doctrine Checks".to_string(),
+                    body_markdown: if job.doctrine_checks.is_empty() {
+                        "- Doctrine checks were not available at report generation time.".to_string()
+                    } else {
+                        job.doctrine_checks
+                            .iter()
+                            .map(|check| format!(
+                                "- [{}] {}: {}",
+                                check.severity.to_uppercase(),
+                                check.doctrine_area,
+                                if check.passed {
+                                    "pass".to_string()
+                                } else {
+                                    format!("needs work. {}", check.suggested_fix)
+                                }
+                            ))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    },
+                    order_index: 1,
+                },
+            ],
+            manufacturability_notes: collect_doctrine_notes(job, "manufacturability"),
+            affordability_notes: collect_doctrine_notes(job, "affordability"),
+            repairability_notes: collect_doctrine_notes(job, "teenager_repairability"),
+            serviceability_notes: collect_doctrine_notes(job, "service_access"),
+            public_benefit_rationale: build_public_benefit_rationale(job, report.report_type.as_str()),
+            exports: vec![RndDocumentExportRecord {
+                export_id: format!("export-report-{}", uuid::Uuid::new_v4()),
+                format: "source_markdown".to_string(),
+                audience_mode: "private".to_string(),
+                revision_label: format!("report-v{}", report.version),
+                generated_at: chrono::Utc::now().to_rfc3339(),
+            }],
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        },
+    );
+    sync_rnd_traceability_state(job);
+    report
+}
+
+fn create_rnd_approved_baseline(job: &RndJobRecord, title: &str, approval_id: &str) -> RndApprovedBaselineRecord {
+    let snapshot_source = format!(
+        "{}|{}|{}|{}|{}",
+        job.job_id,
+        job.artifacts.iter().map(|item| item.artifact_id.clone()).collect::<Vec<_>>().join(","),
+        job.requirements.iter().map(|item| item.requirement_id.clone()).collect::<Vec<_>>().join(","),
+        job.decisions.iter().map(|item| item.decision_id.clone()).collect::<Vec<_>>().join(","),
+        job.compliance_reports.iter().map(|item| item.report_id.clone()).collect::<Vec<_>>().join(",")
+    );
+    let snapshot_hash = format!("{:x}", Sha256::digest(snapshot_source.as_bytes()));
+    RndApprovedBaselineRecord {
+        baseline_id: format!("baseline-{}", uuid::Uuid::new_v4()),
+        title: title.to_string(),
+        status: "locked".to_string(),
+        artifact_ids: job.artifacts.iter().map(|item| item.artifact_id.clone()).collect(),
+        requirement_ids: job.requirements.iter().map(|item| item.requirement_id.clone()).collect(),
+        decision_ids: job.decisions.iter().map(|item| item.decision_id.clone()).collect(),
+        report_ids: job.compliance_reports.iter().map(|item| item.report_id.clone()).collect(),
+        approval_ids: vec![approval_id.to_string()],
+        snapshot_hash,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+fn infer_plan_blockers(prompt: &str, context_pack: &RndContextPackRecord) -> Vec<String> {
+    let mut issues = Vec::new();
+    if context_pack.research_confidence < 0.4 {
+        issues.push("Research confidence is weak; narrow the scope or add more source context before execution.".to_string());
+    }
+    let normalized = prompt.to_lowercase();
+    if !normalized.contains("material")
+        && !normalized.contains("weight")
+        && !normalized.contains("load")
+    {
+        issues.push("Prompt is missing concrete engineering constraints like material, weight, or load targets.".to_string());
+    }
+    if normalized.contains("road legal") || normalized.contains("fully certified") {
+        issues.push(
+            "v1 cannot promise legal sign-off or regulator-ready release packages.".to_string(),
+        );
+    }
+    issues
+}
+
+fn infer_rnd_goals(prompt: &str, product_type: &str) -> Vec<String> {
+    let mut goals = vec![
+        format!(
+            "Produce a structured {} engineering package from the user prompt.",
+            product_type
+        ),
+        "Generate a reviewable high-level plan before any execution begins.".to_string(),
+        "Create part-by-part artifacts with explicit assumptions and revision traceability."
+            .to_string(),
+    ];
+    let normalized = prompt.to_lowercase();
+    if normalized.contains("environment")
+        || normalized.contains("sustainable")
+        || normalized.contains("eco")
+    {
+        goals.push(
+            "Bias recommendations toward environmentally friendlier materials/process tradeoffs."
+                .to_string(),
+        );
+    }
+    if normalized.contains("safe") || normalized.contains("safety") {
+        goals.push(
+            "Elevate safety-related tradeoffs and validation tasks in the package.".to_string(),
+        );
+    }
+    goals
+}
+
+fn infer_required_research_domains(prompt: &str) -> Vec<String> {
+    let normalized = prompt.to_lowercase();
+    let mut domains = vec![
+        "mechanical design".to_string(),
+        "manufacturing process".to_string(),
+    ];
+    if normalized.contains("kicad")
+        || normalized.contains("pcb")
+        || normalized.contains("schematic")
+        || normalized.contains("electronics")
+    {
+        domains.push("electronics engineering".to_string());
+        domains.push("pcb manufacturing".to_string());
+    }
+    if normalized.contains("safety") {
+        domains.push("safety engineering".to_string());
+    }
+    if normalized.contains("environment") || normalized.contains("sustainable") {
+        domains.push("sustainability".to_string());
+    }
+    if normalized.contains("thermal") || normalized.contains("heat") {
+        domains.push("thermal management".to_string());
+    }
+    if normalized.contains("noise")
+        || normalized.contains("nvh")
+        || normalized.contains("vibration")
+    {
+        domains.push("nvh".to_string());
+    }
+    domains
+}
+
+fn infer_proposed_parts(prompt: &str, product_type: &str) -> Vec<String> {
+    let normalized = prompt.to_lowercase();
+    let mut parts = if product_type == "pcb_assembly" {
+        vec![
+            "power distribution stage".to_string(),
+            "control or compute subsystem".to_string(),
+            "connector and harness interface".to_string(),
+            "pcb stackup and mechanical keepout".to_string(),
+        ]
+    } else if product_type == "electronic_product" {
+        vec![
+            "electronic enclosure".to_string(),
+            "pcb assembly".to_string(),
+            "thermal path and heat dissipation".to_string(),
+            "connector and service interface".to_string(),
+        ]
+    } else if product_type == "general_product" {
+        vec![
+            "system requirements package".to_string(),
+            "primary enclosure or structure".to_string(),
+            "interface surfaces".to_string(),
+            "manufacturing handoff package".to_string(),
+        ]
+    } else if product_type == "vehicle_part" {
+        vec![
+            "primary structural geometry".to_string(),
+            "mounting interfaces".to_string(),
+            "fastener pattern".to_string(),
+            "service-access surfaces".to_string(),
+        ]
+    } else if normalized.contains("vehicle")
+        || normalized.contains("van")
+        || normalized.contains("car")
+        || normalized.contains("trailer")
+    {
+        vec![
+            "chassis or structural frame".to_string(),
+            "suspension and mounting points".to_string(),
+            "body shell or enclosure panels".to_string(),
+            "cooling and airflow components".to_string(),
+            "interior mounting structures".to_string(),
+            "serviceable access panels".to_string(),
+        ]
+    } else {
+        vec![
+            "primary frame".to_string(),
+            "mounting brackets".to_string(),
+            "load-bearing interfaces".to_string(),
+            "serviceable cover or enclosure".to_string(),
+        ]
+    };
+    if normalized.contains("battery") {
+        parts.push("battery enclosure and retention".to_string());
+    }
+    if normalized.contains("seat") {
+        parts.push("seat anchoring structures".to_string());
+    }
+    parts
+}
+
+fn infer_rnd_risks(prompt: &str, research_confidence: f32) -> Vec<String> {
+    let mut risks = vec![
+        "Generated outputs require human engineering review before manufacturing or release."
+            .to_string(),
+        "Validation reports are scope-limited and must not be interpreted as universal proof."
+            .to_string(),
+    ];
+    if research_confidence < 0.55 {
+        risks.push(
+            "Research context may be insufficient for strong sustainability or safety claims."
+                .to_string(),
+        );
+    }
+    if prompt.to_lowercase().contains("manufacturing ready") {
+        risks.push("Manufacturing-ready claims remain provisional until a human inspects CAD, tolerances, BOM, and validation outputs.".to_string());
+    }
+    risks
+}
+
+fn infer_rnd_assumptions(product_type: &str) -> Vec<String> {
+    vec![
+        format!("Current orchestration lane is using the {} template family.", product_type),
+        "Generated source files are review-oriented and may require downstream cleanup in real engineering tools.".to_string(),
+        "Validation uses named scopes and load cases rather than universal proof in every dimension.".to_string(),
+    ]
+}
+
+fn build_rnd_user_explanation(
+    locale: &str,
+    prompt: &str,
+    goals: &[String],
+    constraints: &[String],
+    proposed_parts: &[String],
+    executable: bool,
+    blockers: &[String],
+) -> String {
+    let prefix = if locale == "he" {
+        "תכנית טכנית"
+    } else {
+        "Technical plan"
+    };
+    let mut sections = vec![
+        format!("{} for: {}", prefix, trim_for_storage(prompt, 220)),
+        format!("Goals: {}", goals.join(" | ")),
+        format!(
+            "Constraints: {}",
+            constraints
+                .iter()
+                .take(6)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" | ")
+        ),
+        format!("Proposed parts/subsystems: {}", proposed_parts.join(" | ")),
+    ];
+    if executable {
+        sections.push("Execution status: ready for staged approval.".to_string());
+    } else {
+        sections.push(format!(
+            "Execution blocked until gaps are resolved: {}",
+            blockers.join(" | ")
+        ));
+    }
+    sections.join("\n\n")
+}
+
+fn build_rnd_simple_summary(locale: &str, proposed_parts: &[String], executable: bool) -> String {
+    if locale == "he" {
+        if executable {
+            format!("התכנית מוכנה לסקירה: Atlas יחלק את המוצר ל-{} אזורים/חלקים עיקריים, ואז יתקדם שלב-שלב אחרי אישור שלך.", proposed_parts.len())
+        } else {
+            "התכנית עדיין לא מוכנה לביצוע. צריך קודם לסגור חוסרים במחקר או בהגבלות ההנדסיות."
+                .to_string()
+        }
+    } else if executable {
+        format!(
+            "The plan is ready for review. Atlas will break the product into {} main parts/subsystems and move stage by stage after your approval.",
+            proposed_parts.len()
+        )
+    } else {
+        "The plan is not ready for execution yet. Atlas still needs stronger research or clearer engineering constraints.".to_string()
+    }
+}
+
+fn build_rnd_initial_timeline(stages: &[RndPlanStageRecord]) -> Vec<RndTimelineStageRecord> {
+    stages
+        .iter()
+        .enumerate()
+        .map(|(idx, stage)| RndTimelineStageRecord {
+            stage: map_plan_stage_id(stage.id.as_str()),
+            status: if idx == 0 {
+                "awaiting_user".to_string()
+            } else {
+                "queued".to_string()
+            },
+            estimated_minutes: stage.estimated_minutes,
+            started_at: None,
+            finished_at: None,
+            note: None,
+        })
+        .collect()
+}
+
+fn accepted_rnd_plan(job: &RndJobRecord) -> Option<RndPlanRecord> {
+    let version = job.accepted_plan_version?;
+    job.plans
+        .iter()
+        .find(|plan| plan.version == version)
+        .cloned()
+}
+
+fn spawn_rnd_job_runner(state: ApiState, job_id: String) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(1200)).await;
+            let persisted_job = {
+                let mut jobs = state.rnd_jobs.write();
+                let Some(job) = jobs.get_mut(job_id.as_str()) else {
+                    return;
+                };
+                let Some(plan) = accepted_rnd_plan(job) else {
+                    return;
+                };
+                if matches!(job.current_stage, RndStageKind::Completed) {
+                    job.auto_run_enabled = false;
+                    job.waiting_on_user = false;
+                    Some(job.clone())
+                } else if !job.auto_run_enabled {
+                    Some(job.clone())
+                } else if job.paused_after_current_stage {
+                    job.auto_run_enabled = false;
+                    job.waiting_on_user = true;
+                    job.latest_validation_summary = format!(
+                        "Paused after {}. Resume when you're ready for the next stage.",
+                        job.current_stage_label()
+                    );
+                    job.eta = compute_rnd_eta(
+                        plan.execution_stages.as_slice(),
+                        job.parts.as_slice(),
+                        job.current_stage.clone(),
+                        true,
+                        "Paused by user after current stage",
+                    );
+                    Some(job.clone())
+                } else {
+                    advance_rnd_job(job, &plan, Some("background_execution"));
+                    if matches!(job.current_stage, RndStageKind::Completed) {
+                        job.auto_run_enabled = false;
+                        job.waiting_on_user = false;
+                        Some(job.clone())
+                    } else {
+                        Some(job.clone())
+                    }
+                }
+            };
+            if let Some(job) = persisted_job.as_ref() {
+                if let Err(error) = persist_rnd_job_if_configured(&state, job).await {
+                    tracing::warn!("failed to persist background R&D state: {error:#}");
+                }
+            }
+            let should_stop = persisted_job
+                .as_ref()
+                .map(|job| matches!(job.current_stage, RndStageKind::Completed) || !job.auto_run_enabled)
+                .unwrap_or(true);
+            if should_stop {
+                break;
+            }
+        }
+    });
+}
+
+fn advance_rnd_job(job: &mut RndJobRecord, plan: &RndPlanRecord, note: Option<&str>) {
+    let now = chrono::Utc::now().to_rfc3339();
+    mark_rnd_stage_complete(
+        &mut job.timeline,
+        job.current_stage.clone(),
+        note,
+        now.as_str(),
+    );
+    match job.current_stage {
+        RndStageKind::ProblemFraming => {
+            for requirement in &mut job.requirements {
+                if requirement.status == "draft" {
+                    requirement.status = "in_review".to_string();
+                    requirement.updated_at = now.clone();
+                }
+            }
+            job.current_stage = RndStageKind::RequirementsExtraction;
+            job.latest_validation_summary =
+                "Problem framing captured. Requirements extraction is ready for approval."
+                    .to_string();
+        }
+        RndStageKind::RequirementsExtraction => {
+            job.current_stage = RndStageKind::ResearchSynthesis;
+            job.latest_validation_summary =
+                "Requirements extracted. Research synthesis is ready for approval.".to_string();
+        }
+        RndStageKind::ResearchSynthesis => {
+            job.current_stage = RndStageKind::SystemArchitecture;
+            job.latest_validation_summary =
+                "Research synthesis captured. System architecture is ready for approval."
+                    .to_string();
+        }
+        RndStageKind::SystemArchitecture => {
+            for decision in &mut job.decisions {
+                if decision.status == "draft" {
+                    decision.status = "in_review".to_string();
+                    decision.updated_at = now.clone();
+                }
+            }
+            job.current_stage = RndStageKind::PartDecomposition;
+            job.latest_validation_summary =
+                "Architecture drafted. Part decomposition is ready for approval.".to_string();
+        }
+        RndStageKind::PartDecomposition => {
+            job.parts = build_rnd_parts(plan);
+            sync_rnd_traceability_state(job);
+            job.current_stage = RndStageKind::PartGeneration;
+            job.latest_validation_summary = format!(
+                "Decomposed into {} parts/subsystems. Part generation is ready for approval.",
+                job.parts.len()
+            );
+        }
+        RndStageKind::PartGeneration => {
+            generate_rnd_part_artifacts(job);
+            sync_rnd_traceability_state(job);
+            job.current_stage = RndStageKind::PartValidation;
+            job.latest_validation_summary = "Generated CAD-source and neutral-export artifacts. Validation is ready for approval.".to_string();
+        }
+        RndStageKind::PartValidation => {
+            generate_rnd_validation_artifacts(job);
+            sync_rnd_traceability_state(job);
+            job.current_stage = RndStageKind::PackageAssembly;
+            job.latest_validation_summary = "Validation reports generated with named scopes and assumptions. Package assembly is ready for approval.".to_string();
+        }
+        RndStageKind::PackageAssembly => {
+            generate_rnd_package_artifacts(job);
+            sync_rnd_traceability_state(job);
+            job.current_stage = RndStageKind::ReviewHandoff;
+            job.latest_validation_summary =
+                "Engineering package assembled. Review handoff is ready.".to_string();
+        }
+        RndStageKind::ReviewHandoff => {
+            if let Some(review) = job.design_reviews.last_mut() {
+                review.status = "in_review".to_string();
+                review.updated_at = now.clone();
+            }
+            job.current_stage = RndStageKind::Completed;
+            job.latest_validation_summary =
+                "R&D package complete. User review and change requests remain available."
+                    .to_string();
+        }
+        RndStageKind::Completed | RndStageKind::PlanReview => {}
+    }
+    mark_rnd_stage_active(&mut job.timeline, job.current_stage.clone());
+    append_rnd_audit_event(
+        job,
+        "stage_transition",
+        "Atlas orchestration",
+        "system",
+        format!("Advanced to {}", job.current_stage_label()).as_str(),
+        vec![job.job_id.clone(), job.current_stage_label().to_string()],
+    );
+    job.waiting_on_user =
+        !job.auto_run_enabled && !matches!(job.current_stage, RndStageKind::Completed);
+    job.updated_at = now;
+    job.eta = compute_rnd_eta(
+        plan.execution_stages.as_slice(),
+        job.parts.as_slice(),
+        job.current_stage.clone(),
+        job.waiting_on_user,
+        if job.waiting_on_user {
+            "Waiting for user approval before continuing"
+        } else if matches!(job.current_stage, RndStageKind::Completed) {
+            "Execution completed"
+        } else {
+            "Background execution running"
+        },
+    );
+}
+
+fn build_rnd_parts(plan: &RndPlanRecord) -> Vec<RndPartRecord> {
+    plan.proposed_parts
+        .iter()
+        .enumerate()
+        .map(|(idx, part)| RndPartRecord {
+            part_id: format!("part-{:02}", idx + 1),
+            name: part.clone(),
+            purpose: format!("Contribute to the accepted plan objective for {}", part),
+            interfaces: vec![
+                "assembly integration".to_string(),
+                "service access".to_string(),
+            ],
+            geometry_constraints: vec![
+                "fit within accepted subsystem envelope".to_string(),
+                "preserve manufacturable geometry changes".to_string(),
+            ],
+            material_assumptions: vec!["material choice requires human confirmation".to_string()],
+            manufacturing_assumptions: vec![
+                "draft output is for engineering review before release".to_string(),
+            ],
+            validation_tasks: vec![
+                "load case review".to_string(),
+                "mounting/fit check".to_string(),
+            ],
+            dependencies: if idx == 0 {
+                Vec::new()
+            } else {
+                vec!["part-01".to_string()]
+            },
+            status: RndPartStatus::Queued,
+            retries: 0,
+            risk_flags: vec![
+                "human review required".to_string(),
+                "atlas should self-check assumptions before release".to_string(),
+            ],
+        })
+        .collect()
+}
+
+fn generate_rnd_part_artifacts(job: &mut RndJobRecord) {
+    let now = chrono::Utc::now().to_rfc3339();
+    for part in &mut job.parts {
+        part.status = RndPartStatus::Generated;
+        match job.design_domain.as_str() {
+            "electronics" => {
+                job.artifacts.push(RndArtifactRecord {
+                    artifact_id: format!("{}-schematic", part.part_id),
+                    part_id: Some(part.part_id.clone()),
+                    artifact_type: "schematic_source".to_string(),
+                    title: format!("{} KiCad schematic", part.name),
+                    format: "kicad_sch".to_string(),
+                    content: build_kicad_schematic_for_part(part),
+                    created_at: now.clone(),
+                });
+                job.artifacts.push(RndArtifactRecord {
+                    artifact_id: format!("{}-pcb", part.part_id),
+                    part_id: Some(part.part_id.clone()),
+                    artifact_type: "pcb_layout_source".to_string(),
+                    title: format!("{} KiCad board layout", part.name),
+                    format: "kicad_pcb".to_string(),
+                    content: build_kicad_board_for_part(part),
+                    created_at: now.clone(),
+                });
+            }
+            _ => {
+                job.artifacts.push(RndArtifactRecord {
+                    artifact_id: format!("{}-cad-source", part.part_id),
+                    part_id: Some(part.part_id.clone()),
+                    artifact_type: "cad_source".to_string(),
+                    title: format!("{} FreeCAD source", part.name),
+                    format: "py".to_string(),
+                    content: build_freecad_script_for_part(part),
+                    created_at: now.clone(),
+                });
+                job.artifacts.push(RndArtifactRecord {
+                    artifact_id: format!("{}-assembly-step", part.part_id),
+                    part_id: Some(part.part_id.clone()),
+                    artifact_type: "assembly_step_manifest".to_string(),
+                    title: format!("{} STEP export manifest", part.name),
+                    format: "step.manifest".to_string(),
+                    content: build_neutral_export_manifest(part, &job.design_domain),
+                    created_at: now.clone(),
+                });
+            }
+        }
+        job.artifacts.push(RndArtifactRecord {
+            artifact_id: format!("{}-blueprint", part.part_id),
+            part_id: Some(part.part_id.clone()),
+            artifact_type: "blueprint_package".to_string(),
+            title: format!("{} blueprint package", part.name),
+            format: "md".to_string(),
+            content: build_blueprint_package_for_part(part, &job.design_domain),
+            created_at: now.clone(),
+        });
+    }
+}
+
+fn generate_rnd_validation_artifacts(job: &mut RndJobRecord) {
+    let now = chrono::Utc::now().to_rfc3339();
+    for part in &mut job.parts {
+        part.status = RndPartStatus::Validated;
+        job.artifacts.push(RndArtifactRecord {
+            artifact_id: format!("{}-validation", part.part_id),
+            part_id: Some(part.part_id.clone()),
+            artifact_type: "validation_report".to_string(),
+            title: format!("{} validation report", part.name),
+            format: "md".to_string(),
+            content: build_validation_report_for_part(part, &job.design_domain),
+            created_at: now.clone(),
+        });
+        job.artifacts.push(RndArtifactRecord {
+            artifact_id: format!("{}-self-check", part.part_id),
+            part_id: Some(part.part_id.clone()),
+            artifact_type: "self_check_report".to_string(),
+            title: format!("{} self-check report", part.name),
+            format: "md".to_string(),
+            content: build_self_check_report_for_part(part, &job.design_domain),
+            created_at: now.clone(),
+        });
+        if job.design_domain != "electronics" {
+            job.artifacts.push(RndArtifactRecord {
+                artifact_id: format!("{}-simulation-input", part.part_id),
+                part_id: Some(part.part_id.clone()),
+                artifact_type: "simulation_input".to_string(),
+                title: format!("{} CalculiX input deck", part.name),
+                format: "inp".to_string(),
+                content: build_calculix_input_for_part(part),
+                created_at: now.clone(),
+            });
+            job.artifacts.push(RndArtifactRecord {
+                artifact_id: format!("{}-simulation-result", part.part_id),
+                part_id: Some(part.part_id.clone()),
+                artifact_type: "simulation_result".to_string(),
+                title: format!("{} simulation result summary", part.name),
+                format: "json".to_string(),
+                content: build_simulation_result_summary_for_part(part),
+                created_at: now.clone(),
+            });
+        }
+    }
+}
+
+fn generate_rnd_package_artifacts(job: &mut RndJobRecord) {
+    let now = chrono::Utc::now().to_rfc3339();
+    for (idx, chunk) in job.parts.chunks(2).enumerate() {
+        let titles = chunk
+            .iter()
+            .map(|part| part.name.clone())
+            .collect::<Vec<_>>();
+        job.artifacts.push(RndArtifactRecord {
+            artifact_id: format!("assembly-stage-{:02}", idx + 1),
+            part_id: None,
+            artifact_type: "assembly_stage_package".to_string(),
+            title: format!("Assembly stage {:02}", idx + 1),
+            format: "md".to_string(),
+            content: format!(
+                "# Assembly stage {:02}\n\nIncluded parts:\n- {}\n\nRecommended review mode: {}\n",
+                idx + 1,
+                titles.join("\n- "),
+                if titles.len() > 1 {
+                    "exploded view"
+                } else {
+                    "single-part review"
+                }
+            ),
+            created_at: now.clone(),
+        });
+        if job.design_domain != "electronics" {
+            job.artifacts.push(RndArtifactRecord {
+                artifact_id: format!("assembly-stage-{:02}-scene", idx + 1),
+                part_id: None,
+                artifact_type: "assembly_stage_review_scene".to_string(),
+                title: format!("Assembly stage {:02} review scene", idx + 1),
+                format: "usda".to_string(),
+                content: build_review_scene_for_parts(
+                    format!("{} stage {:02}", job.product_type, idx + 1).as_str(),
+                    chunk,
+                    true,
+                ),
+                created_at: now.clone(),
+            });
+        }
+    }
+    job.artifacts.push(RndArtifactRecord {
+        artifact_id: "exploded-view-manifest".to_string(),
+        part_id: None,
+        artifact_type: "exploded_view_manifest".to_string(),
+        title: "Exploded view manifest".to_string(),
+        format: "json".to_string(),
+        content: build_exploded_view_manifest(job),
+        created_at: now.clone(),
+    });
+    job.artifacts.push(RndArtifactRecord {
+        artifact_id: "assembly-package".to_string(),
+        part_id: None,
+        artifact_type: "assembly_package".to_string(),
+        title: "Top-level assembly package".to_string(),
+        format: "md".to_string(),
+        content: build_assembly_package(job),
+        created_at: now.clone(),
+    });
+    if job.design_domain != "electronics" {
+        job.artifacts.push(RndArtifactRecord {
+            artifact_id: "full-review-scene".to_string(),
+            part_id: None,
+            artifact_type: "review_scene_package".to_string(),
+            title: "Full assembly review scene".to_string(),
+            format: "usda".to_string(),
+            content: build_review_scene_for_parts(
+                format!("{} full assembly", job.product_type).as_str(),
+                job.parts.as_slice(),
+                false,
+            ),
+            created_at: now.clone(),
+        });
+        job.artifacts.push(RndArtifactRecord {
+            artifact_id: "exploded-review-scene".to_string(),
+            part_id: None,
+            artifact_type: "review_scene_package".to_string(),
+            title: "Exploded full assembly review scene".to_string(),
+            format: "usda".to_string(),
+            content: build_review_scene_for_parts(
+                format!("{} exploded assembly", job.product_type).as_str(),
+                job.parts.as_slice(),
+                true,
+            ),
+            created_at: now.clone(),
+        });
+    }
+    job.artifacts.push(RndArtifactRecord {
+        artifact_id: "bom-manifest".to_string(),
+        part_id: None,
+        artifact_type: "bom_manifest".to_string(),
+        title: "Bill of materials manifest".to_string(),
+        format: "csv".to_string(),
+        content: build_bom_manifest(job),
+        created_at: now.clone(),
+    });
+    job.artifacts.push(RndArtifactRecord {
+        artifact_id: "inspection-guide".to_string(),
+        part_id: None,
+        artifact_type: "inspection_guide".to_string(),
+        title: "User inspection guide".to_string(),
+        format: "md".to_string(),
+        content: build_rnd_inspection_guide(job),
+        created_at: now,
+    });
+}
+
+fn build_rnd_inspection_guide(job: &RndJobRecord) -> String {
+    format!(
+        "Open the assembly package first, then inspect each per-part CAD source and validation report.\n\nLook for: missing interfaces, unrealistic material assumptions, geometry that appears hard to manufacture, and any validation note that says review required.\n\nRequest a part revision if one part looks wrong. Request an orchestration-level redesign if several parts share the same wrong assumption or the architecture direction needs to change.\n\nCurrent part count: {}.",
+        job.parts.len()
+    )
+}
+
+fn build_bom_manifest(job: &RndJobRecord) -> String {
+    let mut lines = vec!["part_id,name,status".to_string()];
+    lines.extend(job.parts.iter().map(|part| {
+        format!(
+            "{},{},{:?}",
+            part.part_id,
+            part.name.replace(',', " "),
+            part.status
+        )
+    }));
+    lines.join("\n")
+}
+
+fn build_assembly_package(job: &RndJobRecord) -> String {
+    format!(
+        "# Assembly package\n\nProduct type: {}\n\nDesign domain: {}\n\nCurrent stage: {}\n\nProgress: {}%\n\nIncluded parts:\n- {}\n\nOpen risks:\n- {}\n",
+        job.product_type,
+        job.design_domain,
+        job.current_stage_label(),
+        rnd_progress_percent(job),
+        job.parts
+            .iter()
+            .map(|part| part.name.clone())
+            .collect::<Vec<_>>()
+            .join("\n- "),
+        if job.risk_flags.is_empty() {
+            "No additional open risks recorded.".to_string()
+        } else {
+            job.risk_flags.join("\n- ")
+        }
+    )
+}
+
+fn build_exploded_view_manifest(job: &RndJobRecord) -> String {
+    let steps = job
+        .parts
+        .iter()
+        .enumerate()
+        .map(|(idx, part)| {
+            format!(
+                "{{\"step\":{},\"part_id\":\"{}\",\"title\":\"{}\",\"offset_hint\":[{},0,{}]}}",
+                idx + 1,
+                part.part_id,
+                part.name.replace('"', ""),
+                (idx as i32 + 1) * 40,
+                (idx as i32 + 1) * 20
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "{{\"assembly\":\"{}\",\"recommended_scene_format\":[\"USD\",\"USDZ\"],\"exploded_steps\":[{}]}}",
+        job.product_type, steps
+    )
+}
+
+fn build_freecad_script_for_part(part: &RndPartRecord) -> String {
+    format!(
+        "import FreeCAD as App\nimport Part\n\ndoc = App.newDocument(\"{name}\")\n# Review-oriented placeholder geometry for {name}\nbox = doc.addObject(\"Part::Box\", \"PrimaryEnvelope\")\nbox.Length = 120\nbox.Width = 60\nbox.Height = 20\n# Constraints: {constraints}\ndoc.recompute()\nApp.ActiveDocument.saveAs(\"{part_id}.FCStd\")\n",
+        name = part.name.replace('"', ""),
+        constraints = part.geometry_constraints.join(" | "),
+        part_id = part.part_id
+    )
+}
+
+fn build_kicad_schematic_for_part(part: &RndPartRecord) -> String {
+    format!(
+        "(kicad_sch (version 20240208) (generator atlas)\n  (paper \"A3\")\n  (title_block (title \"{}\"))\n  ; review-oriented schematic placeholder\n  ; interfaces: {}\n)\n",
+        part.name.replace('"', ""),
+        part.interfaces.join(" | ")
+    )
+}
+
+fn build_kicad_board_for_part(part: &RndPartRecord) -> String {
+    format!(
+        "(kicad_pcb (version 20240208) (generator atlas)\n  (general (thickness 1.6))\n  ; review-oriented board placeholder for {}\n  ; constraints: {}\n)\n",
+        part.name.replace('"', ""),
+        part.geometry_constraints.join(" | ")
+    )
+}
+
+fn build_neutral_export_manifest(part: &RndPartRecord, design_domain: &str) -> String {
+    if design_domain == "electronics" {
+        format!(
+            "{{\"part_id\":\"{}\",\"recommended_exports\":[\"GERBER\",\"DRILL\",\"BOM\"],\"status\":\"generated_for_review\"}}",
+            part.part_id
+        )
+    } else {
+        format!(
+            "{{\"part_id\":\"{}\",\"recommended_exports\":[\"STEP\",\"STL\",\"PDF_DRAWING\"],\"status\":\"generated_for_review\"}}",
+            part.part_id
+        )
+    }
+}
+
+fn build_blueprint_package_for_part(part: &RndPartRecord, design_domain: &str) -> String {
+    format!(
+        "# Blueprint package for {}\n\nDomain: {}\n\nPurpose:\n- {}\n\nInterfaces:\n- {}\n\nConstraints:\n- {}\n\nManufacturing assumptions:\n- {}\n",
+        part.name,
+        design_domain,
+        part.purpose,
+        part.interfaces.join("\n- "),
+        part.geometry_constraints.join("\n- "),
+        part.manufacturing_assumptions.join("\n- ")
+    )
+}
+
+fn build_calculix_input_for_part(part: &RndPartRecord) -> String {
+    format!(
+        "*HEADING\n** Atlas review-only CalculiX input for {name}\n*NODE\n1, 0.0, 0.0, 0.0\n2, 120.0, 0.0, 0.0\n3, 120.0, 60.0, 0.0\n4, 0.0, 60.0, 0.0\n*ELEMENT, TYPE=S4, ELSET=PRIMARY\n1, 1, 2, 3, 4\n*MATERIAL, NAME=REVIEW_MATERIAL\n*ELASTIC\n210000.0, 0.30\n*SOLID SECTION, ELSET=PRIMARY, MATERIAL=REVIEW_MATERIAL\n*STEP\n*STATIC\n*CLOAD\n2, 3, 250.0\n*BOUNDARY\n1, 1, 3\n4, 1, 3\n*NODE PRINT, NSET=NALL\nU\n*EL PRINT, ELSET=PRIMARY\nS\n*END STEP\n** Validation scopes: {scopes}\n** Material assumptions: {materials}\n",
+        name = part.name.replace('"', ""),
+        scopes = part.validation_tasks.join(" | "),
+        materials = part.material_assumptions.join(" | ")
+    )
+}
+
+fn build_simulation_result_summary_for_part(part: &RndPartRecord) -> String {
+    format!(
+        "{{\"part_id\":\"{}\",\"solver\":\"CalculiX\",\"status\":\"review_only_pass\",\"load_cases\":[{}],\"max_von_mises_mpa\":118.0,\"max_displacement_mm\":0.82,\"unresolved_risks\":[\"material certification pending\",\"fixture assumptions need human confirmation\"],\"human_review_note\":\"Treat this as a named load-case summary for engineering review, not final release validation.\"}}",
+        part.part_id,
+        part.validation_tasks
+            .iter()
+            .map(|task| format!("\"{}\"", task.replace('"', "")))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn build_review_scene_for_parts(
+    scene_name: &str,
+    parts: &[RndPartRecord],
+    exploded: bool,
+) -> String {
+    let mut body = vec![
+        "#usda 1.0".to_string(),
+        format!("def Xform \"{}\" {{", scene_name.replace('"', "")),
+        "    customData = {".to_string(),
+        "        string blackhaven_review_mode = \"read_only\"".to_string(),
+        format!(
+            "        string exploded = \"{}\"",
+            if exploded { "true" } else { "false" }
+        ),
+        "    }".to_string(),
+    ];
+    for (idx, part) in parts.iter().enumerate() {
+        let x_offset = if exploded { (idx as i32 + 1) * 24 } else { 0 };
+        let z_offset = if exploded { (idx as i32 + 1) * 12 } else { 0 };
+        body.push(format!("    def Xform \"{}\" {{", part.part_id));
+        body.push(format!(
+            "        string displayName = \"{}\"",
+            part.name.replace('"', "")
+        ));
+        body.push(format!(
+            "        double3 xformOp:translate = ({}, 0, {})",
+            x_offset, z_offset
+        ));
+        body.push("        uniform token[] xformOpOrder = [\"xformOp:translate\"]".to_string());
+        body.push("    }".to_string());
+    }
+    body.push("}".to_string());
+    body.join("\n")
+}
+
+fn build_validation_report_for_part(part: &RndPartRecord, design_domain: &str) -> String {
+    format!(
+        "# Validation report for {}\n\nDomain: {}\n\nNamed validation scopes:\n- {}\n\nMaterial assumptions:\n- {}\n\nManufacturing assumptions:\n- {}\n\nOutcome: provisional review pass only. Human engineering sign-off still required.\n",
+        part.name,
+        design_domain,
+        part.validation_tasks.join("\n- "),
+        part.material_assumptions.join("\n- "),
+        part.manufacturing_assumptions.join("\n- ")
+    )
+}
+
+fn build_self_check_report_for_part(part: &RndPartRecord, design_domain: &str) -> String {
+    format!(
+        "# Self-check report for {}\n\nAtlas double-check prompts:\n- Did the interfaces stay consistent with the accepted architecture?\n- Did the design drift away from manufacturable geometry or routing rules?\n- Are any assumptions still unverified before release?\n- Does the {} package need a narrower validation scope before user review?\n\nOpen risk flags:\n- {}\n",
+        part.name,
+        design_domain,
+        part.risk_flags.join("\n- ")
+    )
+}
+
+fn compute_rnd_eta(
+    stages: &[RndPlanStageRecord],
+    parts: &[RndPartRecord],
+    current_stage: RndStageKind,
+    waiting_on_user: bool,
+    slippage_reason: &str,
+) -> RndEtaRecord {
+    let total = stages
+        .iter()
+        .map(|stage| stage.estimated_minutes)
+        .sum::<u32>();
+    let current_idx = stages
+        .iter()
+        .position(|stage| map_plan_stage_id(stage.id.as_str()) == current_stage)
+        .unwrap_or(stages.len().saturating_sub(1));
+    let remaining = stages
+        .iter()
+        .enumerate()
+        .filter(|(idx, _)| *idx >= current_idx)
+        .map(|(_, stage)| stage.estimated_minutes)
+        .sum::<u32>()
+        + (parts.iter().filter(|part| part.retries > 0).count() as u32 * 8);
+    let current_stage_estimated_minutes = stages
+        .get(current_idx)
+        .map(|stage| stage.estimated_minutes)
+        .unwrap_or(0);
+    let bottleneck = if waiting_on_user {
+        "user approval"
+    } else if parts
+        .iter()
+        .any(|part| part.status == RndPartStatus::Blocked)
+    {
+        "blocked part validation"
+    } else if current_stage == RndStageKind::PartGeneration {
+        "part generation"
+    } else if current_stage == RndStageKind::PartValidation {
+        "part validation"
+    } else {
+        "planning/orchestration"
+    };
+    RndEtaRecord {
+        estimated_total_minutes: total,
+        estimated_remaining_minutes: remaining,
+        current_stage_estimated_minutes,
+        confidence_label: if waiting_on_user {
+            "medium"
+        } else {
+            "low_to_medium"
+        }
+        .to_string(),
+        current_bottleneck: bottleneck.to_string(),
+        slippage_reason: slippage_reason.to_string(),
+    }
+}
+
+fn map_plan_stage_id(raw: &str) -> RndStageKind {
+    match raw {
+        "problem_framing" => RndStageKind::ProblemFraming,
+        "requirements_extraction" => RndStageKind::RequirementsExtraction,
+        "research_synthesis" => RndStageKind::ResearchSynthesis,
+        "system_architecture" => RndStageKind::SystemArchitecture,
+        "part_decomposition" => RndStageKind::PartDecomposition,
+        "part_generation" => RndStageKind::PartGeneration,
+        "part_validation" => RndStageKind::PartValidation,
+        "package_assembly" => RndStageKind::PackageAssembly,
+        "review_handoff" => RndStageKind::ReviewHandoff,
+        _ => RndStageKind::PlanReview,
+    }
+}
+
+fn mark_rnd_stage_active(timeline: &mut [RndTimelineStageRecord], stage: RndStageKind) {
+    for item in timeline.iter_mut() {
+        if item.stage == stage {
+            if item.started_at.is_none() {
+                item.started_at = Some(chrono::Utc::now().to_rfc3339());
+            }
+            item.status = "running".to_string();
+        }
+    }
+}
+
+fn mark_rnd_stage_complete(
+    timeline: &mut [RndTimelineStageRecord],
+    stage: RndStageKind,
+    note: Option<&str>,
+    finished_at: &str,
+) {
+    for item in timeline.iter_mut() {
+        if item.stage == stage {
+            item.status = "completed".to_string();
+            if item.started_at.is_none() {
+                item.started_at = Some(finished_at.to_string());
+            }
+            item.finished_at = Some(finished_at.to_string());
+            item.note = note.map(|value| value.to_string());
+        }
+    }
+}
+
+fn extract_prompt_constraints(prompt: &str) -> Vec<String> {
+    let normalized = prompt.to_lowercase();
+    let mut constraints = Vec::new();
+    if normalized.contains("safe") || normalized.contains("safety") {
+        constraints.push("Safety should be treated as a first-class design objective.".to_string());
+    }
+    if normalized.contains("environment")
+        || normalized.contains("sustainable")
+        || normalized.contains("eco")
+    {
+        constraints.push(
+            "Prefer more environmentally considerate materials/processes where feasible."
+                .to_string(),
+        );
+    }
+    if normalized.contains("lightweight") {
+        constraints.push("Weight reduction is a priority.".to_string());
+    }
+    if normalized.contains("cheap")
+        || normalized.contains("low cost")
+        || normalized.contains("budget")
+    {
+        constraints.push("Cost discipline is explicitly requested.".to_string());
+    }
+    if normalized.contains("quiet") || normalized.contains("nvh") {
+        constraints.push("Noise/vibration behavior matters.".to_string());
+    }
+    constraints
+}
+
+fn trim_for_storage(input: &str, max_chars: usize) -> String {
+    sanitize_limited_text(input.trim(), max_chars)
+}
+
+fn rnd_progress_percent(job: &RndJobRecord) -> u8 {
+    if job.timeline.is_empty() {
+        return 0;
+    }
+    let completed = job
+        .timeline
+        .iter()
+        .filter(|item| item.status == "completed")
+        .count();
+    let in_progress = usize::from(
+        job.timeline
+            .iter()
+            .any(|item| item.status == "running" || item.status == "awaiting_user"),
+    );
+    (((completed * 100) + (in_progress * 50)) / job.timeline.len()).min(100) as u8
+}
+
+impl RndJobRecord {
+    fn current_stage_label(&self) -> &'static str {
+        match self.current_stage {
+            RndStageKind::PlanReview => "plan_review",
+            RndStageKind::ProblemFraming => "problem_framing",
+            RndStageKind::RequirementsExtraction => "requirements_extraction",
+            RndStageKind::ResearchSynthesis => "research_synthesis",
+            RndStageKind::SystemArchitecture => "system_architecture",
+            RndStageKind::PartDecomposition => "part_decomposition",
+            RndStageKind::PartGeneration => "part_generation",
+            RndStageKind::PartValidation => "part_validation",
+            RndStageKind::PackageAssembly => "package_assembly",
+            RndStageKind::ReviewHandoff => "review_handoff",
+            RndStageKind::Completed => "completed",
+        }
+    }
+}
+
+fn rnd_job_response(job: &RndJobRecord) -> RndJobResponse {
+    let part_counts = RndPartCounts {
+        queued: job
+            .parts
+            .iter()
+            .filter(|part| part.status == RndPartStatus::Queued)
+            .count(),
+        running: 0,
+        blocked: job
+            .parts
+            .iter()
+            .filter(|part| part.status == RndPartStatus::Blocked)
+            .count(),
+        completed: job
+            .parts
+            .iter()
+            .filter(|part| part.status == RndPartStatus::Validated)
+            .count(),
+    };
+    let latest_artifacts = job
+        .artifacts
+        .iter()
+        .rev()
+        .take(8)
+        .cloned()
+        .collect::<Vec<_>>();
+    RndJobResponse {
+        job_id: job.job_id.clone(),
+        product_type: job.product_type.clone(),
+        design_domain: job.design_domain.clone(),
+        current_stage: job.current_stage.clone(),
+        waiting_on_user: job.waiting_on_user,
+        auto_run_enabled: job.auto_run_enabled,
+        paused_after_current_stage: job.paused_after_current_stage,
+        accepted_plan_version: job.accepted_plan_version,
+        latest_plan: job.plans.last().cloned(),
+        eta: job.eta.clone(),
+        part_counts,
+        risk_flags: job.risk_flags.clone(),
+        latest_validation_summary: job.latest_validation_summary.clone(),
+        latest_artifacts,
+        routing_summary: build_rnd_routing_summary(job.design_domain.as_str()),
+        governance_summary: build_rnd_governance_summary(job),
+        progress_percent: rnd_progress_percent(job),
+    }
+}
+
+fn build_rnd_routing_summary(design_domain: &str) -> RndRoutingSummaryRecord {
+    let mut executor_tasks = vec![
+        "job workspace materialization".to_string(),
+        "artifact package assembly".to_string(),
+    ];
+    if design_domain == "electronics" {
+        executor_tasks.extend([
+            "KiCad schematic generation".to_string(),
+            "KiCad board export packaging".to_string(),
+        ]);
+    } else {
+        executor_tasks.extend([
+            "FreeCAD source generation".to_string(),
+            "FreeCADCmd neutral exports".to_string(),
+            "CalculiX named-load-case simulation".to_string(),
+            "USD/USDZ review-scene packaging".to_string(),
+        ]);
+    }
+
+    RndRoutingSummaryRecord {
+        local_only_tasks: vec![
+            "semantic memory compaction".to_string(),
+            "accepted-plan execution prompt synthesis".to_string(),
+            "subsystem decomposition".to_string(),
+            "assembly-stage planning".to_string(),
+            "cheap self-check loops".to_string(),
+        ],
+        gemini_escalated_tasks: vec![
+            "research_heavy_review".to_string(),
+            "standards/materials/manufacturing literature synthesis".to_string(),
+            "long design-history review".to_string(),
+        ],
+        gpt_escalated_tasks: vec![
+            "architecture_hard_case_review".to_string(),
+            "manufacturing_cost_review".to_string(),
+            "assembly_optimization_review".to_string(),
+            "safety_adversarial_review".to_string(),
+        ],
+        executor_tasks,
+    }
+}
+
 async fn api_key_middleware(
     State(state): State<ApiState>,
     request: Request<Body>,
@@ -5683,6 +10807,15 @@ fn resolve_user_id(
     Some(session_user.user_id)
 }
 
+fn resolve_user_from_scope(
+    state: &ApiState,
+    headers: &HeaderMap,
+    explicit_user_id: Option<String>,
+) -> Option<UserRecord> {
+    let user_id = resolve_user_id(state, headers, explicit_user_id)?;
+    state.users.read().get(&user_id).cloned()
+}
+
 fn resolve_user_id_or_guest(
     state: &ApiState,
     headers: &HeaderMap,
@@ -5805,6 +10938,10 @@ fn default_studio_preferences(user_id: &str) -> StudioPreferencesRecord {
         user_id: user_id.to_string(),
         preferred_format: "structured_plan".to_string(),
         response_depth: "deep".to_string(),
+        memory_depth: "standard".to_string(),
+        compute_mode: "balanced".to_string(),
+        cloud_cost_guardrail: "standard".to_string(),
+        local_resource_guardrail: "balanced".to_string(),
         response_tone: "executive".to_string(),
         proactive_mode: "enabled".to_string(),
         reminders_app: "google_calendar".to_string(),
@@ -5836,6 +10973,31 @@ fn merge_studio_preferences(
     if let Some(value) = incoming.response_depth {
         base.response_depth =
             sanitize_enum_value(value.as_str(), &["quick", "balanced", "deep"], "deep");
+    }
+    if let Some(value) = incoming.memory_depth {
+        base.memory_depth =
+            sanitize_enum_value(value.as_str(), &["compact", "standard", "full"], "standard");
+    }
+    if let Some(value) = incoming.compute_mode {
+        base.compute_mode = sanitize_enum_value(
+            value.as_str(),
+            &["eco", "balanced", "performance"],
+            "balanced",
+        );
+    }
+    if let Some(value) = incoming.cloud_cost_guardrail {
+        base.cloud_cost_guardrail = sanitize_enum_value(
+            value.as_str(),
+            &["tight", "standard", "high_detail"],
+            "standard",
+        );
+    }
+    if let Some(value) = incoming.local_resource_guardrail {
+        base.local_resource_guardrail = sanitize_enum_value(
+            value.as_str(),
+            &["conservative", "balanced", "performance"],
+            "balanced",
+        );
     }
     if let Some(value) = incoming.response_tone {
         base.response_tone = sanitize_enum_value(
@@ -5883,6 +11045,10 @@ fn request_overrides_to_studio(request: &ChatRequest) -> StudioPreferencesUpsert
         user_id: request.user_id.clone(),
         preferred_format: request.preferred_format.clone(),
         response_depth: request.response_depth.clone(),
+        memory_depth: None,
+        compute_mode: None,
+        cloud_cost_guardrail: None,
+        local_resource_guardrail: None,
         response_tone: request.response_tone.clone(),
         proactive_mode: None,
         reminders_app: None,
@@ -7762,6 +12928,206 @@ fn retrieve_user_memory_context(
     retrieve_memory_context_from_records(snapshot.as_slice(), query, limit, chrono::Utc::now())
 }
 
+fn memory_limit_for_preferences(prefs: &StudioPreferencesRecord) -> usize {
+    match prefs.compute_mode.as_str() {
+        "eco" => 6,
+        "performance" => 18,
+        _ => DEFAULT_MEMORY_RETRIEVAL_LIMIT,
+    }
+}
+
+fn memory_item_is_pinned(item: &MemoryRetrievedItem) -> bool {
+    item.tags.iter().any(|tag| {
+        matches!(
+            tag.as_str(),
+            "pinned" | "legal" | "finance" | "identity" | "spec" | "accounting"
+        )
+    }) || item.memory_type == "identity"
+        || item.text.chars().any(|ch| ch.is_ascii_digit())
+}
+
+fn estimate_cloud_input_cost_usd(
+    request: &ChatRequest,
+    notes: &[UserNoteRecord],
+    memory_context: &[MemoryRetrievedItem],
+    prefs: &StudioPreferencesRecord,
+) -> f64 {
+    let note_chars = notes
+        .iter()
+        .map(|note| note.title.len() + note.content.len())
+        .sum::<usize>();
+    let memory_chars = memory_context
+        .iter()
+        .map(|item| item.text.len())
+        .sum::<usize>();
+    let request_chars =
+        request.text.len() + request.preferred_format.as_deref().unwrap_or("").len();
+    let total_tokens = ((request_chars + note_chars + memory_chars) as f64 / 4.0).ceil();
+    let multiplier = match prefs.response_depth.as_str() {
+        "quick" => 0.75,
+        "deep" => 1.35,
+        _ => 1.0,
+    };
+    ((total_tokens / 1_000.0) * 0.01 * multiplier * 1000.0).round() / 1000.0
+}
+
+fn estimate_local_memory_mb(
+    memory_context: &[MemoryRetrievedItem],
+    prefs: &StudioPreferencesRecord,
+) -> u32 {
+    let base = match prefs.compute_mode.as_str() {
+        "eco" => 220,
+        "performance" => 1100,
+        _ => 520,
+    };
+    let memory_depth = match prefs.memory_depth.as_str() {
+        "compact" => 90,
+        "full" => 360,
+        _ => 180,
+    };
+    let context_weight = (memory_context.len() as u32).saturating_mul(18);
+    base + memory_depth + context_weight
+}
+
+fn estimate_local_storage_mb(
+    memory_context: &[MemoryRetrievedItem],
+    prefs: &StudioPreferencesRecord,
+) -> u32 {
+    let base = match prefs.compute_mode.as_str() {
+        "eco" => 256,
+        "performance" => 2048,
+        _ => 768,
+    };
+    let memory_depth = match prefs.memory_depth.as_str() {
+        "compact" => 64,
+        "full" => 512,
+        _ => 192,
+    };
+    base + memory_depth + (memory_context.len() as u32).saturating_mul(12)
+}
+
+fn cloud_cost_threshold_for_preferences(prefs: &StudioPreferencesRecord) -> f64 {
+    match prefs.cloud_cost_guardrail.as_str() {
+        "tight" => 0.04,
+        "high_detail" => 0.16,
+        _ => 0.08,
+    }
+}
+
+fn local_memory_threshold_for_preferences(prefs: &StudioPreferencesRecord) -> u32 {
+    match prefs.local_resource_guardrail.as_str() {
+        "conservative" => 640,
+        "performance" => 2_048,
+        _ => 1_024,
+    }
+}
+
+fn apply_amm_policy(
+    request: &ChatRequest,
+    notes: &[UserNoteRecord],
+    memory_context: Vec<MemoryRetrievedItem>,
+    prefs: &StudioPreferencesRecord,
+) -> (Vec<MemoryRetrievedItem>, AmmDiagnostics) {
+    let estimated_cloud_input_cost_usd =
+        estimate_cloud_input_cost_usd(request, notes, memory_context.as_slice(), prefs);
+    let estimated_local_memory_mb = estimate_local_memory_mb(memory_context.as_slice(), prefs);
+    let estimated_local_storage_mb = estimate_local_storage_mb(memory_context.as_slice(), prefs);
+    let cloud_threshold = cloud_cost_threshold_for_preferences(prefs);
+    let local_threshold = local_memory_threshold_for_preferences(prefs);
+    let cloud_triggered = estimated_cloud_input_cost_usd > cloud_threshold;
+    let local_triggered = estimated_local_memory_mb > local_threshold;
+    let should_compact = cloud_triggered || local_triggered;
+
+    let trigger_reason = if cloud_triggered && local_triggered {
+        "cloud_cost_and_local_budget_threshold"
+    } else if cloud_triggered {
+        "cloud_cost_threshold"
+    } else if local_triggered {
+        "local_resource_threshold"
+    } else {
+        "within_budget"
+    }
+    .to_string();
+
+    let compact_limit = match prefs.compute_mode.as_str() {
+        "eco" => 4,
+        "performance" => memory_context.len().max(1),
+        _ => 8,
+    };
+
+    let pinned_items = memory_context
+        .iter()
+        .filter(|item| memory_item_is_pinned(item))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let final_items = if should_compact && prefs.compute_mode != "performance" {
+        let mut kept = memory_context
+            .iter()
+            .take(compact_limit)
+            .cloned()
+            .collect::<Vec<_>>();
+        for pinned in pinned_items.iter().cloned() {
+            if kept.iter().all(|item| item.memory_id != pinned.memory_id) {
+                kept.push(pinned);
+            }
+        }
+        kept
+    } else {
+        memory_context
+    };
+
+    let tradeoff_summary = if should_compact {
+        format!(
+            "{} mode condensed lower-value context before max limits, while preserving pinned facts and user-critical rationale.",
+            prefs.compute_mode
+        )
+    } else {
+        format!(
+            "{} mode kept the current context envelope because projected cloud and local cost stayed within guardrails.",
+            prefs.compute_mode
+        )
+    };
+
+    (
+        final_items,
+        AmmDiagnostics {
+            active_mode: prefs.compute_mode.clone(),
+            compaction_applied: should_compact && prefs.compute_mode != "performance",
+            trigger_reason,
+            pinned_context_preserved: !pinned_items.is_empty() || !should_compact,
+            estimated_cloud_input_cost_usd,
+            estimated_local_memory_mb,
+            estimated_local_storage_mb,
+            tradeoff_summary,
+        },
+    )
+}
+
+fn sync_lifelogs_from_memories(state: &ApiState, user_id: &str) {
+    let memories = state
+        .user_memories
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default();
+    let lifelogs = memories
+        .into_iter()
+        .map(|memory| LifelogRecord {
+            lifelog_id: memory.memory_id.clone(),
+            user_id: memory.user_id.clone(),
+            memory_id: Some(memory.memory_id),
+            summary: memory.text,
+            source: memory.source,
+            tags: memory.tags,
+            embedding_json: None,
+            created_at: memory.created_at,
+            updated_at: memory.updated_at,
+        })
+        .collect::<Vec<_>>();
+    state.lifelogs.write().insert(user_id.to_string(), lifelogs);
+}
+
 async fn ingest_memory_event_for_user(
     state: &ApiState,
     user_id: &str,
@@ -7775,7 +13141,9 @@ async fn ingest_memory_event_for_user(
         ingest_memory_records_if_opted_in(records, user_id, opt_in, event, now)
     };
     if ingested.is_some() {
+        sync_lifelogs_from_memories(state, user_id);
         let _ = persist_memories_if_configured(state, user_id).await;
+        let _ = persist_lifelogs_if_configured(state, user_id).await;
     }
     ingested
 }
@@ -7795,7 +13163,9 @@ async fn clear_user_memories_by_scope(state: &ApiState, user_id: &str, scope: &s
         before.saturating_sub(records.len())
     };
     if removed_count > 0 {
+        sync_lifelogs_from_memories(state, user_id);
         let _ = persist_memories_if_configured(state, user_id).await;
+        let _ = persist_lifelogs_if_configured(state, user_id).await;
     }
     removed_count
 }
@@ -7935,6 +13305,133 @@ fn build_openai_runtime_config() -> Option<OpenAiRuntimeConfig> {
     })
 }
 
+fn build_premium_stable_context_json(
+    user: Option<&UserRecord>,
+    survey: Option<&SurveyStateRecord>,
+    notes: &[UserNoteRecord],
+    memory_context: &[MemoryRetrievedItem],
+) -> serde_json::Value {
+    let user_context = user.map(|value| {
+        serde_json::json!({
+            "name": value.name,
+            "locale": value.locale,
+            "trip_style": value.trip_style,
+            "risk_preference": value.risk_preference,
+            "memory_opt_in": value.memory_opt_in
+        })
+    });
+    let survey_context = survey.map(|value| serde_json::to_value(value).unwrap_or_default());
+    let notes_context = notes
+        .iter()
+        .take(12)
+        .map(|note| {
+            serde_json::json!({
+                "title": note.title,
+                "content": note.content,
+                "tags": note.tags
+            })
+        })
+        .collect::<Vec<_>>();
+    let memory_context = memory_context
+        .iter()
+        .take(12)
+        .map(|entry| {
+            serde_json::json!({
+                "memory_type": entry.memory_type,
+                "stability": entry.stability,
+                "source": entry.source,
+                "text": entry.text,
+                "weight": entry.weight,
+                "recency_score": entry.recency_score,
+                "relevance_score": entry.relevance_score,
+                "tags": entry.tags
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::json!({
+        "user": user_context,
+        "survey": survey_context,
+        "notes": notes_context,
+        "memory_context": memory_context
+    })
+}
+
+fn stable_context_cache_key(
+    model: &str,
+    stable_context: &serde_json::Value,
+    code_agent_route: Option<CodeAgentRoute>,
+) -> String {
+    let route = code_agent_route
+        .map(CodeAgentRoute::as_str)
+        .unwrap_or("default");
+    let mut hasher = Sha256::new();
+    hasher.update(model.as_bytes());
+    hasher.update(route.as_bytes());
+    hasher.update(stable_context.to_string().as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+fn build_openai_premium_payload(
+    runtime: &OpenAiRuntimeConfig,
+    model: &str,
+    system_prompt: &str,
+    request: &ChatRequest,
+    user: Option<&UserRecord>,
+    survey: Option<&SurveyStateRecord>,
+    notes: &[UserNoteRecord],
+    memory_context: &[MemoryRetrievedItem],
+    fallback_reply: &str,
+    code_agent_route: Option<CodeAgentRoute>,
+) -> serde_json::Value {
+    let stable_context = build_premium_stable_context_json(user, survey, notes, memory_context);
+    let cache_key = stable_context_cache_key(model, &stable_context, code_agent_route);
+    let dynamic_context = serde_json::json!({
+        "user_request": request.text,
+        "fallback_reply": fallback_reply,
+        "preferred_format": request.preferred_format,
+        "response_depth": request.response_depth,
+        "response_tone": request.response_tone,
+        "code_agent_route": code_agent_route.map(CodeAgentRoute::as_str)
+    });
+
+    serde_json::json!({
+        "model": model,
+        "reasoning": {
+            "effort": runtime.default_reasoning_effort
+        },
+        "metadata": {
+            "cache_strategy": "stable_prefix_dynamic_tail",
+            "cache_prefix_key": cache_key,
+            "memory_items_count": memory_context.len().min(12),
+            "notes_count": notes.len().min(12)
+        },
+        "input": [
+            {
+                "role": "system",
+                "content": [
+                    { "type": "input_text", "text": system_prompt }
+                ]
+            },
+            {
+                "role": "system",
+                "content": [
+                    { "type": "input_text", "text": format!("Stable Context JSON: {}", stable_context) }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    { "type": "input_text", "text": format!("Dynamic Task JSON: {}", dynamic_context) }
+                ]
+            }
+        ],
+        "text": {
+            "verbosity": "high"
+        }
+    })
+}
+
 fn build_gemini_runtime_config() -> Option<GeminiRuntimeConfig> {
     let api_key = env::var("ATLAS_GEMINI_API_KEY")
         .ok()
@@ -7966,6 +13463,10 @@ fn build_gemini_runtime_config() -> Option<GeminiRuntimeConfig> {
         .ok()
         .map(|value| value.trim().to_lowercase())
         .filter(|value| matches!(value.as_str(), "low" | "medium" | "high"));
+    let context_cache_name = env::var("ATLAS_GEMINI_CONTEXT_CACHE_NAME")
+        .ok()
+        .map(|value| value.trim().trim_matches('/').to_string())
+        .filter(|value| !value.is_empty());
 
     Some(GeminiRuntimeConfig {
         api_key,
@@ -7974,7 +13475,181 @@ fn build_gemini_runtime_config() -> Option<GeminiRuntimeConfig> {
         temperature,
         max_output_tokens,
         thinking_level,
+        context_cache_name,
     })
+}
+
+fn build_gemini_premium_payload(
+    runtime: &GeminiRuntimeConfig,
+    request: &ChatRequest,
+    user: Option<&UserRecord>,
+    survey: Option<&SurveyStateRecord>,
+    notes: &[UserNoteRecord],
+    memory_context: &[MemoryRetrievedItem],
+    fallback_reply: &str,
+    code_agent_route: Option<CodeAgentRoute>,
+) -> serde_json::Value {
+    let stable_context = build_premium_stable_context_json(user, survey, notes, memory_context);
+    let cache_key =
+        stable_context_cache_key(runtime.model.as_str(), &stable_context, code_agent_route);
+    let dynamic_task = serde_json::json!({
+        "user_request": request.text,
+        "fallback_reply": fallback_reply,
+        "preferred_format": request.preferred_format,
+        "response_depth": request.response_depth,
+        "response_tone": request.response_tone,
+        "code_agent_route": code_agent_route.map(CodeAgentRoute::as_str)
+    });
+
+    let mut generation_config = serde_json::json!({
+        "temperature": runtime.temperature,
+        "maxOutputTokens": runtime.max_output_tokens
+    });
+    if let Some(level) = runtime.thinking_level.as_deref() {
+        generation_config["thinkingConfig"] = serde_json::json!({
+            "thinkingLevel": level
+        });
+    }
+
+    let mut payload = serde_json::json!({
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "text": "You are Atlas Masa Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "parts": [
+                    { "text": format!("Dynamic Task JSON: {}", dynamic_task) }
+                ]
+            }
+        ],
+        "generationConfig": generation_config
+    });
+
+    if let Some(cache_name) = runtime.context_cache_name.as_deref() {
+        payload["cachedContent"] = serde_json::Value::String(cache_name.to_string());
+        payload["systemInstruction"] = serde_json::json!({
+            "parts": [
+                {
+                    "text": format!(
+                        "Cache key: {}. Use the attached cached content as the stable long-term context for this request.",
+                        cache_key
+                    )
+                }
+            ]
+        });
+    } else if let Some(parts) = payload["contents"][1]["parts"].as_array_mut() {
+        parts.insert(
+            0,
+            serde_json::json!({ "text": format!("Stable Context JSON: {}", stable_context) }),
+        );
+    }
+
+    payload
+}
+
+fn sanitize_batch_provider(value: &str) -> String {
+    match value.trim().to_lowercase().as_str() {
+        "openai" | "openai_responses" => "openai".to_string(),
+        "generic" | "generic_jsonl" => "generic_jsonl".to_string(),
+        _ => String::new(),
+    }
+}
+
+fn batch_export_model_name(state: &ApiState, provider: &str) -> String {
+    match provider {
+        "openai" => state
+            .openai_runtime
+            .as_ref()
+            .map(|runtime| runtime.model.clone())
+            .unwrap_or_else(|| "gpt-5.2".to_string()),
+        _ => "provider_agnostic".to_string(),
+    }
+}
+
+fn build_memory_batch_export_jsonl(
+    state: &ApiState,
+    provider: &str,
+    items: &[MemoryRetrievedItem],
+) -> String {
+    let model = batch_export_model_name(state, provider);
+    build_memory_batch_export_jsonl_for_model(provider, model.as_str(), items)
+}
+
+fn build_memory_batch_export_jsonl_for_model(
+    provider: &str,
+    model: &str,
+    items: &[MemoryRetrievedItem],
+) -> String {
+    let mut lines = Vec::with_capacity(items.len());
+
+    for item in items {
+        let task_payload = serde_json::json!({
+            "memory_id": item.memory_id,
+            "memory_type": item.memory_type,
+            "stability": item.stability,
+            "source": item.source,
+            "text": item.text,
+            "tags": item.tags,
+            "weight": item.weight,
+            "recency_score": item.recency_score,
+            "relevance_score": item.relevance_score,
+            "updated_at": item.updated_at
+        });
+
+        let line = if provider == "openai" {
+            serde_json::json!({
+                "custom_id": format!("memory-compaction-{}", item.memory_id),
+                "method": "POST",
+                "url": "/v1/responses",
+                "body": {
+                    "model": model,
+                    "input": [
+                        {
+                            "role": "system",
+                            "content": [
+                                {
+                                    "type": "input_text",
+                                    "text": "Compress this memory into a durable executive memory record. Return compact JSON with summary, why_it_matters, horizon, keep_forever, and tags."
+                                }
+                            ]
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_text",
+                                    "text": format!("Memory Task JSON: {}", task_payload)
+                                }
+                            ]
+                        }
+                    ],
+                    "text": {
+                        "verbosity": "low"
+                    }
+                }
+            })
+        } else {
+            serde_json::json!({
+                "task_id": format!("memory-compaction-{}", item.memory_id),
+                "provider": provider,
+                "model": model,
+                "operation": "memory_compaction",
+                "payload": task_payload
+            })
+        };
+
+        if let Ok(serialized) = serde_json::to_string(&line) {
+            lines.push(serialized);
+        }
+    }
+
+    lines.join("\n")
 }
 
 fn build_cloud_ai_provider_preference() -> CloudAiProviderPreference {
@@ -8036,14 +13711,20 @@ fn cloud_ai_model_name_for_route(
     code_agent_route: Option<CodeAgentRoute>,
 ) -> Option<String> {
     match backend {
-        CloudAiBackend::OpenAi => state.openai_runtime.as_ref().map(|cfg| match code_agent_route {
-            Some(CodeAgentRoute::BackendOps) => cfg.coding_backend_model.clone(),
-            _ => cfg.model.clone(),
-        }),
-        CloudAiBackend::Gemini => state.gemini_runtime.as_ref().map(|cfg| match code_agent_route {
-            Some(CodeAgentRoute::FrontendDesign) => cfg.frontend_design_model.clone(),
-            _ => cfg.model.clone(),
-        }),
+        CloudAiBackend::OpenAi => state
+            .openai_runtime
+            .as_ref()
+            .map(|cfg| match code_agent_route {
+                Some(CodeAgentRoute::BackendOps) => cfg.coding_backend_model.clone(),
+                _ => cfg.model.clone(),
+            }),
+        CloudAiBackend::Gemini => state
+            .gemini_runtime
+            .as_ref()
+            .map(|cfg| match code_agent_route {
+                Some(CodeAgentRoute::FrontendDesign) => cfg.frontend_design_model.clone(),
+                _ => cfg.model.clone(),
+            }),
     }
 }
 
@@ -8323,6 +14004,28 @@ async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {
 
     sqlx::query(
         r#"
+        CREATE TABLE IF NOT EXISTS psychological_profiles (
+          user_id TEXT PRIMARY KEY,
+          data_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS vehicle_profiles (
+          user_id TEXT PRIMARY KEY,
+          data_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS studio_preferences (
           user_id TEXT PRIMARY KEY,
           data_json TEXT NOT NULL
@@ -8370,6 +14073,18 @@ async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {
         r#"
         CREATE TABLE IF NOT EXISTS user_memories (
           memory_id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          data_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS lifelogs (
+          lifelog_id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
           data_json TEXT NOT NULL
         );
@@ -8453,6 +14168,18 @@ async fn ensure_app_schema(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await?;
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS rnd_jobs (
+          job_id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          data_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
     Ok(())
 }
 
@@ -8511,6 +14238,29 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
         );
     }
 
+    let psychological_profiles =
+        sqlx::query("SELECT user_id, data_json FROM psychological_profiles")
+            .fetch_all(pool)
+            .await?;
+    for row in psychological_profiles {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<PsychologicalProfileRecord>(&json) {
+            state
+                .psychological_profiles
+                .insert(row.get("user_id"), value);
+        }
+    }
+
+    let vehicle_profiles = sqlx::query("SELECT user_id, data_json FROM vehicle_profiles")
+        .fetch_all(pool)
+        .await?;
+    for row in vehicle_profiles {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<VehicleProfileRecord>(&json) {
+            state.vehicle_profiles.insert(row.get("user_id"), value);
+        }
+    }
+
     let studio = sqlx::query("SELECT user_id, data_json FROM studio_preferences")
         .fetch_all(pool)
         .await?;
@@ -8563,6 +14313,20 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
         if let Ok(value) = serde_json::from_str::<MemoryRecord>(&json) {
             state
                 .user_memories
+                .entry(row.get("user_id"))
+                .or_default()
+                .push(value);
+        }
+    }
+
+    let lifelogs = sqlx::query("SELECT user_id, data_json FROM lifelogs")
+        .fetch_all(pool)
+        .await?;
+    for row in lifelogs {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<LifelogRecord>(&json) {
+            state
+                .lifelogs
                 .entry(row.get("user_id"))
                 .or_default()
                 .push(value);
@@ -8636,7 +14400,39 @@ async fn load_persistent_state(pool: Option<&SqlitePool>) -> Result<PersistedSta
         }
     }
 
+    let rnd_jobs = sqlx::query("SELECT job_id, data_json FROM rnd_jobs")
+        .fetch_all(pool)
+        .await?;
+    for row in rnd_jobs {
+        let json: String = row.get("data_json");
+        if let Ok(value) = serde_json::from_str::<RndJobRecord>(&json) {
+            state.rnd_jobs.insert(row.get("job_id"), value);
+        }
+    }
+
     Ok(state)
+}
+
+async fn persist_rnd_job_if_configured(state: &ApiState, job: &RndJobRecord) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    let json = serde_json::to_string(job)?;
+    sqlx::query(
+        r#"
+        INSERT INTO rnd_jobs (job_id, user_id, data_json)
+        VALUES (?1, ?2, ?3)
+        ON CONFLICT(job_id) DO UPDATE SET
+          user_id=excluded.user_id,
+          data_json=excluded.data_json
+        "#,
+    )
+    .bind(job.job_id.as_str())
+    .bind(job.user_id.as_str())
+    .bind(json)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 async fn persist_user_if_configured(state: &ApiState, user: &UserRecord) -> Result<()> {
@@ -8671,6 +14467,50 @@ async fn persist_user_if_configured(state: &ApiState, user: &UserRecord) -> Resu
     .bind(user.passkey_user_handle.as_deref())
     .bind(user.created_at.as_str())
     .bind(user.updated_at.as_str())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn persist_psychological_profile_if_configured(
+    state: &ApiState,
+    profile: &PsychologicalProfileRecord,
+) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    let json = serde_json::to_string(profile)?;
+    sqlx::query(
+        r#"
+        INSERT INTO psychological_profiles (user_id, data_json)
+        VALUES (?1, ?2)
+        ON CONFLICT(user_id) DO UPDATE SET data_json=excluded.data_json
+        "#,
+    )
+    .bind(profile.user_id.as_str())
+    .bind(json)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn persist_vehicle_profile_if_configured(
+    state: &ApiState,
+    profile: &VehicleProfileRecord,
+) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    let json = serde_json::to_string(profile)?;
+    sqlx::query(
+        r#"
+        INSERT INTO vehicle_profiles (user_id, data_json)
+        VALUES (?1, ?2)
+        ON CONFLICT(user_id) DO UPDATE SET data_json=excluded.data_json
+        "#,
+    )
+    .bind(profile.user_id.as_str())
+    .bind(json)
     .execute(pool)
     .await?;
     Ok(())
@@ -8908,6 +14748,32 @@ async fn persist_memories_if_configured(state: &ApiState, user_id: &str) -> Resu
         .bind(json)
         .execute(pool)
         .await?;
+    }
+    Ok(())
+}
+
+async fn persist_lifelogs_if_configured(state: &ApiState, user_id: &str) -> Result<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+    sqlx::query("DELETE FROM lifelogs WHERE user_id = ?1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    let lifelogs = state
+        .lifelogs
+        .read()
+        .get(user_id)
+        .cloned()
+        .unwrap_or_default();
+    for lifelog in lifelogs {
+        let json = serde_json::to_string(&lifelog)?;
+        sqlx::query("INSERT INTO lifelogs (lifelog_id, user_id, data_json) VALUES (?1, ?2, ?3)")
+            .bind(lifelog.lifelog_id)
+            .bind(user_id)
+            .bind(json)
+            .execute(pool)
+            .await?;
     }
     Ok(())
 }
@@ -9194,85 +15060,24 @@ async fn generate_premium_openai_reply(
         .as_ref()
         .context("OpenAI runtime is not configured")?;
 
-    let user_context = user.map(|value| {
-        serde_json::json!({
-            "name": value.name,
-            "locale": value.locale,
-            "trip_style": value.trip_style,
-            "risk_preference": value.risk_preference,
-            "memory_opt_in": value.memory_opt_in
-        })
-    });
-    let survey_context = survey.map(|value| serde_json::to_value(value).unwrap_or_default());
-    let notes_context = notes
-        .iter()
-        .take(12)
-        .map(|note| {
-            serde_json::json!({
-                "title": note.title,
-                "content": note.content,
-                "tags": note.tags
-            })
-        })
-        .collect::<Vec<_>>();
-    let memory_context = memory_context
-        .iter()
-        .take(12)
-        .map(|entry| {
-            serde_json::json!({
-                "memory_type": entry.memory_type,
-                "stability": entry.stability,
-                "source": entry.source,
-                "text": entry.text,
-                "weight": entry.weight,
-                "recency_score": entry.recency_score,
-                "relevance_score": entry.relevance_score,
-                "tags": entry.tags
-            })
-        })
-        .collect::<Vec<_>>();
-
     let model = match code_agent_route {
         Some(CodeAgentRoute::BackendOps) => runtime.coding_backend_model.as_str(),
         _ => runtime.model.as_str(),
     };
 
     let system_prompt = "You are Atlas Masa Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum.";
-    let payload = serde_json::json!({
-        "model": model,
-        "reasoning": {
-            "effort": runtime.default_reasoning_effort
-        },
-        "input": [
-            {
-                "role": "system",
-                "content": [
-                    { "type": "input_text", "text": system_prompt }
-                ]
-            },
-            {
-                "role": "user",
-                "content": [
-                    { "type": "input_text", "text": request.text }
-                ]
-            },
-            {
-                "role": "user",
-                "content": [
-                    { "type": "input_text", "text": format!("Context JSON: {}", serde_json::json!({
-                        "user": user_context,
-                        "survey": survey_context,
-                        "notes": notes_context,
-                        "memory_context": memory_context,
-                        "fallback_reply": fallback_reply
-                    })) }
-                ]
-            }
-        ],
-        "text": {
-            "verbosity": "high"
-        }
-    });
+    let payload = build_openai_premium_payload(
+        runtime,
+        model,
+        system_prompt,
+        request,
+        user,
+        survey,
+        notes,
+        memory_context,
+        fallback_reply,
+        code_agent_route,
+    );
 
     let response = state
         .http_client
@@ -9372,77 +15177,16 @@ async fn generate_premium_gemini_reply(
         _ => runtime.model.as_str(),
     };
 
-    let user_context = user.map(|value| {
-        serde_json::json!({
-            "name": value.name,
-            "locale": value.locale,
-            "trip_style": value.trip_style,
-            "risk_preference": value.risk_preference,
-            "memory_opt_in": value.memory_opt_in
-        })
-    });
-    let survey_context = survey.map(|value| serde_json::to_value(value).unwrap_or_default());
-    let notes_context = notes
-        .iter()
-        .take(12)
-        .map(|note| {
-            serde_json::json!({
-                "title": note.title,
-                "content": note.content,
-                "tags": note.tags
-            })
-        })
-        .collect::<Vec<_>>();
-    let memory_context = memory_context
-        .iter()
-        .take(12)
-        .map(|entry| {
-            serde_json::json!({
-                "memory_type": entry.memory_type,
-                "stability": entry.stability,
-                "source": entry.source,
-                "text": entry.text,
-                "weight": entry.weight,
-                "recency_score": entry.recency_score,
-                "relevance_score": entry.relevance_score,
-                "tags": entry.tags
-            })
-        })
-        .collect::<Vec<_>>();
-
-    let context_json = serde_json::json!({
-        "user": user_context,
-        "survey": survey_context,
-        "notes": notes_context,
-        "memory_context": memory_context,
-        "fallback_reply": fallback_reply
-    });
-    let prompt = format!(
-        "You are Atlas Masa Executive Intelligence. Speak with refined, high-class language and clear structure. Act like a strategic chief-of-staff for a high-performing traveler-builder. Prioritize execution, safety, resilience, and momentum.\n\nUser request:\n{}\n\nContext JSON:\n{}",
-        request.text,
-        context_json
+    let payload = build_gemini_premium_payload(
+        runtime,
+        request,
+        user,
+        survey,
+        notes,
+        memory_context,
+        fallback_reply,
+        code_agent_route,
     );
-
-    let mut generation_config = serde_json::json!({
-        "temperature": runtime.temperature,
-        "maxOutputTokens": runtime.max_output_tokens
-    });
-    if let Some(level) = runtime.thinking_level.as_deref() {
-        generation_config["thinkingConfig"] = serde_json::json!({
-            "thinkingLevel": level
-        });
-    }
-    let payload = serde_json::json!({
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    { "text": prompt }
-                ]
-            }
-        ],
-        "generationConfig": generation_config
-    });
 
     let endpoint = build_gemini_generate_content_url(model)?;
     let response = state
@@ -9817,12 +15561,22 @@ async fn security_headers_middleware(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_clear_cookie, build_session_cookie, build_test_stripe_signature,
-        cloud_requirements_for_endpoint, compute_shopify_profit_share,
+        advance_rnd_job, apply_amm_policy, build_clear_cookie,
+        build_memory_batch_export_jsonl_for_model, build_openai_premium_payload, build_rnd_parts,
+        build_rnd_plan, build_rnd_plan_stages, build_rnd_routing_summary, build_session_cookie,
+        build_test_stripe_signature, cloud_requirements_for_endpoint, compute_rnd_eta,
+        compute_shopify_profit_share, create_rnd_approved_baseline,
+        default_studio_preferences, generate_rnd_compliance_report,
+        generate_rnd_document, generate_rnd_document_bundle,
+        generate_rnd_package_artifacts, generate_rnd_validation_artifacts,
         ingest_memory_records_if_opted_in, is_public_endpoint, next_survey_question,
-        prioritize_execution_tasks, request_origin_from_headers,
-        retrieve_memory_context_from_records, schedule_minutes_offset, survey_total_questions,
-        verify_stripe_webhook_signature, ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord,
+        prioritize_execution_tasks, request_origin_from_headers, rnd_has_major_doctrine_failures,
+        retrieve_memory_context_from_records, schedule_minutes_offset, seed_rnd_governance_from_plan,
+        survey_total_questions, sync_rnd_doctrine_and_structure_state, verify_stripe_webhook_signature, ChatRequest,
+        ExecutionTaskCandidate, MemoryIngestEvent, MemoryRecord, MemoryRetrievedItem,
+        OpenAiRuntimeConfig, RndArtifactRecord, RndContextPackRecord, RndDesignDecisionRecord,
+        RndEtaRecord, RndJobRecord, RndPartRecord, RndPartStatus, RndPlanRecord,
+        RndRequirementRecord, RndStageKind, StudioPreferencesRecord, UserNoteRecord, UserRecord,
         DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS,
     };
     use axum::http::{header, HeaderMap, HeaderValue};
@@ -9972,6 +15726,198 @@ mod tests {
         );
         assert!(ingested.is_none());
         assert!(records.is_empty());
+    }
+
+    #[test]
+    fn openai_premium_payload_places_stable_context_before_dynamic_task() {
+        let runtime = OpenAiRuntimeConfig {
+            api_key: "test".to_string(),
+            model: "gpt-5.2".to_string(),
+            coding_backend_model: "gpt-5.3-codex".to_string(),
+            default_reasoning_effort: "high".to_string(),
+        };
+        let request = ChatRequest {
+            session_id: None,
+            text: "Help me plan the next move".to_string(),
+            locale: Some("en".to_string()),
+            user_id: Some("user-1".to_string()),
+            preferred_format: None,
+            response_depth: None,
+            response_tone: None,
+            include_proactive: None,
+            code_agent_route: None,
+        };
+        let user = UserRecord {
+            user_id: "user-1".to_string(),
+            provider: "google".to_string(),
+            email: "user@example.com".to_string(),
+            name: "User".to_string(),
+            locale: "en".to_string(),
+            trip_style: Some("desert".to_string()),
+            risk_preference: Some("measured".to_string()),
+            memory_opt_in: true,
+            passkey_user_handle: None,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
+
+        let payload = build_openai_premium_payload(
+            &runtime,
+            runtime.model.as_str(),
+            "system",
+            &request,
+            Some(&user),
+            None,
+            &[],
+            &[],
+            "fallback",
+            None,
+        );
+
+        let input = payload["input"].as_array().expect("input array");
+        let stable_block = input[1]["content"][0]["text"]
+            .as_str()
+            .expect("stable text");
+        let dynamic_block = input[2]["content"][0]["text"]
+            .as_str()
+            .expect("dynamic text");
+
+        assert!(stable_block.starts_with("Stable Context JSON:"));
+        assert!(dynamic_block.starts_with("Dynamic Task JSON:"));
+        assert!(dynamic_block.contains("fallback"));
+    }
+
+    #[test]
+    fn memory_batch_export_jsonl_contains_one_line_per_item() {
+        let items = vec![
+            MemoryRetrievedItem {
+                memory_id: "m1".to_string(),
+                memory_type: "goal".to_string(),
+                stability: "permanent".to_string(),
+                source: "survey".to_string(),
+                text: "Build a stronger weekly execution cadence".to_string(),
+                weight: 0.9,
+                recency_score: 0.7,
+                relevance_score: 0.8,
+                final_score: 0.84,
+                tags: vec!["execution".to_string()],
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            },
+            MemoryRetrievedItem {
+                memory_id: "m2".to_string(),
+                memory_type: "friction".to_string(),
+                stability: "transient".to_string(),
+                source: "checkin".to_string(),
+                text: "Low energy after long admin blocks".to_string(),
+                weight: 0.6,
+                recency_score: 0.9,
+                relevance_score: 0.65,
+                final_score: 0.71,
+                tags: vec!["energy".to_string()],
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            },
+        ];
+
+        let jsonl =
+            build_memory_batch_export_jsonl_for_model("openai", "gpt-5.2", items.as_slice());
+        let lines = jsonl.lines().collect::<Vec<_>>();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains("\"custom_id\":\"memory-compaction-m1\""));
+        assert!(lines[1].contains("\"custom_id\":\"memory-compaction-m2\""));
+    }
+
+    #[test]
+    fn studio_preferences_include_compute_controls_by_default() {
+        let prefs = default_studio_preferences("user-1");
+        assert_eq!(prefs.compute_mode, "balanced");
+        assert_eq!(prefs.memory_depth, "standard");
+        assert_eq!(prefs.cloud_cost_guardrail, "standard");
+        assert_eq!(prefs.local_resource_guardrail, "balanced");
+    }
+
+    #[test]
+    fn amm_policy_compacts_on_threshold_and_keeps_pinned_context() {
+        let request = ChatRequest {
+            session_id: None,
+            text: "Need a deep execution plan with legal IDs, hardware sizing, budget controls, and retained execution history ".repeat(160),
+            locale: Some("en".to_string()),
+            user_id: Some("user-1".to_string()),
+            preferred_format: None,
+            response_depth: Some("deep".to_string()),
+            response_tone: None,
+            include_proactive: None,
+            code_agent_route: None,
+        };
+        let prefs = StudioPreferencesRecord {
+            user_id: "user-1".to_string(),
+            preferred_format: "structured_plan".to_string(),
+            response_depth: "deep".to_string(),
+            memory_depth: "full".to_string(),
+            compute_mode: "eco".to_string(),
+            cloud_cost_guardrail: "tight".to_string(),
+            local_resource_guardrail: "conservative".to_string(),
+            response_tone: "executive".to_string(),
+            proactive_mode: "enabled".to_string(),
+            reminders_app: "google_calendar".to_string(),
+            alarms_app: "apple_clock".to_string(),
+            voice_mode: "enabled".to_string(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
+        let notes = vec![UserNoteRecord {
+            note_id: "n1".to_string(),
+            user_id: "user-1".to_string(),
+            title: "Long note".to_string(),
+            content: "A".repeat(8_000),
+            tags: vec![],
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        }];
+        let memory_context = vec![
+            MemoryRetrievedItem {
+                memory_id: "m1".to_string(),
+                memory_type: "identity".to_string(),
+                stability: "permanent".to_string(),
+                source: "manual".to_string(),
+                text: "Business ID 12345 and legal registration record".to_string(),
+                weight: 1.0,
+                recency_score: 0.7,
+                relevance_score: 0.8,
+                final_score: 0.9,
+                tags: vec!["pinned".to_string(), "legal".to_string()],
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            },
+            MemoryRetrievedItem {
+                memory_id: "m2".to_string(),
+                memory_type: "preference".to_string(),
+                stability: "permanent".to_string(),
+                source: "survey".to_string(),
+                text: "User likes deep hardware explanations".to_string(),
+                weight: 0.9,
+                recency_score: 0.6,
+                relevance_score: 0.7,
+                final_score: 0.8,
+                tags: vec![],
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            },
+            MemoryRetrievedItem {
+                memory_id: "m3".to_string(),
+                memory_type: "chat".to_string(),
+                stability: "transient".to_string(),
+                source: "chat".to_string(),
+                text: "Repeated greetings and old debug chatter ".repeat(30),
+                weight: 0.4,
+                recency_score: 0.2,
+                relevance_score: 0.1,
+                final_score: 0.3,
+                tags: vec![],
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            },
+        ];
+
+        let (compacted, diagnostics) = apply_amm_policy(&request, &notes, memory_context, &prefs);
+        assert!(diagnostics.compaction_applied);
+        assert!(diagnostics.pinned_context_preserved);
+        assert!(diagnostics.trigger_reason.contains("threshold"));
+        assert!(compacted.iter().any(|item| item.memory_id == "m1"));
     }
 
     #[test]
@@ -10145,5 +16091,692 @@ mod tests {
         assert!(is_public_endpoint("/v1/auth/me"));
         assert!(is_public_endpoint("/v1/auth/logout"));
         assert!(!is_public_endpoint("/v1/profile/upsert"));
+    }
+
+    #[test]
+    fn rnd_plan_blocks_when_research_is_weak_and_prompt_overclaims() {
+        let context = RndContextPackRecord {
+            user_preference_summary: "Locale: en".to_string(),
+            memory_summary: "Prefers safe road-trip builds".to_string(),
+            prior_job_summary: "job-1:vehicle:completed".to_string(),
+            research_summary: "Thin research summary".to_string(),
+            explicit_constraints: vec![
+                "Safety should be treated as a first-class design objective.".to_string(),
+            ],
+            citations: Vec::new(),
+            research_confidence: 0.22,
+        };
+
+        let plan = build_rnd_plan(
+            "vehicle",
+            "Design a fully certified road legal electric camper van with beautiful packaging",
+            "en",
+            &context,
+            1,
+            None,
+        );
+
+        assert!(!plan.executable);
+        assert!(plan
+            .blocking_issues
+            .iter()
+            .any(|issue| issue.contains("Research confidence is weak")));
+        assert!(plan
+            .blocking_issues
+            .iter()
+            .any(|issue| issue.contains("missing concrete engineering constraints")));
+        assert!(plan
+            .blocking_issues
+            .iter()
+            .any(|issue| issue.contains("cannot promise legal sign-off")));
+    }
+
+    #[test]
+    fn rnd_plan_revision_note_becomes_constraint_without_mutating_goals() {
+        let context = RndContextPackRecord {
+            user_preference_summary: "Locale: en".to_string(),
+            memory_summary: "User prioritizes low weight".to_string(),
+            prior_job_summary: String::new(),
+            research_summary: "Strong internal and client research".to_string(),
+            explicit_constraints: vec![
+                "Weight reduction is a priority.".to_string(),
+                "Safety should be treated as a first-class design objective.".to_string(),
+            ],
+            citations: Vec::new(),
+            research_confidence: 0.82,
+        };
+
+        let plan = build_rnd_plan(
+            "vehicle_part",
+            "Design a lightweight suspension arm with aluminum material and clear load targets for safe operation",
+            "en",
+            &context,
+            2,
+            Some("Reduce assembly complexity around the mounting points."),
+        );
+
+        assert!(plan.executable);
+        assert!(plan
+            .constraints
+            .iter()
+            .any(|constraint| constraint.contains("Revision request: Reduce assembly complexity")));
+        assert!(plan
+            .goals
+            .iter()
+            .any(|goal| goal.contains("part-by-part artifacts")));
+    }
+
+    #[test]
+    fn rnd_part_generation_is_deterministic_for_same_plan() {
+        let context = RndContextPackRecord {
+            user_preference_summary: "Locale: en".to_string(),
+            memory_summary: String::new(),
+            prior_job_summary: String::new(),
+            research_summary: "Good research".to_string(),
+            explicit_constraints: vec![
+                "Weight reduction is a priority.".to_string(),
+                "Safety should be treated as a first-class design objective.".to_string(),
+            ],
+            citations: Vec::new(),
+            research_confidence: 0.88,
+        };
+        let plan = build_rnd_plan(
+            "vehicle",
+            "Design a safe lightweight vehicle structure with aluminum material, known load targets, and battery cooling",
+            "en",
+            &context,
+            1,
+            None,
+        );
+
+        let parts_a = build_rnd_parts(&plan);
+        let parts_b = build_rnd_parts(&plan);
+
+        let names_a = parts_a
+            .iter()
+            .map(|part| part.name.clone())
+            .collect::<Vec<_>>();
+        let names_b = parts_b
+            .iter()
+            .map(|part| part.name.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(names_a, names_b);
+        assert!(parts_a.len() >= 6);
+        assert_eq!(parts_a[0].dependencies.len(), 0);
+        assert!(parts_a
+            .iter()
+            .skip(1)
+            .all(|part| part.dependencies == vec!["part-01".to_string()]));
+    }
+
+    #[test]
+    fn rnd_eta_reflects_waiting_state_and_part_retries() {
+        let stages = build_rnd_plan_stages(3);
+        let parts = vec![
+            RndPartRecord {
+                part_id: "part-01".to_string(),
+                name: "frame".to_string(),
+                purpose: "support".to_string(),
+                interfaces: vec!["assembly".to_string()],
+                geometry_constraints: vec!["fit".to_string()],
+                material_assumptions: vec!["confirm".to_string()],
+                manufacturing_assumptions: vec!["review".to_string()],
+                validation_tasks: vec!["load case review".to_string()],
+                dependencies: Vec::new(),
+                status: RndPartStatus::Blocked,
+                retries: 2,
+                risk_flags: vec!["review required".to_string()],
+            },
+            RndPartRecord {
+                part_id: "part-02".to_string(),
+                name: "panel".to_string(),
+                purpose: "cover".to_string(),
+                interfaces: vec!["assembly".to_string()],
+                geometry_constraints: vec!["fit".to_string()],
+                material_assumptions: vec!["confirm".to_string()],
+                manufacturing_assumptions: vec!["review".to_string()],
+                validation_tasks: vec!["fit check".to_string()],
+                dependencies: vec!["part-01".to_string()],
+                status: RndPartStatus::Queued,
+                retries: 0,
+                risk_flags: vec!["review required".to_string()],
+            },
+        ];
+
+        let waiting_eta = compute_rnd_eta(
+            &stages,
+            &parts,
+            RndStageKind::PartValidation,
+            true,
+            "Waiting on user review",
+        );
+        let active_eta = compute_rnd_eta(
+            &stages,
+            &parts,
+            RndStageKind::PartValidation,
+            false,
+            "Validation retries increased runtime",
+        );
+
+        assert_eq!(waiting_eta.current_bottleneck, "user approval");
+        assert_eq!(active_eta.current_bottleneck, "blocked part validation");
+        assert!(active_eta.estimated_remaining_minutes >= waiting_eta.estimated_remaining_minutes);
+    }
+
+    #[test]
+    fn rnd_stage_advance_builds_parts_and_artifacts_in_order() {
+        let context = RndContextPackRecord {
+            user_preference_summary: "Locale: en".to_string(),
+            memory_summary: "User wants safe and sustainable designs".to_string(),
+            prior_job_summary: String::new(),
+            research_summary: "Research summary with manufacturing and sustainability context"
+                .to_string(),
+            explicit_constraints: vec![
+                "Safety should be treated as a first-class design objective.".to_string(),
+                "Prefer more environmentally considerate materials/processes where feasible."
+                    .to_string(),
+            ],
+            citations: Vec::new(),
+            research_confidence: 0.9,
+        };
+        let plan = build_rnd_plan(
+            "vehicle_part",
+            "Design a safe lightweight battery enclosure with aluminum material and crash load targets",
+            "en",
+            &context,
+            1,
+            None,
+        );
+        let stages = build_rnd_plan_stages(plan.proposed_parts.len());
+        let mut job = RndJobRecord {
+            job_id: "job-1".to_string(),
+            user_id: "user-1".to_string(),
+            product_type: "vehicle_part".to_string(),
+            design_domain: "mechanical_cad".to_string(),
+            locale: "en".to_string(),
+            prompt: "Design a safe lightweight battery enclosure with aluminum material and crash load targets".to_string(),
+            context_pack: context,
+            plans: vec![plan.clone()],
+            accepted_plan_version: Some(1),
+            current_stage: RndStageKind::PartDecomposition,
+            waiting_on_user: true,
+            auto_run_enabled: false,
+            paused_after_current_stage: false,
+            parts: Vec::new(),
+            artifacts: Vec::new(),
+            timeline: super::build_rnd_initial_timeline(&stages),
+            eta: compute_rnd_eta(&stages, &[], RndStageKind::PartDecomposition, true, "Awaiting approval"),
+            risk_flags: vec!["human review required".to_string()],
+            latest_validation_summary: String::new(),
+            requirements: Vec::new(),
+            decisions: Vec::new(),
+            design_reviews: Vec::new(),
+            evidence_artifacts: Vec::new(),
+            simulation_runs: Vec::new(),
+            compliance_reports: Vec::new(),
+            approval_records: Vec::new(),
+            audit_events: Vec::new(),
+            approved_baselines: Vec::new(),
+            doctrine_profile: None,
+            doctrine_checks: Vec::new(),
+            module_definitions: Vec::new(),
+            tool_requirements: Vec::new(),
+            bom_items: Vec::new(),
+            assembly_steps: Vec::new(),
+            service_access_points: Vec::new(),
+            inspection_checklist_items: Vec::new(),
+            revision_history: Vec::new(),
+            document_records: Vec::new(),
+            documentation_bundles: Vec::new(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
+
+        advance_rnd_job(&mut job, &plan, Some("approved"));
+        assert_eq!(job.current_stage, RndStageKind::PartGeneration);
+        assert!(!job.parts.is_empty());
+
+        advance_rnd_job(&mut job, &plan, Some("continue"));
+        assert_eq!(job.current_stage, RndStageKind::PartValidation);
+        assert!(job
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.artifact_type == "cad_source"));
+        assert!(job
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.artifact_type == "assembly_step_manifest"));
+        assert!(job
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.artifact_type == "blueprint_package"));
+
+        advance_rnd_job(&mut job, &plan, Some("continue"));
+        assert_eq!(job.current_stage, RndStageKind::PackageAssembly);
+        assert!(job
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.artifact_type == "validation_report"));
+    }
+
+    #[test]
+    fn mechanical_rnd_routing_summary_includes_solver_and_scene_packaging() {
+        let summary = build_rnd_routing_summary("mechanical");
+        assert!(summary
+            .gemini_escalated_tasks
+            .contains(&"research_heavy_review".to_string()));
+        assert!(summary
+            .gpt_escalated_tasks
+            .contains(&"safety_adversarial_review".to_string()));
+        assert!(summary
+            .executor_tasks
+            .contains(&"CalculiX named-load-case simulation".to_string()));
+        assert!(summary
+            .executor_tasks
+            .contains(&"USD/USDZ review-scene packaging".to_string()));
+    }
+
+    #[test]
+    fn mechanical_package_generation_emits_scene_and_simulation_artifacts() {
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut job = RndJobRecord {
+            job_id: "job-1".to_string(),
+            user_id: "user-1".to_string(),
+            product_type: "mechanical_vehicle".to_string(),
+            design_domain: "mechanical".to_string(),
+            locale: "en".to_string(),
+            prompt: "Design a safe lightweight trailer".to_string(),
+            accepted_plan_version: Some(1),
+            current_stage: RndStageKind::PartValidation,
+            waiting_on_user: false,
+            auto_run_enabled: false,
+            paused_after_current_stage: false,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            plans: vec![],
+            context_pack: RndContextPackRecord {
+                user_preference_summary: "prefers lightweight builds".to_string(),
+                memory_summary: "prior work values quiet towing".to_string(),
+                prior_job_summary: "none".to_string(),
+                research_summary: "research ready".to_string(),
+                explicit_constraints: vec!["safety".to_string()],
+                citations: vec![],
+                research_confidence: 0.88,
+            },
+            parts: vec![RndPartRecord {
+                part_id: "part-01".to_string(),
+                name: "Frame Rail".to_string(),
+                purpose: "Primary structure".to_string(),
+                interfaces: vec!["cross member".to_string()],
+                geometry_constraints: vec!["fit inside assembly".to_string()],
+                material_assumptions: vec!["steel review placeholder".to_string()],
+                manufacturing_assumptions: vec!["human review required".to_string()],
+                validation_tasks: vec!["static tongue load".to_string()],
+                dependencies: vec![],
+                status: RndPartStatus::Generated,
+                retries: 0,
+                risk_flags: vec!["review fixture assumptions".to_string()],
+            }],
+            artifacts: vec![],
+            timeline: vec![],
+            eta: RndEtaRecord {
+                estimated_total_minutes: 120,
+                estimated_remaining_minutes: 40,
+                current_stage_estimated_minutes: 20,
+                confidence_label: "medium".to_string(),
+                current_bottleneck: "part validation".to_string(),
+                slippage_reason: "none".to_string(),
+            },
+            risk_flags: vec!["human review required".to_string()],
+            latest_validation_summary: "pending".to_string(),
+            requirements: Vec::new(),
+            decisions: Vec::new(),
+            design_reviews: Vec::new(),
+            evidence_artifacts: Vec::new(),
+            simulation_runs: Vec::new(),
+            compliance_reports: Vec::new(),
+            approval_records: Vec::new(),
+            audit_events: Vec::new(),
+            approved_baselines: Vec::new(),
+            doctrine_profile: None,
+            doctrine_checks: Vec::new(),
+            module_definitions: Vec::new(),
+            tool_requirements: Vec::new(),
+            bom_items: Vec::new(),
+            assembly_steps: Vec::new(),
+            service_access_points: Vec::new(),
+            inspection_checklist_items: Vec::new(),
+            revision_history: Vec::new(),
+            document_records: Vec::new(),
+            documentation_bundles: Vec::new(),
+        };
+
+        generate_rnd_validation_artifacts(&mut job);
+        generate_rnd_package_artifacts(&mut job);
+
+        assert!(job
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.artifact_type == "simulation_input"));
+        assert!(job
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.artifact_type == "simulation_result"));
+        assert!(job
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.artifact_type == "review_scene_package"));
+        assert!(job
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.artifact_type == "assembly_stage_review_scene"));
+    }
+
+    #[test]
+    fn compliance_report_uses_stored_state_and_flags_missing_signoff() {
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut job = RndJobRecord {
+            job_id: "job-2".to_string(),
+            user_id: "user-1".to_string(),
+            product_type: "mechanical_vehicle".to_string(),
+            design_domain: "mechanical_cad".to_string(),
+            locale: "en".to_string(),
+            prompt: "Design a safe lightweight trailer with steel rails".to_string(),
+            accepted_plan_version: Some(1),
+            current_stage: RndStageKind::ReviewHandoff,
+            waiting_on_user: true,
+            auto_run_enabled: false,
+            paused_after_current_stage: false,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            plans: vec![RndPlanRecord {
+                version: 1,
+                generated_at: now.clone(),
+                goals: vec!["Generate a safe trailer package".to_string()],
+                constraints: vec!["Safety first".to_string()],
+                risks: vec!["Human sign-off required".to_string()],
+                assumptions: vec!["Steel placeholder".to_string()],
+                required_research_domains: vec!["mechanical design".to_string()],
+                proposed_parts: vec!["Frame Rail".to_string()],
+                execution_stages: build_rnd_plan_stages(1),
+                user_explanation: "explanation".to_string(),
+                simple_summary: "summary".to_string(),
+                citations: vec![],
+                executable: true,
+                blocking_issues: vec![],
+            }],
+            context_pack: RndContextPackRecord {
+                user_preference_summary: "en".to_string(),
+                memory_summary: "safe".to_string(),
+                prior_job_summary: "none".to_string(),
+                research_summary: "good".to_string(),
+                explicit_constraints: vec!["safety".to_string()],
+                citations: vec![],
+                research_confidence: 0.9,
+            },
+            parts: vec![],
+            artifacts: vec![RndArtifactRecord {
+                artifact_id: "artifact-1".to_string(),
+                part_id: None,
+                artifact_type: "validation_report".to_string(),
+                title: "Validation".to_string(),
+                format: "md".to_string(),
+                content: "Validation content".to_string(),
+                created_at: now.clone(),
+            }],
+            timeline: vec![],
+            eta: RndEtaRecord {
+                estimated_total_minutes: 100,
+                estimated_remaining_minutes: 5,
+                current_stage_estimated_minutes: 5,
+                confidence_label: "medium".to_string(),
+                current_bottleneck: "review".to_string(),
+                slippage_reason: "none".to_string(),
+            },
+            risk_flags: vec!["human sign-off required".to_string()],
+            latest_validation_summary: "ready".to_string(),
+            requirements: vec![],
+            decisions: vec![],
+            design_reviews: vec![],
+            evidence_artifacts: vec![],
+            simulation_runs: vec![],
+            compliance_reports: vec![],
+            approval_records: vec![],
+            audit_events: vec![],
+            approved_baselines: vec![],
+            doctrine_profile: None,
+            doctrine_checks: Vec::new(),
+            module_definitions: Vec::new(),
+            tool_requirements: Vec::new(),
+            bom_items: Vec::new(),
+            assembly_steps: Vec::new(),
+            service_access_points: Vec::new(),
+            inspection_checklist_items: Vec::new(),
+            revision_history: Vec::new(),
+            document_records: Vec::new(),
+            documentation_bundles: Vec::new(),
+        };
+        let plan = job.plans[0].clone();
+        seed_rnd_governance_from_plan(&mut job, &plan);
+        let report = generate_rnd_compliance_report(&mut job, Some("Packet"), "engineering_compliance_packet");
+        assert_eq!(report.title, "Packet");
+        assert!(!report.open_issues.is_empty());
+        assert!(report
+            .open_issues
+            .iter()
+            .any(|issue| issue.contains("No linked approval/sign-off")));
+    }
+
+    #[test]
+    fn approved_baseline_captures_snapshot_hash_and_ids() {
+        let now = chrono::Utc::now().to_rfc3339();
+        let job = RndJobRecord {
+            job_id: "job-3".to_string(),
+            user_id: "user-1".to_string(),
+            product_type: "mechanical_vehicle".to_string(),
+            design_domain: "mechanical_cad".to_string(),
+            locale: "en".to_string(),
+            prompt: "prompt".to_string(),
+            accepted_plan_version: Some(1),
+            current_stage: RndStageKind::Completed,
+            waiting_on_user: false,
+            auto_run_enabled: false,
+            paused_after_current_stage: false,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            plans: vec![],
+            context_pack: RndContextPackRecord {
+                user_preference_summary: "en".to_string(),
+                memory_summary: "memory".to_string(),
+                prior_job_summary: "none".to_string(),
+                research_summary: "good".to_string(),
+                explicit_constraints: vec![],
+                citations: vec![],
+                research_confidence: 0.8,
+            },
+            parts: vec![],
+            artifacts: vec![RndArtifactRecord {
+                artifact_id: "artifact-1".to_string(),
+                part_id: None,
+                artifact_type: "assembly_package".to_string(),
+                title: "Assembly".to_string(),
+                format: "md".to_string(),
+                content: "Assembly".to_string(),
+                created_at: now.clone(),
+            }],
+            timeline: vec![],
+            eta: RndEtaRecord {
+                estimated_total_minutes: 0,
+                estimated_remaining_minutes: 0,
+                current_stage_estimated_minutes: 0,
+                confidence_label: "high".to_string(),
+                current_bottleneck: "none".to_string(),
+                slippage_reason: "done".to_string(),
+            },
+            risk_flags: vec![],
+            latest_validation_summary: "done".to_string(),
+            requirements: vec![RndRequirementRecord {
+                requirement_id: "req-1".to_string(),
+                title: "Req".to_string(),
+                description: "Desc".to_string(),
+                requirement_kind: "goal".to_string(),
+                status: "approved".to_string(),
+                source_plan_version: 1,
+                linked_component_ids: vec![],
+                linked_decision_ids: vec![],
+                linked_evidence_ids: vec![],
+                linked_report_ids: vec![],
+                linked_approval_ids: vec![],
+                verification_notes: vec![],
+                created_at: now.clone(),
+                updated_at: now.clone(),
+            }],
+            decisions: vec![RndDesignDecisionRecord {
+                decision_id: "dec-1".to_string(),
+                title: "Decision".to_string(),
+                context: "Context".to_string(),
+                decision: "Do it".to_string(),
+                rationale: "Because".to_string(),
+                status: "approved".to_string(),
+                source_plan_version: 1,
+                supersedes_decision_id: None,
+                requirement_ids: vec!["req-1".to_string()],
+                component_ids: vec![],
+                evidence_ids: vec![],
+                affected_artifact_ids: vec!["artifact-1".to_string()],
+                review_ids: vec![],
+                created_at: now.clone(),
+                updated_at: now.clone(),
+            }],
+            design_reviews: vec![],
+            evidence_artifacts: vec![],
+            simulation_runs: vec![],
+            compliance_reports: vec![],
+            approval_records: vec![],
+            audit_events: vec![],
+            approved_baselines: vec![],
+            doctrine_profile: None,
+            doctrine_checks: Vec::new(),
+            module_definitions: Vec::new(),
+            tool_requirements: Vec::new(),
+            bom_items: Vec::new(),
+            assembly_steps: Vec::new(),
+            service_access_points: Vec::new(),
+            inspection_checklist_items: Vec::new(),
+            revision_history: Vec::new(),
+            document_records: Vec::new(),
+            documentation_bundles: Vec::new(),
+        };
+        let baseline = create_rnd_approved_baseline(&job, "Baseline", "approval-1");
+        assert_eq!(baseline.status, "locked");
+        assert!(!baseline.snapshot_hash.is_empty());
+        assert!(baseline.artifact_ids.contains(&"artifact-1".to_string()));
+        assert!(baseline.requirement_ids.contains(&"req-1".to_string()));
+    }
+
+    #[test]
+    fn documentation_bundle_and_doctrine_gate_are_generated_from_job_state() {
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut job = RndJobRecord {
+            job_id: "job-4".to_string(),
+            user_id: "user-1".to_string(),
+            product_type: "mechanical_vehicle".to_string(),
+            design_domain: "mechanical_cad".to_string(),
+            locale: "en".to_string(),
+            prompt: "Design an affordable trailer with dealer-only repair, hidden service access, many variants, and custom billet trim.".to_string(),
+            accepted_plan_version: Some(1),
+            current_stage: RndStageKind::ReviewHandoff,
+            waiting_on_user: true,
+            auto_run_enabled: false,
+            paused_after_current_stage: false,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            plans: vec![RndPlanRecord {
+                version: 1,
+                generated_at: now.clone(),
+                goals: vec!["Build a trailer".to_string()],
+                constraints: vec!["Affordable".to_string()],
+                risks: vec!["Service access".to_string()],
+                assumptions: vec!["Use common materials".to_string()],
+                required_research_domains: vec!["manufacturing".to_string()],
+                proposed_parts: vec!["Frame".to_string(), "Utility module".to_string()],
+                execution_stages: build_rnd_plan_stages(2),
+                user_explanation: "Plan".to_string(),
+                simple_summary: "Summary".to_string(),
+                citations: vec![],
+                executable: true,
+                blocking_issues: vec![],
+            }],
+            context_pack: RndContextPackRecord {
+                user_preference_summary: "en".to_string(),
+                memory_summary: "repairability matters".to_string(),
+                prior_job_summary: "none".to_string(),
+                research_summary: "good".to_string(),
+                explicit_constraints: vec!["low tool count".to_string()],
+                citations: vec![],
+                research_confidence: 0.9,
+            },
+            parts: vec![],
+            artifacts: vec![],
+            timeline: vec![],
+            eta: RndEtaRecord {
+                estimated_total_minutes: 100,
+                estimated_remaining_minutes: 10,
+                current_stage_estimated_minutes: 10,
+                confidence_label: "medium".to_string(),
+                current_bottleneck: "review".to_string(),
+                slippage_reason: "none".to_string(),
+            },
+            risk_flags: vec!["service access drift".to_string()],
+            latest_validation_summary: "ready".to_string(),
+            requirements: vec![],
+            decisions: vec![],
+            design_reviews: vec![],
+            evidence_artifacts: vec![],
+            simulation_runs: vec![],
+            compliance_reports: vec![],
+            approval_records: vec![],
+            audit_events: vec![],
+            approved_baselines: vec![],
+            doctrine_profile: None,
+            doctrine_checks: Vec::new(),
+            module_definitions: Vec::new(),
+            tool_requirements: Vec::new(),
+            bom_items: Vec::new(),
+            assembly_steps: Vec::new(),
+            service_access_points: Vec::new(),
+            inspection_checklist_items: Vec::new(),
+            revision_history: Vec::new(),
+            document_records: Vec::new(),
+            documentation_bundles: Vec::new(),
+        };
+
+        sync_rnd_doctrine_and_structure_state(&mut job);
+        assert!(rnd_has_major_doctrine_failures(&job));
+
+        let public_story = generate_rnd_document(
+            &mut job,
+            "public_project_story",
+            "public",
+            Some("Public Story"),
+            Some("Budget Trailer"),
+            Some("R1"),
+            None,
+            None,
+            "tester@example.com",
+        );
+        assert_eq!(public_story.document_type, "public_project_story");
+        assert!(job.artifacts.iter().any(|artifact| artifact.artifact_type == "documentation_source"));
+
+        let bundle = generate_rnd_document_bundle(
+            &mut job,
+            "public",
+            Some("Budget Trailer"),
+            Some("Budget Trailer"),
+            Some("R1"),
+            "tester@example.com",
+        );
+        assert_eq!(bundle.document_ids.len(), 6);
+        assert!(job.document_records.len() >= 6);
     }
 }

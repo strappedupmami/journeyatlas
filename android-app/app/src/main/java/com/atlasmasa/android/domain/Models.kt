@@ -142,5 +142,12 @@ data class AtlasSessionState(
     val openAiCompatibleApiKey: String = "",
     val geminiApiKey: String = "",
     val podcastVoiceName: String = "Kore",
+    val remoteDesktopBaseUrl: String = "http://127.0.0.1:8765",
+    val remoteDesktopToken: String = "",
+    val remoteDesktopStatus: String = "Enter the desktop URL and pairing token from BlackHaven.",
+    val remoteDesktopName: String = "No desktop connected",
+    val remoteDesktopLocalModel: String = "qwen2.5:7b",
+    val remoteDesktopQueueDepth: Int = 0,
+    val remoteDesktopLastAction: String = "No remote actions yet.",
     val systemOutput: List<String> = listOf("Booting Atlas Android local core..."),
 )

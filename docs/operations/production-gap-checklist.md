@@ -25,7 +25,7 @@ This checklist audits production readiness against the contract:
 - Contract area: Mobile-first UX, auth/survey reliability
 - Evidence: Studio showed `Connection issue: 502`, `Passkey login start failed (502)`, `Could not load survey` while API candidates existed.
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/website/concierge-local.html`
+  - `/Users/avrohom/Downloads/BlackHaven/website/concierge-local.html`
 - Implementation plan executed:
   1. Harden request client to continue across API base candidates on upstream failures.
   2. Prefer `https://api.atlasmasa.com` first on production domains.
@@ -40,8 +40,8 @@ This checklist audits production readiness against the contract:
 - Status: `Closed`
 - Contract area: Passwordless auth + security hardening
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/tests/tests/api_integration.rs`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/tests/tests/api_integration.rs`
 - Implementation plan executed:
   1. Set legacy `/v1/auth/social_login` fallback default to disabled.
   2. Keep explicit env switch for controlled local/test usage.
@@ -55,8 +55,8 @@ This checklist audits production readiness against the contract:
 - Status: `Closed`
 - Contract area: Passwordless auth completeness
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-  - `/Users/avrohom/Downloads/journeyatlas/website/concierge-local.html`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+  - `/Users/avrohom/Downloads/BlackHaven/website/concierge-local.html`
 - Implementation plan executed:
   1. Add Apple OAuth runtime config loader.
   2. Add `/v1/auth/apple/start` and `/v1/auth/apple/callback` handlers.
@@ -72,8 +72,8 @@ This checklist audits production readiness against the contract:
 - Status: `Closed`
 - Contract area: API security and operability
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-  - `/Users/avrohom/Downloads/journeyatlas/website/concierge-local.html`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+  - `/Users/avrohom/Downloads/BlackHaven/website/concierge-local.html`
 - Implementation plan executed:
   1. Expand `/health` with capability flags (`google_oauth`, `apple_oauth`, `passkey`, `billing`).
   2. Ensure Apple auth routes are treated as public where required.
@@ -87,7 +87,7 @@ This checklist audits production readiness against the contract:
 - Status: `Closed`
 - Contract area: Deep personalization continuity
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/website/concierge-local.html`
+  - `/Users/avrohom/Downloads/BlackHaven/website/concierge-local.html`
 - Implementation plan executed:
   1. Add local adaptive survey fallback payload generation.
   2. Preserve user progression in local mode until API recovers.
@@ -102,7 +102,7 @@ This checklist audits production readiness against the contract:
 - Status: `Closed`
 - Contract area: Mobile-first UX
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/website/sitewide-language.js`
+  - `/Users/avrohom/Downloads/BlackHaven/website/sitewide-language.js`
 - Implementation plan executed:
   1. Make switcher mount responsive to viewport changes.
   2. Keep switcher inside hamburger menu on mobile widths.
@@ -116,7 +116,7 @@ This checklist audits production readiness against the contract:
 - Status: `Open`
 - Contract area: OAuth hardening
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
 - Implementation plan:
   1. Validate Apple `id_token` signature via Apple JWKS (kid/alg selection).
   2. Cache JWKS keys with TTL and rotation support.
@@ -130,8 +130,8 @@ This checklist audits production readiness against the contract:
 - Status: `Open` (code-ready, platform config pending)
 - Contract area: Billing
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/crates/api/src/lib.rs`
-  - `/Users/avrohom/Downloads/journeyatlas/docs/operations/api-production-deploy.md`
+  - `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/crates/api/src/lib.rs`
+  - `/Users/avrohom/Downloads/BlackHaven/docs/operations/api-production-deploy.md`
 - Implementation plan:
   1. Verify Stripe domain registration for `atlasmasa.com` and `www.atlasmasa.com`.
   2. Confirm Apple Pay wallet button appears in Stripe Checkout on Safari/iOS.
@@ -145,8 +145,8 @@ This checklist audits production readiness against the contract:
 - Status: `Open`
 - Contract area: CI/repo security
 - Exact files:
-  - `/Users/avrohom/Downloads/journeyatlas/.github/workflows/ci.yml`
-  - `/Users/avrohom/Downloads/journeyatlas/.github/workflows/security-scan.yml`
+  - `/Users/avrohom/Downloads/BlackHaven/.github/workflows/ci.yml`
+  - `/Users/avrohom/Downloads/BlackHaven/.github/workflows/security-scan.yml`
 - Implementation plan:
   1. Enforce branch protection with required checks + signed commits.
   2. Restrict who can merge to protected branches.

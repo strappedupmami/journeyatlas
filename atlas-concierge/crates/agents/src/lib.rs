@@ -1,3 +1,5 @@
+pub mod wealth;
+
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -16,6 +18,8 @@ use atlas_storage::{InventoryRepository, SessionRepository};
 use chrono::{Duration, Utc};
 use tracing::{info, instrument};
 use uuid::Uuid;
+
+pub use wealth::{BankLinkOrchestrator, WealthAutomationCycle, WealthBabysitter};
 
 #[derive(Clone)]
 pub struct ConciergeAgent<S>

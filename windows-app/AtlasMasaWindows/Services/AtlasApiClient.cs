@@ -178,6 +178,8 @@ public sealed class AtlasApiClient
         string? responseTone = null,
         bool? includeProactive = null,
         string? codeAgentRoute = null,
+        string? preferredCloudModel = null,
+        string? cloudFallbackModel = null,
         CancellationToken cancellationToken = default)
     {
         var trimmed = (prompt ?? string.Empty).Trim();
@@ -196,7 +198,9 @@ public sealed class AtlasApiClient
                 ResponseDepth = responseDepth,
                 ResponseTone = responseTone,
                 IncludeProactive = includeProactive,
-                CodeAgentRoute = codeAgentRoute
+                CodeAgentRoute = codeAgentRoute,
+                PreferredCloudModel = preferredCloudModel,
+                CloudFallbackModel = cloudFallbackModel
             };
             var jsonBody = JsonSerializer.Serialize(payload, _jsonOptions);
             using var request = BuildRequest(HttpMethod.Post, "/v1/chat", jsonBody);
@@ -459,6 +463,12 @@ public sealed class AtlasApiClient
 
         [JsonPropertyName("code_agent_route")]
         public string? CodeAgentRoute { get; set; }
+
+        [JsonPropertyName("preferred_cloud_model")]
+        public string? PreferredCloudModel { get; set; }
+
+        [JsonPropertyName("cloud_fallback_model")]
+        public string? CloudFallbackModel { get; set; }
     }
 
     private sealed class ChatResponseWire

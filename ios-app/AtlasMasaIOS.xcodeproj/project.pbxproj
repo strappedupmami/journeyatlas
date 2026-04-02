@@ -14,6 +14,8 @@
 		303CDA112E0C9FC3E2C419BF /* WorkspacesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0788DC188770B93B6ECEFD7 /* WorkspacesCard.swift */; };
 		4184C4556F14CCAC189A8A64 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79518C0E78CCD7BBC70ECCEC /* AppEnvironment.swift */; };
 		488506F8DBBFD30B280D2C97 /* AIGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718E7D41EE3739075E172D54 /* AIGuideCard.swift */; };
+		52A100000000000000000001 /* DesktopRemoteControlStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A100000000000000000002 /* DesktopRemoteControlStore.swift */; };
+		52A100000000000000000003 /* DesktopRemoteControlCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A100000000000000000004 /* DesktopRemoteControlCard.swift */; };
 		5FDC3721CF2269032B946984 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 56B47B94BE2FC686806F4D11 /* Assets.xcassets */; };
 		61C6EABFD9EA39AB9B2AF8F9 /* NotesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2FB058F29862322D6CD10F /* NotesCard.swift */; };
 		753F48951C6A8CEBFF52602A /* AtlasMasaIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A948780B2AEA121FB71DC9 /* AtlasMasaIOSApp.swift */; };
@@ -53,6 +55,8 @@
 		4F771EBB5CCDBB602C1E9E99 /* AppleSignInCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCard.swift; sourceTree = "<group>"; };
 		5014C35464AC8AB293BFC704 /* AtlasMasaIOSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasMasaIOSTests.swift; sourceTree = "<group>"; };
 		56B47B94BE2FC686806F4D11 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		52A100000000000000000002 /* DesktopRemoteControlStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopRemoteControlStore.swift; sourceTree = "<group>"; };
+		52A100000000000000000004 /* DesktopRemoteControlCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopRemoteControlCard.swift; sourceTree = "<group>"; };
 		623A587F018149ECA85AECE8 /* SubscriptionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCard.swift; sourceTree = "<group>"; };
 		718E7D41EE3739075E172D54 /* AIGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIGuideCard.swift; sourceTree = "<group>"; };
 		79518C0E78CCD7BBC70ECCEC /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
@@ -115,6 +119,7 @@
 				DFDF8EB1FBE897DC5F4761CC /* AtlasResearchEngine.swift */,
 				1A47316250F981565BB99763 /* AtlasResearchPack.swift */,
 				18C04B9A49AC03F2D4CFCBF9 /* AtlasTheme.swift */,
+				52A100000000000000000002 /* DesktopRemoteControlStore.swift */,
 				4BC2757A1F0F487EE0C57394 /* JobMarketRadar.swift */,
 				845A4AD25BE117ED58D88E98 /* LocalReasoningEngine.swift */,
 				AB3C0B31DC9E97E4AEF04C94 /* Models.swift */,
@@ -129,6 +134,14 @@
 				1D6F81FED4A2F47B178CD467 /* SystemOutputCard.swift */,
 			);
 			path = Status;
+			sourceTree = "<group>";
+		};
+		52A100000000000000000005 /* Remote */ = {
+			isa = PBXGroup;
+			children = (
+				52A100000000000000000004 /* DesktopRemoteControlCard.swift */,
+			);
+			path = Remote;
 			sourceTree = "<group>";
 		};
 		52729BA6CB69C6126C1D3385 /* Queue */ = {
@@ -201,6 +214,7 @@
 				548D07F3FB6009D64C1A86CD /* Mobility */,
 				C9A051349858C4DA3F688577 /* Notes */,
 				52729BA6CB69C6126C1D3385 /* Queue */,
+				52A100000000000000000005 /* Remote */,
 				488F577270A1EF8FBD82EEF5 /* Status */,
 				258C005915EA0E13F6BC84F8 /* Survey */,
 				D6F2270D8AD1CAEE0CA656AE /* Workspaces */,
@@ -358,6 +372,8 @@
 				F7F33B27B2616746CEE78FE1 /* AtlasResearchPack.swift in Sources */,
 				01A8C866B1F49624ACA4AB77 /* AtlasTheme.swift in Sources */,
 				E62ED0B804E60A3AB4FE1897 /* CommandCenterCard.swift in Sources */,
+				52A100000000000000000003 /* DesktopRemoteControlCard.swift in Sources */,
+				52A100000000000000000001 /* DesktopRemoteControlStore.swift in Sources */,
 				ECE8C0E4823BE7167FA76EC6 /* JobMarketRadar.swift in Sources */,
 				960B4FD9B9ABD4DA5E62A703 /* LocalReasoningEngine.swift in Sources */,
 				DBFFDCF635F61D5B8508725D /* MobilityOpsCard.swift in Sources */,

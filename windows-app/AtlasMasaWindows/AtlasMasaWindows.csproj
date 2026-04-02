@@ -5,6 +5,10 @@
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RootNamespace>AtlasMasaWindows</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <AssemblyTitle>BlackHaven</AssemblyTitle>
+    <Product>BlackHaven</Product>
+    <Company>BlackHaven</Company>
     <Platforms>x64;ARM64</Platforms>
     <RuntimeIdentifiers>win10-x64;win10-arm64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>

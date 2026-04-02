@@ -12,7 +12,7 @@ Ship a working Hebrew RTL preview build without public launch.
 
 ## Step 1 - Open project
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ```
 
 ## Step 2 - Run local website
@@ -60,11 +60,11 @@ Stop after preview works. Do not add booking engine yet.
 ## Optional: Run Rust Concierge + connect from static homepage
 1. Start concierge API:
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas/atlas-concierge
+cd /Users/avrohom/Downloads/BlackHaven/atlas-concierge
 cargo run -p atlas-api
 ```
 2. Open static website:
-- `/Users/avrohom/Downloads/journeyatlas/website/homepage.html`
+- `/Users/avrohom/Downloads/BlackHaven/website/homepage.html`
 3. Click `AI קונסיירז׳` in nav (or open `website/concierge-local.html`).
 4. In the page keep:
 - API base: `http://localhost:8080`

@@ -157,7 +157,7 @@ curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-pre
 ## New Chat Bootstrap
 Use this line:
 
-`Read /Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md first, then continue implementation exactly under these contracts.`
+`Read /Users/avrohom/Downloads/BlackHaven/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md first, then continue implementation exactly under these contracts.`
 
 ## New Chat Intake Checklist (Mandatory)
 - Confirm podcast is implemented as 2-model pipeline, not single-call text generation.

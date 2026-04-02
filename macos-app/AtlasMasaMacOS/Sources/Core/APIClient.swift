@@ -112,7 +112,9 @@ struct APIClient {
         responseDepth: String?,
         responseTone: String?,
         includeProactive: Bool?,
-        codeAgentRoute: String? = nil
+        codeAgentRoute: String? = nil,
+        preferredCloudModel: String? = nil,
+        cloudFallbackModel: String? = nil
     ) async throws -> ConciergeChatResponse {
         try await post(
             path: "/v1/chat",
@@ -125,7 +127,9 @@ struct APIClient {
                 responseDepth: responseDepth,
                 responseTone: responseTone,
                 includeProactive: includeProactive,
-                codeAgentRoute: codeAgentRoute
+                codeAgentRoute: codeAgentRoute,
+                preferredCloudModel: preferredCloudModel,
+                cloudFallbackModel: cloudFallbackModel
             )
         )
     }
@@ -137,6 +141,126 @@ struct APIClient {
     func exchangeNativeApple(identityToken: String, authorizationCode: String?, locale: String) async throws {
         // Scaffold endpoint for native Sign in with Apple exchange.
         _ = try await postRaw(path: "/v1/auth/apple/native", body: NativeAppleExchangePayload(identityToken: identityToken, authorizationCode: authorizationCode, locale: locale))
+    }
+
+    func createRAndDJob(payload: RAndDJobCreatePayload) async throws -> RAndDJobResponse {
+        try await post(path: "/v1/rnd/jobs", body: payload)
+    }
+
+    func rAndDJob(jobID: String) async throws -> RAndDJobResponse {
+        try await get(path: "/v1/rnd/jobs/\(jobID)")
+    }
+
+    func reviseRAndDPlan(jobID: String, revisionPrompt: String) async throws -> RAndDJobResponse {
+        try await post(
+            path: "/v1/rnd/jobs/\(jobID)/plan/revise",
+            body: RAndDPlanRevisePayload(revisionPrompt: revisionPrompt)
+        )
+    }
+
+    func approveRAndDPlan(jobID: String) async throws -> RAndDJobResponse {
+        try await post(path: "/v1/rnd/jobs/\(jobID)/plan/approve", body: EmptyPayload())
+    }
+
+    func approveRAndDStage(jobID: String, note: String?) async throws -> RAndDJobResponse {
+        try await post(
+            path: "/v1/rnd/jobs/\(jobID)/stage/approve",
+            body: RAndDStageApprovePayload(note: note)
+        )
+    }
+
+    func pauseRAndDExecution(jobID: String, pauseAfterCurrentStage: Bool = true) async throws -> RAndDJobResponse {
+        try await post(
+            path: "/v1/rnd/jobs/\(jobID)/pause",
+            body: RAndDPausePayload(pauseAfterCurrentStage: pauseAfterCurrentStage)
+        )
+    }
+
+    func submitRAndDChangeRequest(
+        jobID: String,
+        scope: String?,
+        targetPartID: String?,
+        request: String
+    ) async throws -> RAndDJobResponse {
+        try await post(
+            path: "/v1/rnd/jobs/\(jobID)/change_request",
+            body: RAndDChangeRequestPayload(scope: scope, targetPartID: targetPartID, request: request)
+        )
+    }
+
+    func rAndDArtifacts(jobID: String) async throws -> RAndDArtifactsResponse {
+        try await get(path: "/v1/rnd/jobs/\(jobID)/artifacts")
+    }
+
+    func rAndDTimeline(jobID: String) async throws -> RAndDTimelineResponse {
+        try await get(path: "/v1/rnd/jobs/\(jobID)/timeline")
+    }
+
+    func rAndDGovernance(jobID: String) async throws -> RAndDGovernanceResponse {
+        try await get(path: "/v1/rnd/jobs/\(jobID)/governance")
+    }
+
+    func rAndDTraceability(jobID: String) async throws -> RAndDTraceabilityResponse {
+        try await get(path: "/v1/rnd/jobs/\(jobID)/traceability")
+    }
+
+    func rAndDDoctrine(jobID: String) async throws -> RAndDDoctrineResponse {
+        try await get(path: "/v1/rnd/jobs/\(jobID)/doctrine")
+    }
+
+    func rAndDDocuments(jobID: String) async throws -> RAndDDocumentsResponse {
+        try await get(path: "/v1/rnd/jobs/\(jobID)/documents")
+    }
+
+    func recordRAndDReview(
+        jobID: String,
+        title: String?,
+        status: String?,
+        note: String?
+    ) async throws -> RAndDJobResponse {
+        try await post(
+            path: "/v1/rnd/jobs/\(jobID)/reviews/record",
+            body: RAndDReviewRecordPayload(
+                title: title,
+                status: status,
+                note: note,
+                requirementIDs: nil,
+                decisionIDs: nil,
+                evidenceIDs: nil
+            )
+        )
+    }
+
+    func generateRAndDReport(
+        jobID: String,
+        title: String?,
+        reportType: String?
+    ) async throws -> RAndDJobResponse {
+        try await post(
+            path: "/v1/rnd/jobs/\(jobID)/reports/generate",
+            body: RAndDReportGeneratePayload(title: title, reportType: reportType)
+        )
+    }
+
+    func generateRAndDDocument(
+        jobID: String,
+        payload: RAndDDocumentGeneratePayload
+    ) async throws -> RAndDJobResponse {
+        try await post(path: "/v1/rnd/jobs/\(jobID)/documents/generate", body: payload)
+    }
+
+    func generateRAndDDocumentBundle(
+        jobID: String,
+        payload: RAndDDocumentBundleGeneratePayload
+    ) async throws -> RAndDJobResponse {
+        try await post(path: "/v1/rnd/jobs/\(jobID)/documents/bundle/generate", body: payload)
+    }
+
+    func recordRAndDApproval(
+        jobID: String,
+        payload: RAndDApprovalRecordPayload
+    ) async throws -> RAndDJobResponse {
+        try await post(path: "/v1/rnd/jobs/\(jobID)/approvals/record", body: payload)
     }
 
     private func get<T: Decodable>(path: String) async throws -> T {

@@ -165,6 +165,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun updateRemoteDesktopConfig(baseUrl: String, token: String) {
+        viewModelScope.launch {
+            repository.updateRemoteDesktopConfig(baseUrl, token)
+        }
+    }
+
+    fun refreshRemoteDesktopStatus() {
+        viewModelScope.launch {
+            repository.refreshRemoteDesktopStatus()
+        }
+    }
+
+    fun dispatchRemoteDesktopPrompt(prompt: String, target: String, route: String?) {
+        viewModelScope.launch {
+            repository.dispatchRemoteDesktopPrompt(prompt, target, route)
+        }
+    }
+
     fun refreshFeed() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(feed = repository.generateFeed())

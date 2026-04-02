@@ -15,7 +15,7 @@ cargo --version
 Generate lockfiles once:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 npm install --package-lock-only
 cd atlas-concierge
 cargo generate-lockfile
@@ -34,7 +34,7 @@ Expected:
 
 ## 2) Open UI
 Open directly:
-- `/Users/avrohom/Downloads/journeyatlas/website/concierge-local.html`
+- `/Users/avrohom/Downloads/BlackHaven/website/concierge-local.html`
 
 Recommended (avoids Safari `Load failed` issues from `file://`):
 

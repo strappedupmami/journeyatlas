@@ -86,7 +86,7 @@ In Apple Developer:
 - Create a Sign in with Apple key (`.p8`) and associate with primary App ID.
 
 Generate `ATLAS_APPLE_CLIENT_SECRET` (JWT):
-- Use `/Users/avrohom/Downloads/journeyatlas/scripts/generate-apple-client-secret.sh`
+- Use `/Users/avrohom/Downloads/BlackHaven/scripts/generate-apple-client-secret.sh`
 - Example:
   - `scripts/generate-apple-client-secret.sh --team-id <TEAM_ID> --key-id <KEY_ID> --client-id com.atlasmasa.web --p8 /path/to/AuthKey_<KEY_ID>.p8 --copy`
 
@@ -121,7 +121,7 @@ In Stripe:
 - Confirm webhook signature validation is enabled (`ATLAS_STRIPE_WEBHOOK_SECRET` set).
 - Confirm legacy auth route is retired:
   - `POST /v1/auth/social_login` returns `410 legacy_auth_retired`
-- Confirm branch protections and code security settings are enabled (see `/Users/avrohom/Downloads/journeyatlas/docs/security/repository-hardening.md`).
+- Confirm branch protections and code security settings are enabled (see `/Users/avrohom/Downloads/BlackHaven/docs/security/repository-hardening.md`).
 
 ## 9) Explicit owner actions required (cannot be automated by code edits)
 - In Google Cloud, create/own the OAuth app and provide:

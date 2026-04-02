@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#090b10" />
+    <title>Atlas Masa | Apple Ecosystem</title>
+    <meta
+      name="description"
+      content="Apple web integrations for Atlas Masa: Sign in with Apple, Apple Pay, MapKit JS, WeatherKit, CloudKit JS, MusicKit, Wallet passes, and Safari Web Push."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      body {
+        background:
+          radial-gradient(720px 360px at 20% 10%, rgba(88, 120, 182, 0.18), transparent 60%),
+          radial-gradient(640px 420px at 80% 90%, rgba(255, 255, 255, 0.08), transparent 68%),
+          #090b10;
+      }
+      .apple-shell {
+        padding: clamp(40px, 8vw, 84px) 0 90px;
+      }
+      .apple-hero {
+        display: grid;
+        gap: 18px;
+        margin-bottom: 30px;
+      }
+      .apple-kicker {
+        display: inline-flex;
+        width: fit-content;
+        border-radius: 999px;
+        padding: 7px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.05);
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(245, 247, 255, 0.86);
+      }
+      .apple-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+      }
+      .apple-card {
+        border-radius: 22px;
+        padding: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: linear-gradient(165deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+        box-shadow: 0 22px 64px rgba(0, 0, 0, 0.32);
+      }
+      .apple-card__badge {
+        display: inline-flex;
+        margin-bottom: 12px;
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(245, 247, 255, 0.92);
+      }
+      .apple-card[data-tone="ok"] .apple-card__badge {
+        background: rgba(46, 230, 166, 0.16);
+        color: #97ffd5;
+      }
+      .apple-card[data-tone="wait"] .apple-card__badge {
+        background: rgba(255, 203, 107, 0.16);
+        color: #ffd88a;
+      }
+      .apple-card[data-tone="warn"] .apple-card__badge {
+        background: rgba(255, 133, 133, 0.16);
+        color: #ffc2c2;
+      }
+      .apple-card h3 {
+        margin-bottom: 8px;
+      }
+      .apple-card p {
+        color: rgba(243, 246, 255, 0.76);
+        margin-bottom: 12px;
+      }
+      .apple-card a {
+        color: #c9dcff;
+        font-weight: 700;
+      }
+      .apple-status {
+        margin-top: 28px;
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .apple-status ul {
+        margin: 12px 0 0;
+        padding-left: 20px;
+      }
+      .apple-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="header">
+      <div class="container header__inner">
+        <a class="brand" href="homepage.html" aria-label="Atlas Masa home">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="28" height="28" role="img" focusable="false">
+              <path d="M10 46c6-10 14-22 22-28 8 6 16 18 22 28" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M14 46h36" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M32 10v12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              <path d="M26 22h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand__text">
+            <span class="brand__name">Atlas Masa</span>
+            <span class="brand__tag">Apple ecosystem rollout</span>
+          </span>
+        </a>
+        <nav class="nav nav--desktop" aria-label="Primary navigation">
+          <a href="homepage.html">Homepage</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="signin.html">Account</a>
+          <a href="signup.html">Sign up</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="apple-shell">
+      <div class="container">
+        <section class="apple-hero">
+          <span class="apple-kicker">Apple Web Stack</span>
+          <h1>Apple-native website upgrades, without pretending credentials already exist</h1>
+          <p class="lead">
+            This page audits what is already implemented in the Atlas Masa website and what becomes
+            real the moment your Apple developer keys, IDs, certificates, and domain verifications are in place.
+          </p>
+          <div class="apple-actions">
+            <a class="btn btn--primary" href="signin.html">Test Sign in with Apple</a>
+            <a class="btn btn--ghost" href="pricing.html#plans">Review Apple Pay capable checkout</a>
+          </div>
+        </section>
+
+        <section class="apple-grid" aria-label="Apple integration status grid">
+          <article class="apple-card" data-feature="siwa">
+            <div class="apple-card__badge" data-role="badge">Checking</div>
+            <h3>Sign in with Apple</h3>
+            <p data-role="detail">Inspecting existing auth and backend readiness.</p>
+            <a href="signup.html">Open signup</a>
+          </article>
+
+          <article class="apple-card" data-feature="apple-pay">
+            <div class="apple-card__badge" data-role="badge">Checking</div>
+            <h3>Apple Pay on the Web</h3>
+            <p data-role="detail">Inspecting billing readiness and Safari checkout path.</p>
+            <a href="pricing.html#cloud-tier">Open pricing</a>
+          </article>
+
+          <article class="apple-card" data-feature="mapkit">
+            <div class="apple-card__badge" data-role="badge">Checking</div>
+            <h3>MapKit JS</h3>
+            <p data-role="detail">Waiting for a signed MapKit JS token.</p>
+            <a href="contact.html">Open operations context</a>
+          </article>
+
+          <article class="apple-card" data-feature="weatherkit">
+            <div class="apple-card__badge" data-role="badge">Checking</div>
+            <h3>WeatherKit</h3>
+            <p data-role="detail">Waiting for a server-owned WeatherKit endpoint.</p>
+            <a href="guides.html">Open guide layer</a>
+          </article>
+
+          <article class="apple-card" data-feature="cloudkit">
+            <div class="apple-card__badge" data-role="badge">Checking</div>
+            <h3>CloudKit JS</h3>
+            <p data-role="detail">Waiting for a real container plan and record model.</p>
+            <a href="signin.html">Open account layer</a>
+          </article>
+
+          <article class="apple-card" data-feature="musickit">
+            <div class="apple-card__badge" data-role="badge">Checking</div>
+            <h3>MusicKit JS</h3>
+            <p data-role="detail">Waiting for a developer token.</p>
+            <a href="homepage.html#mission">Open brand layer</a>
+          </article>
+
+          <article class="apple-card" data-feature="wallet">
+            <div class="apple-card__badge" data-role="badge">Checking</div>
+            <h3>Apple Wallet passes</h3>
+            <p data-role="detail">Waiting for a pass signing certificate and backend `.pkpass` endpoint.</p>
+            <a href="contact.html#van-rental">Open booking flow</a>
+          </article>
+
+          <article class="apple-card" data-feature="push">
+            <div class="apple-card__badge" data-role="badge">Checking</div>
+            <h3>Safari Web Push</h3>
+            <p data-role="detail">Checking browser support and service worker registration.</p>
+            <a href="homepage.html">Open site root</a>
+          </article>
+        </section>
+
+        <section class="apple-status">
+          <h2>Current readiness</h2>
+          <p id="apple-api-status">Checking backend health and current website scaffolding.</p>
+          <ul id="apple-readiness-list"></ul>
+        </section>
+      </div>
+    </main>
+
+    <script src="apple-web-config.js"></script>
+    <script src="apple-ecosystem.js"></script>
+  </body>
+</html>

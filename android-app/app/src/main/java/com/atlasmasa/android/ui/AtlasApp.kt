@@ -67,6 +67,7 @@ import java.io.File
 
 private enum class RootTab(val title: String) {
     HOME("Command"),
+    REMOTE("Remote"),
     SURVEY("Survey"),
     QUEUE("Queue"),
     FEED("Execution"),
@@ -91,7 +92,7 @@ fun AtlasApp(viewModel: MainViewModel) {
                 CenterAlignedTopAppBar(
                     title = {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Atlas", fontWeight = FontWeight.SemiBold)
+                            Text("BlackHaven", fontWeight = FontWeight.SemiBold)
                             Text("Travel Design OS", style = MaterialTheme.typography.labelMedium)
                         }
                     },
@@ -99,7 +100,7 @@ fun AtlasApp(viewModel: MainViewModel) {
             },
             bottomBar = {
                 NavigationBar {
-                    listOf(RootTab.HOME, RootTab.SURVEY, RootTab.QUEUE, RootTab.FEED, RootTab.ACCESS, RootTab.GUIDE).forEach { item ->
+                    listOf(RootTab.HOME, RootTab.REMOTE, RootTab.SURVEY, RootTab.QUEUE, RootTab.ACCESS, RootTab.GUIDE).forEach { item ->
                         NavigationBarItem(
                             selected = tab == item,
                             onClick = { tab = item },
@@ -107,6 +108,7 @@ fun AtlasApp(viewModel: MainViewModel) {
                                 Icon(
                                     imageVector = when (item) {
                                         RootTab.HOME -> Icons.Default.Home
+                                        RootTab.REMOTE -> Icons.Default.Settings
                                         RootTab.SURVEY -> Icons.Default.Menu
                                         RootTab.QUEUE -> Icons.Default.PlayArrow
                                         RootTab.FEED -> Icons.Default.Bolt
@@ -125,6 +127,7 @@ fun AtlasApp(viewModel: MainViewModel) {
         ) { padding ->
             when (tab) {
                 RootTab.HOME -> CommandScreen(Modifier.padding(padding), ui, viewModel)
+                RootTab.REMOTE -> RemoteDesktopScreen(Modifier.padding(padding), ui, viewModel)
                 RootTab.SURVEY -> SurveyScreen(Modifier.padding(padding), ui, viewModel)
                 RootTab.QUEUE -> QueueScreen(Modifier.padding(padding), ui, viewModel)
                 RootTab.FEED -> FeedScreen(Modifier.padding(padding), ui, viewModel)
@@ -135,6 +138,90 @@ fun AtlasApp(viewModel: MainViewModel) {
                 RootTab.MOBILITY -> MobilityScreen(Modifier.padding(padding), ui)
                 RootTab.PLANS -> PlansScreen(Modifier.padding(padding), ui)
                 RootTab.OUTPUT -> OutputScreen(Modifier.padding(padding), ui)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemoteDesktopScreen(modifier: Modifier, ui: DashboardUiState, viewModel: MainViewModel) {
+    var baseUrl by remember(ui.session.remoteDesktopBaseUrl) { mutableStateOf(ui.session.remoteDesktopBaseUrl) }
+    var token by remember(ui.session.remoteDesktopToken) { mutableStateOf(ui.session.remoteDesktopToken) }
+    var prompt by rememberSaveable { mutableStateOf("") }
+    var target by rememberSaveable { mutableStateOf("local_qwen") }
+    var route by rememberSaveable { mutableStateOf("auto") }
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Desktop remote", style = MaterialTheme.typography.titleLarge)
+                    Text("Use BlackHaven on desktop for local Qwen or GPT-5.4 coding from Android.")
+                    OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it }, label = { Text("Desktop URL") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = { Text("Pairing token") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(ui.session.remoteDesktopName, fontWeight = FontWeight.SemiBold)
+                    Text(ui.session.remoteDesktopStatus, style = MaterialTheme.typography.bodySmall)
+                    Text("Local model: ${ui.session.remoteDesktopLocalModel} · queue: ${ui.session.remoteDesktopQueueDepth}")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            viewModel.updateRemoteDesktopConfig(baseUrl, token)
+                            viewModel.refreshRemoteDesktopStatus()
+                        }) {
+                            Text("Save + refresh")
+                        }
+                        OutlinedButton(onClick = { viewModel.refreshRemoteDesktopStatus() }) {
+                            Text("Refresh")
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Dispatch", style = MaterialTheme.typography.titleMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AssistChip(onClick = { target = "local_qwen" }, label = { Text("Qwen") })
+                        AssistChip(onClick = { target = "cloud_gpt5_4" }, label = { Text("GPT-5.4") })
+                    }
+                    if (target == "cloud_gpt5_4") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AssistChip(onClick = { route = "auto" }, label = { Text("Auto") })
+                            AssistChip(onClick = { route = "frontend_design" }, label = { Text("Frontend") })
+                            AssistChip(onClick = { route = "backend_ops" }, label = { Text("Backend") })
+                        }
+                    }
+                    OutlinedTextField(
+                        value = prompt,
+                        onValueChange = { prompt = it },
+                        label = { Text("Prompt for desktop") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 6,
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.updateRemoteDesktopConfig(baseUrl, token)
+                            viewModel.dispatchRemoteDesktopPrompt(prompt, target, if (target == "cloud_gpt5_4") route else null)
+                            prompt = ""
+                        },
+                        enabled = prompt.isNotBlank(),
+                    ) {
+                        Text("Send to desktop")
+                    }
+                    Text(ui.session.remoteDesktopLastAction, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
@@ -683,7 +770,7 @@ private fun FeedScreen(modifier: Modifier, ui: DashboardUiState, viewModel: Main
                 Text("Execution stream", style = MaterialTheme.typography.titleLarge)
                 OutlinedButton(onClick = { viewModel.refreshFeed() }) { Text("Refresh") }
             }
-            Text("Daily, mid-term, and long-term orchestration from your memory + check-ins.")
+            Text("Your productive-boredom stream: daily, mid-term, and long-term actions routed from memory, check-ins, and current energy.")
         }
 
         items(ui.feed, key = { it.id }) { item ->

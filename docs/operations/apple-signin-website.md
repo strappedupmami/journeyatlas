@@ -8,7 +8,7 @@ The API already exposes:
 - `GET /v1/auth/apple/callback`
 
 Website button trigger exists in:
-- `/Users/avrohom/Downloads/journeyatlas/website/concierge-local.html`
+- `/Users/avrohom/Downloads/BlackHaven/website/concierge-local.html`
 
 ## 2) Apple Developer prerequisites
 - App ID (iOS): `com.atlasmasa.ios` with `Sign in with Apple`.
@@ -24,7 +24,7 @@ Website button trigger exists in:
 Use:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 scripts/generate-apple-client-secret.sh \
   --team-id BW93SGS88H \
   --key-id <YOUR_KEY_ID> \

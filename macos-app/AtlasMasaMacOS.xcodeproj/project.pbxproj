@@ -9,11 +9,14 @@
 /* Begin PBXBuildFile section */
 		0998F22B093399F87F4A6FE7 /* AcademicResearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB24EE85781AE9CB5C157345 /* AcademicResearchService.swift */; };
 		0AB73635DD6EC74C5856AB01 /* MobilityOpsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA23865D59A435635C050AB1 /* MobilityOpsCard.swift */; };
+		1C2D3E4F5A6B7C8D9E0F1001 /* Conversation with ChatGPT_ Recirculating Showers for Vans.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 1C2D3E4F5A6B7C8D9E0F2001 /* Conversation with ChatGPT_ Recirculating Showers for Vans.pdf */; };
+		1C2D3E4F5A6B7C8D9E0F1002 /* Israeli Business Regulations Update Search-2.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 1C2D3E4F5A6B7C8D9E0F2002 /* Israeli Business Regulations Update Search-2.pdf */; };
 		2E1C12D442534358B369176A /* RootDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E70C98214F54693A2902DF /* RootDashboardView.swift */; };
 		32F358D0A804D6B6729B9633 /* CommandCenterCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 701AC8F4232AEDB3C55A73FF /* CommandCenterCard.swift */; };
 		41744CFA8AD7292B2B10DEE2 /* AtlasResearchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D34CF08BA1DF4E4687C867B6 /* AtlasResearchEngine.swift */; };
 		48578CE23CA9F652991B9DD5 /* AtlasMasaMacOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F68D9804EF1A702B79D9C77C /* AtlasMasaMacOSApp.swift */; };
 		4977C8BCCDBF7F764022E5BE /* WorkspacesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA5C0BAC13AFA7A9431BA67 /* WorkspacesCard.swift */; };
+		52B200000000000000000001 /* DesktopRemoteControlServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B200000000000000000002 /* DesktopRemoteControlServer.swift */; };
 		4CA538F5460CB0D3C14D21C2 /* SystemOutputCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA99F6D0296C48ECE4A2A60 /* SystemOutputCard.swift */; };
 		547292A5F92D34A20A7367B6 /* AtlasTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C22511E6096A3D8FED9BDD /* AtlasTheme.swift */; };
 		63DBB8353BD8A75859881BED /* AtlasResearchPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B12A51870BD19ABD4449574 /* AtlasResearchPack.swift */; };
@@ -50,11 +53,14 @@
 		03B2FFDCD70055B0B8230F31 /* AtlasMasaMacOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AtlasMasaMacOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		053D516A3D63A379FAB18E16 /* AtlasMasaMacOSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasMasaMacOSTests.swift; sourceTree = "<group>"; };
 		0FC34004A8E67F5BCAC9DE5D /* SubscriptionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCard.swift; sourceTree = "<group>"; };
+		1C2D3E4F5A6B7C8D9E0F2001 /* Conversation with ChatGPT_ Recirculating Showers for Vans.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Conversation with ChatGPT_ Recirculating Showers for Vans.pdf"; sourceTree = "<group>"; };
+		1C2D3E4F5A6B7C8D9E0F2002 /* Israeli Business Regulations Update Search-2.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Israeli Business Regulations Update Search-2.pdf"; sourceTree = "<group>"; };
 		1AEDA4DBA73A4A08C4AE4749 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		2065AF6AAACC3B43D3C60ABF /* NotesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesCard.swift; sourceTree = "<group>"; };
 		2D5FA2B3895F9BA19A3F6034 /* JobMarketRadar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobMarketRadar.swift; sourceTree = "<group>"; };
 		465052A26DDD04F7EDBFECDE /* ProactiveFeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveFeedCard.swift; sourceTree = "<group>"; };
 		4B12A51870BD19ABD4449574 /* AtlasResearchPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasResearchPack.swift; sourceTree = "<group>"; };
+		52B200000000000000000002 /* DesktopRemoteControlServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopRemoteControlServer.swift; sourceTree = "<group>"; };
 		53C22511E6096A3D8FED9BDD /* AtlasTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasTheme.swift; sourceTree = "<group>"; };
 		601F4FBE9354F1020C103697 /* LocalSyncBlueprintService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSyncBlueprintService.swift; sourceTree = "<group>"; };
 		606AF14FB62334E10CEE744A /* AIGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIGuideCard.swift; sourceTree = "<group>"; };
@@ -136,8 +142,18 @@
 			isa = PBXGroup;
 			children = (
 				DE1C978ED3573F17EBCE6F6D /* AtlasMasaMacOS.icns */,
+				1C2D3E4F5A6B7C8D9E0F3001 /* ReferenceLibrary */,
 			);
 			path = AtlasMasaMacOS;
+			sourceTree = "<group>";
+		};
+		1C2D3E4F5A6B7C8D9E0F3001 /* ReferenceLibrary */ = {
+			isa = PBXGroup;
+			children = (
+				1C2D3E4F5A6B7C8D9E0F2001 /* Conversation with ChatGPT_ Recirculating Showers for Vans.pdf */,
+				1C2D3E4F5A6B7C8D9E0F2002 /* Israeli Business Regulations Update Search-2.pdf */,
+			);
+			path = ReferenceLibrary;
 			sourceTree = "<group>";
 		};
 		6B938DED3BFCA85950EAB891 /* Feed */ = {
@@ -250,6 +266,7 @@
 				D34CF08BA1DF4E4687C867B6 /* AtlasResearchEngine.swift */,
 				4B12A51870BD19ABD4449574 /* AtlasResearchPack.swift */,
 				53C22511E6096A3D8FED9BDD /* AtlasTheme.swift */,
+				52B200000000000000000002 /* DesktopRemoteControlServer.swift */,
 				2D5FA2B3895F9BA19A3F6034 /* JobMarketRadar.swift */,
 				8E9A1D2906182B7701821C8D /* LocalReasoningEngine.swift */,
 				601F4FBE9354F1020C103697 /* LocalSyncBlueprintService.swift */,
@@ -269,6 +286,7 @@
 			buildPhases = (
 				D52903C00F77B1AAC5A69FCC /* Sources */,
 				2B90D78E9166FC1ADD4CBB4E /* Resources */,
+				B5E8A43F7A2A41D1B9E4F605 /* Embed llama-server */,
 			);
 			buildRules = (
 			);
@@ -339,10 +357,34 @@
 			buildActionMask = 2147483647;
 			files = (
 				A6AAA3C7D9CFE1A584DCCEAA /* AtlasMasaMacOS.icns in Resources */,
+				1C2D3E4F5A6B7C8D9E0F1001 /* Conversation with ChatGPT_ Recirculating Showers for Vans.pdf in Resources */,
+				1C2D3E4F5A6B7C8D9E0F1002 /* Israeli Business Regulations Update Search-2.pdf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B5E8A43F7A2A41D1B9E4F605 /* Embed llama-server */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed llama-server";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/LocalAIRuntime/llama-server",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"${SRCROOT}/scripts/embed-llama-server.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		311410CCFC6BB57102FF8643 /* Sources */ = {
@@ -368,6 +410,7 @@
 				63DBB8353BD8A75859881BED /* AtlasResearchPack.swift in Sources */,
 				547292A5F92D34A20A7367B6 /* AtlasTheme.swift in Sources */,
 				32F358D0A804D6B6729B9633 /* CommandCenterCard.swift in Sources */,
+				52B200000000000000000001 /* DesktopRemoteControlServer.swift in Sources */,
 				EE30675B53D82B07E851A14D /* JobMarketRadar.swift in Sources */,
 				F9FA19C612C06175DF6172FD /* LocalReasoningEngine.swift in Sources */,
 				A130F92FAF214088F464DED7 /* LocalSyncBlueprintService.swift in Sources */,
@@ -399,7 +442,7 @@
 		05A391D495EA923D7D85695C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AtlasMasaMacOS/AtlasMasaMacOS.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = BW93SGS88H;
@@ -448,7 +491,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -490,6 +533,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.atlasmasa.macos.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AtlasMasaMacOS.app/Contents/MacOS/AtlasMasaMacOS";
@@ -499,7 +543,7 @@
 		CD5A63BC5209B8783EAC5A04 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AtlasMasaMacOS/AtlasMasaMacOS.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = BW93SGS88H;
@@ -525,6 +569,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.atlasmasa.macos.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AtlasMasaMacOS.app/Contents/MacOS/AtlasMasaMacOS";
@@ -565,7 +610,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

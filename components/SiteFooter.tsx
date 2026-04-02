@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BRAND_NAME } from "@/lib/site";
+import { BRAND_NAME, SUPPORT_EMAIL, WHATSAPP_NUMBER_DISPLAY } from "@/lib/site";
 
 export function SiteFooter() {
   const currentYear = new Date().getFullYear();
@@ -33,6 +33,8 @@ export function SiteFooter() {
         <div>
           <h3 className="footer-heading">זמינות</h3>
           <p className="footer-text">סטטוס נוכחי: סביבת תצוגה מקדימה (Staging)</p>
+          <p className="footer-text">WhatsApp: {WHATSAPP_NUMBER_DISPLAY}</p>
+          <p className="footer-text">Email: {SUPPORT_EMAIL}</p>
           <p className="footer-text">{currentYear} © {BRAND_NAME}</p>
         </div>
       </div>

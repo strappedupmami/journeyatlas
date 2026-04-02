@@ -125,6 +125,25 @@ class AtlasRepository private constructor(
             ?: "api.atlasmasa.com"
     }
 
+    private fun sanitizeRemoteDesktopBaseUrl(rawBaseUrl: String): String? {
+        val trimmed = rawBaseUrl.trim()
+        val parsed = trimmed.toHttpUrlOrNull() ?: return null
+        val host = parsed.host.lowercase(Locale.getDefault())
+        return when (parsed.scheme.lowercase(Locale.getDefault())) {
+            "https" -> parsed.toString().removeSuffix("/")
+            "http" -> if (isPrivateNetworkHost(host)) parsed.toString().removeSuffix("/") else null
+            else -> null
+        }
+    }
+
+    private fun isPrivateNetworkHost(host: String): Boolean {
+        return host == "localhost" ||
+            host == "127.0.0.1" ||
+            host.startsWith("10.") ||
+            host.startsWith("192.168.") ||
+            (host.startsWith("172.") && runCatching { host.split(".").getOrNull(1)?.toInt() }.getOrNull() in 16..31)
+    }
+
     fun observeSessionState(): Flow<AtlasSessionState> = sessionPrefs.observeState()
 
     fun observeNotes(): Flow<List<UserNote>> = dao.observeNotes().map { list -> list.map { decryptNoteEntity(it) } }
@@ -254,6 +273,98 @@ class AtlasRepository private constructor(
                     "Inference runtime updated: Gemini 3 Flash + Gemini 2.5 Pro TTS pipeline configured."
                 ).takeLast(80),
         )
+        sessionPrefs.saveState(next)
+    }
+
+    suspend fun updateRemoteDesktopConfig(baseUrl: String, token: String) {
+        val state = sessionPrefs.observeState().first()
+        val sanitized = sanitizeRemoteDesktopBaseUrl(baseUrl) ?: state.remoteDesktopBaseUrl
+        sessionPrefs.saveState(
+            state.copy(
+                remoteDesktopBaseUrl = sanitized,
+                remoteDesktopToken = token.trim(),
+                remoteDesktopStatus = "Desktop remote config updated."
+            )
+        )
+    }
+
+    suspend fun refreshRemoteDesktopStatus() {
+        val state = sessionPrefs.observeState().first()
+        val baseUrl = sanitizeRemoteDesktopBaseUrl(state.remoteDesktopBaseUrl)
+        if (baseUrl == null) {
+            sessionPrefs.saveState(state.copy(remoteDesktopStatus = "Desktop URL is invalid. Use http://<desktop-ip>:8765 or https://..."))
+            return
+        }
+
+        val request = Request.Builder()
+            .url("$baseUrl/api/remote/status")
+            .get()
+            .apply {
+                val token = state.remoteDesktopToken.trim()
+                if (token.isNotEmpty()) {
+                    header("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        val next = runCatching {
+            frontierHttp.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@use state.copy(remoteDesktopStatus = "Desktop rejected the request (${response.code}). Check the pairing token.")
+                }
+
+                val payload = json.decodeFromString(RemoteDesktopStatusPayload.serializer(), response.body?.string().orEmpty())
+                state.copy(
+                    remoteDesktopBaseUrl = baseUrl,
+                    remoteDesktopStatus = payload.runtimeDetail,
+                    remoteDesktopName = "${payload.appName} on ${payload.deviceName}",
+                    remoteDesktopLocalModel = payload.localModel,
+                    remoteDesktopQueueDepth = payload.queueDepth,
+                    remoteDesktopLastAction = payload.lastAction,
+                )
+            }
+        }.getOrElse { error ->
+            state.copy(remoteDesktopStatus = "Could not reach desktop remote control: ${error.localizedMessage}")
+        }
+
+        sessionPrefs.saveState(next)
+    }
+
+    suspend fun dispatchRemoteDesktopPrompt(prompt: String, target: String, route: String?) {
+        val state = sessionPrefs.observeState().first()
+        val cleanedPrompt = prompt.trim()
+        val baseUrl = sanitizeRemoteDesktopBaseUrl(state.remoteDesktopBaseUrl)
+        if (cleanedPrompt.isEmpty() || baseUrl == null) {
+            sessionPrefs.saveState(state.copy(remoteDesktopStatus = "Desktop URL or prompt is invalid."))
+            return
+        }
+
+        val payload = RemoteDesktopDispatchPayload(prompt = cleanedPrompt, target = target, route = route)
+        val request = Request.Builder()
+            .url("$baseUrl/api/remote/dispatch")
+            .post(json.encodeToString(RemoteDesktopDispatchPayload.serializer(), payload).toRequestBody("application/json".toMediaType()))
+            .apply {
+                val token = state.remoteDesktopToken.trim()
+                if (token.isNotEmpty()) {
+                    header("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        val next = runCatching {
+            frontierHttp.newCall(request).execute().use { response ->
+                val decoded = json.decodeFromString(RemoteDesktopDispatchResult.serializer(), response.body?.string().orEmpty())
+                state.copy(
+                    remoteDesktopBaseUrl = baseUrl,
+                    remoteDesktopStatus = decoded.message,
+                    remoteDesktopQueueDepth = decoded.queueDepth,
+                    remoteDesktopLastAction = decoded.message,
+                )
+            }
+        }.getOrElse { error ->
+            state.copy(remoteDesktopStatus = "Could not send prompt to desktop: ${error.localizedMessage}")
+        }
+
         sessionPrefs.saveState(next)
     }
 

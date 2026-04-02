@@ -2,25 +2,26 @@ import AppKit
 import SwiftUI
 
 final class AtlasAppDelegate: NSObject, NSApplicationDelegate {
-    private var didForceFullscreen = false
+    private var didApplyPreferredWindowSizing = false
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        enforceImmersiveWindowMode()
+        SessionStore.captureLaunchTriggeredGUIValidationRequestIfNeeded()
+        configurePreferredWindowPresentation()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        enforceImmersiveWindowMode()
+        configurePreferredWindowPresentation()
     }
 
-    private func enforceImmersiveWindowMode(retryCount: Int = 0) {
+    private func configurePreferredWindowPresentation(retryCount: Int = 0) {
         guard let window = NSApp.windows.first(where: { $0.canBecomeMain }) else {
             guard retryCount < 12 else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                self.enforceImmersiveWindowMode(retryCount: retryCount + 1)
+                self.configurePreferredWindowPresentation(retryCount: retryCount + 1)
             }
             return
         }
@@ -30,12 +31,26 @@ final class AtlasAppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unifiedCompact
 
-        guard !didForceFullscreen else { return }
-        guard !window.styleMask.contains(.fullScreen) else { return }
-        didForceFullscreen = true
-        DispatchQueue.main.async {
-            window.toggleFullScreen(nil)
+        guard !didApplyPreferredWindowSizing else { return }
+        didApplyPreferredWindowSizing = true
+
+        let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
+        let targetFrame: NSRect
+        if let visibleFrame {
+            let width = min(max(1280, visibleFrame.width * 0.9), visibleFrame.width)
+            let height = min(max(820, visibleFrame.height * 0.9), visibleFrame.height)
+            targetFrame = NSRect(
+                x: visibleFrame.midX - (width / 2),
+                y: visibleFrame.midY - (height / 2),
+                width: width,
+                height: height
+            )
+        } else {
+            targetFrame = NSRect(x: 80, y: 80, width: 1440, height: 900)
         }
+
+        window.setFrame(targetFrame, display: true)
+        window.center()
     }
 }
 
@@ -43,6 +58,7 @@ final class AtlasAppDelegate: NSObject, NSApplicationDelegate {
 struct AtlasMasaMacOSApp: App {
     @NSApplicationDelegateAdaptor(AtlasAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openWindow) private var openWindow
     @StateObject private var session = SessionStore()
 
     var body: some Scene {
@@ -60,6 +76,25 @@ struct AtlasMasaMacOSApp: App {
         }
         .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(width: 1200, height: 800)
+
+        WindowGroup("World Monitor", id: "world-monitor") {
+            WorldMonitorCard()
+                .environmentObject(session)
+                .preferredColorScheme(.dark)
+                .frame(minWidth: 1000, minHeight: 650)
+        }
+        .windowToolbarStyle(.unified(showsTitle: false))
+        .defaultSize(width: 1160, height: 780)
+
+        WindowGroup("Nature Monitor", id: "nature-monitor") {
+            NatureMonitorCard()
+                .environmentObject(session)
+                .preferredColorScheme(.dark)
+                .frame(minWidth: 1000, minHeight: 650)
+        }
+        .windowToolbarStyle(.unified(showsTitle: false))
+        .defaultSize(width: 1160, height: 780)
+
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Workspace Session") {
@@ -68,21 +103,64 @@ struct AtlasMasaMacOSApp: App {
                 .keyboardShortcut("n", modifiers: .command)
             }
 
-            CommandMenu("Runtime") {
-                Button("Restart Agentic Workers") {
-                    session.startPromptQueueWorker()
-                    session.startAgenticBusinessRuntime()
+            CommandMenu("Monitors") {
+                Button("Open World Monitor Window") {
+                    openWindow(id: "world-monitor")
                 }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .keyboardShortcut("1", modifiers: [.command, .shift])
 
-                Button("Refresh Health Check") {
-                    Task { await session.refreshHealth() }
+                Button("Open Nature Monitor Window") {
+                    openWindow(id: "nature-monitor")
+                }
+                .keyboardShortcut("2", modifiers: [.command, .shift])
+            }
+
+#if DEBUG
+            CommandMenu("Validation") {
+                Button("Run GUI Validation Suite") {
+                    session.requestGUIValidationSuite(triggerSource: "validation menu")
+                }
+                .keyboardShortcut("y", modifiers: [.command, .shift])
+
+                Button("Arm GUI Validation For Next Launch") {
+                    session.armGUIValidationSuiteForNextLaunch()
                 }
 
-                Divider()
+                Button("Clear GUI Validation Log") {
+                    session.guiValidationCurrentStep = ""
+                    session.guiValidationLastTriggerSource = ""
+                    session.guiValidationLogs = []
+                }
+            }
+#endif
 
-                Button("Clear Session Memory") {
-                    session.deleteLocalMemory()
+            if session.canViewRuntimeDiagnostics {
+                CommandMenu("Runtime") {
+                    Button("Restart Agentic Workers") {
+                        session.startPromptQueueWorker()
+                        session.startAgenticBusinessRuntime()
+                    }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
+
+                    Button("Refresh Health Check") {
+                        Task { await session.refreshHealth() }
+                    }
+
+                    Divider()
+
+                    Button("Run GUI Validation Suite Now") {
+                        session.requestGUIValidationSuite(triggerSource: "runtime menu")
+                    }
+
+                    Button("Arm GUI Validation For Next Launch") {
+                        session.armGUIValidationSuiteForNextLaunch()
+                    }
+
+                    Divider()
+
+                    Button("Clear Session Memory") {
+                        session.deleteLocalMemory()
+                    }
                 }
             }
         }
@@ -95,6 +173,7 @@ struct AtlasMasaMacOSApp: App {
     }
 
     private func handleScenePhase(_ phase: ScenePhase) {
+        guard session.allowsAutomaticRuntimeWork else { return }
         switch phase {
         case .active, .background:
             session.startPromptQueueWorker()
@@ -153,6 +232,56 @@ private struct AtlasSettingsView: View {
                     Text(session.adaptiveBusinessRuntimeStatusLine)
                         .foregroundStyle(.secondary)
                 }
+
+                Section("Workspace Modules") {
+                    Toggle(
+                        "Show MLI Studio",
+                        isOn: Binding(
+                            get: { session.mliStudioVisible },
+                            set: { session.setMLIStudioVisible($0) }
+                        )
+                    )
+                    Text("MLI Studio covers vanlife, RV systems, and mobile living infrastructure planning.")
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("CAD Tools") {
+                    Text(session.cadToolsStatusLine)
+                        .foregroundStyle(.secondary)
+                    Text(session.freeCADHealthLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(session.freeCADCmdHealthLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(session.kiCadCLIHealthLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(session.calculiXHealthLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        Button("Open Setup Wizard") {
+                            session.revealCADToolsSetupWizard()
+                        }
+                        Button("Auto Detect") {
+                            Task { await session.autoDetectCADTools() }
+                        }
+                        Button("Run Health Check") {
+                            Task { await session.runCADToolsHealthCheck() }
+                        }
+                    }
+
+                    ForEach(session.cadToolDownloads) { tool in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Link(tool.title, destination: URL(string: tool.url)!)
+                            Text(tool.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             .padding(20)
             .tabItem {
@@ -181,6 +310,10 @@ private struct AtlasSettingsView: View {
             .tabItem {
                 Label("Diagnostics", systemImage: "wrench.and.screwdriver")
             }
+        }
+        .sheet(isPresented: $session.showCADToolsSetupWizard) {
+            CADToolsSetupWizardSheet()
+                .environmentObject(session)
         }
     }
 }

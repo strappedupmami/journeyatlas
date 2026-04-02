@@ -56,16 +56,16 @@
 
 ## Outputs
 
-- iOS research pack: `/Users/avrohom/Downloads/journeyatlas/ios-app/AtlasMasaIOS/Sources/Core/AtlasResearchPack.swift`
-- macOS research pack: `/Users/avrohom/Downloads/journeyatlas/macos-app/AtlasMasaMacOS/Sources/Core/AtlasResearchPack.swift`
-- generated science training rows: `/Users/avrohom/Downloads/journeyatlas/atlas-concierge/kb/training/local_reasoner_training_science.jsonl`
-- report: `/Users/avrohom/Downloads/journeyatlas/docs/ai/swift-scientific-corpus-report.md`
+- iOS research pack: `/Users/avrohom/Downloads/BlackHaven/ios-app/AtlasMasaIOS/Sources/Core/AtlasResearchPack.swift`
+- macOS research pack: `/Users/avrohom/Downloads/BlackHaven/macos-app/AtlasMasaMacOS/Sources/Core/AtlasResearchPack.swift`
+- generated science training rows: `/Users/avrohom/Downloads/BlackHaven/atlas-concierge/kb/training/local_reasoner_training_science.jsonl`
+- report: `/Users/avrohom/Downloads/BlackHaven/docs/ai/swift-scientific-corpus-report.md`
 
 ## Next step
 
 Run local training to update Swift model payloads:
 
 ```bash
-cd /Users/avrohom/Downloads/journeyatlas
+cd /Users/avrohom/Downloads/BlackHaven
 ./scripts/train-local-model-loop.sh
 ```

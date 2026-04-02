@@ -19,6 +19,7 @@ Native Swift Life OS desktop app for deep planning and execution.
 - Tiering model in-app:
   - Tier 1 local reasoning
   - Tier 2 cloud reasoning mode switch
+  - Hybrid cloud coding: Gemini 3.1 Pro Preview preferred for frontend/UI direction, GPT-5.4 preferred for backend/build/debug with route-aware fallback
 
 ## Project generation
 ```bash
@@ -41,23 +42,29 @@ Override at runtime via `UserDefaults` key:
 - `atlas.api.base`
 
 ## Local LLM bridge (optional, local-first)
-Queue/feed/workspace inference can use a local OpenAI-compatible endpoint first, then fall back to deterministic local logic.
+Queue/feed/workspace inference now uses app-managed Ollama as the Phase 1 local runtime contract. BlackHaven handles runtime readiness and model setup in-app for end users.
 
 Runtime keys (`UserDefaults`):
 - `atlas.local.llm.enabled` (`true` by default)
 - `atlas.local.llm.endpoint` (default: `http://127.0.0.1:11434/v1/chat/completions`)
-- `atlas.local.llm.model` (default: `auto`; set fixed model to override policy)
+- `atlas.local.llm.model` (default preferred stack: `qwen2.5:7b,deepseek-r1:14b`; supports comma-separated list)
 - `atlas.local.llm.model_catalog` (optional ordered list, comma-separated; heavy to light)
 
 Environment keys:
 - `ATLAS_RUST_REASONER_BIN` (optional absolute path to `atlas-rust-reasoner`)
 
-Default auto model catalog (heavy to light):
-- `llama3.1:70b`
-- `qwen2.5:32b`
-- `deepseek-r1:14b`
-- `qwen2.5:7b`
-- `llama3.2:latest`
+Default model packs:
+- `Fast Starter` -> `qwen2.5:7b` (recommended baseline)
+- `Balanced Reasoner` -> `deepseek-r1:14b` (stronger option on larger machines)
+
+Startup behavior:
+- App attempts managed Ollama runtime provisioning on bootstrap for loopback endpoints.
+- If Ollama is present but the selected model is missing, the app pulls it automatically.
+- Legacy `8080` runtime settings are auto-migrated to the Ollama endpoint on `11434`.
+- If runtime remains unavailable, Atlas continues with built-in deterministic local reasoning while showing setup/retry state in-app.
+
+Internal fallback note:
+- Xcode still includes an `Embed llama-server` build phase for internal/dev fallback only. It is no longer the primary end-user runtime story.
 
 Rust policy mode (macOS + Windows):
 - picks model from catalog based on hardware

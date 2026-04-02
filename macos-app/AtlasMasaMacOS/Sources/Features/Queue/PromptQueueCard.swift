@@ -11,7 +11,7 @@ struct PromptQueueCard: View {
             // High-End Top Bar
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Atlas Concierge")
+                    Text("BlackHaven Concierge")
                         .font(.headline)
                     Text("Formal tactical assistant")
                         .font(.subheadline)
@@ -40,6 +40,27 @@ struct PromptQueueCard: View {
             .padding(16)
             .background(.regularMaterial)
 
+            if showRuntimeStrip {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let statusMessage = session.localAIChatStatusMessage {
+                        Text(statusMessage)
+                            .font(.caption)
+                            .foregroundStyle(AtlasTheme.textSecondary)
+                    }
+                    AtlasModelRuntimeProgressStrip(
+                        progress: session.localModelRuntimeProgress,
+                        busy: session.localModelRuntimeIsBusy,
+                        title: "Local Runtime",
+                        sizeText: session.localModelDownloadSizeText,
+                        etaText: session.localModelDownloadETAText,
+                        compact: true
+                    )
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
+                .background(.regularMaterial)
+            }
+
             Divider()
 
             // Chat Area
@@ -58,8 +79,8 @@ struct PromptQueueCard: View {
                     }
                 }
                 .onChange(of: commandThreadItems.count) { _, _ in
-                    if let last = commandThreadItems.last {
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                    if let first = commandThreadItems.first {
+                        withAnimation { proxy.scrollTo(first.id, anchor: .top) }
                     }
                 }
             }
@@ -70,6 +91,11 @@ struct PromptQueueCard: View {
             HStack(alignment: .bottom, spacing: 12) {
                 TextField("Message concierge...", text: $session.pendingPrompt, axis: .vertical)
                     .textFieldStyle(.plain)
+                    .submitLabel(.send)
+                    .onSubmit {
+                        guard !trimmedPendingPrompt.isEmpty else { return }
+                        session.enqueuePrompt()
+                    }
                     .lineLimit(1 ... 8)
                     .padding(10)
                     .background(Color(nsColor: .controlBackgroundColor))
@@ -86,6 +112,7 @@ struct PromptQueueCard: View {
                         .foregroundStyle(trimmedPendingPrompt.isEmpty ? .secondary : AtlasTheme.accent)
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut(.defaultAction)
                 .disabled(trimmedPendingPrompt.isEmpty)
             }
             .padding(16)
@@ -96,9 +123,9 @@ struct PromptQueueCard: View {
 
     private var emptyStateView: some View {
         ContentUnavailableView {
-            Label("Atlas Concierge", systemImage: "sparkles")
+            Label("BlackHaven Concierge", systemImage: "sparkles")
         } description: {
-            Text("Start with a mission request. Atlas will process tactical, memory-aware responses locally.")
+            Text("Start with a mission request. BlackHaven will process tactical, memory-aware responses locally.")
         }
         .padding(.top, 60)
     }
@@ -109,40 +136,41 @@ struct PromptQueueCard: View {
             AtlasChatBubble(text: item.prompt, isUser: true)
 
             if let output = item.output {
-                AtlasChatBubble(text: assistantMessageText(for: output), isUser: false)
+                AtlasAssistantResponseView(output: output)
+            } else if let streamed = item.streamedResponseText?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !streamed.isEmpty {
+                AtlasChatBubble(text: streamed, isUser: false, isStreaming: item.status == .running)
             } else if let error = item.errorMessage, !error.isEmpty {
-                AtlasChatBubble(text: "Runtime Notice: \(error)", isUser: false)
+                AtlasChatBubble(text: error, isUser: false)
             } else {
-                AtlasChatBubble(text: pendingAssistantStatusText(for: item), isUser: false)
+                AtlasChatBubble(
+                    text: pendingAssistantStatusText(for: item),
+                    isUser: false,
+                    isStreaming: item.status == .running
+                )
             }
         }
     }
 
     // Keep existing private vars (commandThreadItems, activeRunPillTitle, etc.)
     private var commandThreadItems: [PromptQueueItem] {
-        session.promptQueue.filter { $0.workspaceLane == nil }.sorted { $0.createdAt < $1.createdAt }
+        session.promptQueue.filter { $0.workspaceLane == nil }.sorted { $0.createdAt > $1.createdAt }
     }
 
     private var activeRunPillTitle: String { "READY" } // Simplified for demo
     private var trimmedPendingPrompt: String { session.pendingPrompt.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-    private func assistantMessageText(for output: LocalReasoningOutput) -> String {
-        "\(output.summary)\n\nNext Action: \(output.nextAction)"
+    private var showRuntimeStrip: Bool {
+        session.canViewRuntimeDiagnostics && session.shouldShowLocalRuntimeProgressUI
     }
-
     private func pendingAssistantStatusText(for item: PromptQueueItem) -> String {
-        let progress = item.progress ?? 0
-        let percent = Int((progress * 100).rounded())
-        if let checkpoint = item.checkpointNote?.trimmingCharacters(in: .whitespacesAndNewlines), !checkpoint.isEmpty {
-            return "Streaming \(max(1, percent))% · \(checkpoint)"
-        }
+        let note = item.checkpointNote?.trimmingCharacters(in: .whitespacesAndNewlines)
         switch item.status {
         case .queued:
-            return "Queued for processing..."
+            return (note?.isEmpty == false ? note! : "Queued. I’ll reply in a moment.")
         case .running:
-            return "Streaming \(max(1, percent))% ..."
+            return (note?.isEmpty == false ? note! : "Working on your response...")
         case .failed:
-            return "Runtime unavailable."
+            return "I couldn’t generate a response right now."
         case .done:
             return "Completed."
         }
@@ -162,8 +190,11 @@ struct CodingWorkspaceCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Agentic Coding Interface")
                         .font(.headline)
-                    Text("Frontend design routes to Gemini 3.1 Pro. Backend/debug/build routes to GPT-5.3 Codex.")
+                    Text("Code is unlocked by prepaid credits and uses Gemini 3.1 Pro Preview for frontend/UI direction plus GPT-5.4 for backend/build depth.")
                         .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(session.codingAgentReadinessSummary)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -226,6 +257,15 @@ struct CodingWorkspaceCard: View {
     private var agenticPanel: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(session.codingAgentToolingSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Slash commands: /status, /scan, /open <path>, /save, /run <shell>, /grep <pattern>, /remember")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
                 HStack(spacing: 8) {
                     TextField("Workspace path...", text: $workspacePathDraft)
                         .textFieldStyle(.roundedBorder)

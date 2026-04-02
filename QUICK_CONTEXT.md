@@ -55,7 +55,7 @@ We will:
 ## Re-Use Prompt for New Chats
 Use this at the start of a new chat:
 
-"Read `/Users/avrohom/Downloads/journeyatlas/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`, `/Users/avrohom/Downloads/journeyatlas/LLM_ROLLOUT.md`, `/Users/avrohom/Downloads/journeyatlas/QUICK_CONTEXT.md`, and `/Users/avrohom/Downloads/journeyatlas/CHAT_CONTINUITY.md` first, then continue implementation under those contracts."
+"Read `/Users/avrohom/Downloads/BlackHaven/docs/engineering/GEMINI_DEVELOPER_GUIDE_IMPORT.md`, `/Users/avrohom/Downloads/BlackHaven/LLM_ROLLOUT.md`, `/Users/avrohom/Downloads/BlackHaven/QUICK_CONTEXT.md`, and `/Users/avrohom/Downloads/BlackHaven/CHAT_CONTINUITY.md` first, then continue implementation under those contracts."
 
 ## Continuity Rule
 - `CHAT_CONTINUITY.md` is the always-updated cross-chat session log.

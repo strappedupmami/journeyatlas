@@ -1,3 +1,4 @@
+import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -8,6 +9,8 @@ struct WorkspacesCard: View {
     // Toggle for the right-hand metadata panel (Standard macOS pattern)
     @State private var showInspector = false
     @State private var showKnowledgeFileImporter = false
+    @State private var selectedContextSurface: AtlasContextSurface = .workspace
+    @State private var selectedBundledReference: BundledReferenceDocument?
 
     private let maxRuntimeRetries = 3
 
@@ -39,7 +42,7 @@ struct WorkspacesCard: View {
                     get: { session.activeWorkspaceLane },
                     set: { session.setActiveWorkspaceLane($0) }
                 )) {
-                    ForEach(WorkspaceLane.allCases) { lane in
+                    ForEach(session.visibleWorkspaceLanes()) { lane in
                         Text(compactLaneTitle(lane)).tag(lane)
                     }
                 }
@@ -50,6 +53,27 @@ struct WorkspacesCard: View {
             }
             .padding(16)
             .background(.regularMaterial)
+
+            if session.canViewRuntimeDiagnostics && session.shouldShowLocalRuntimeProgressUI {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let statusMessage = session.localAIChatStatusMessage {
+                        Text(statusMessage)
+                            .font(.caption)
+                            .foregroundStyle(AtlasTheme.textSecondary)
+                    }
+                    AtlasModelRuntimeProgressStrip(
+                        progress: session.localModelRuntimeProgress,
+                        busy: session.localModelRuntimeIsBusy,
+                        title: "Local Runtime",
+                        sizeText: session.localModelDownloadSizeText,
+                        etaText: session.localModelDownloadETAText,
+                        compact: true
+                    )
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
+                .background(.regularMaterial)
+            }
 
             Divider()
 
@@ -168,8 +192,8 @@ struct WorkspacesCard: View {
                     }
                 }
                 .onChange(of: workspaceThreadItems.count) { _, _ in
-                    if let last = workspaceThreadItems.last {
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                    if let first = workspaceThreadItems.first {
+                        withAnimation { proxy.scrollTo(first.id, anchor: .top) }
                     }
                 }
             }
@@ -219,6 +243,12 @@ struct WorkspacesCard: View {
                 session.appendOutput("Knowledge file picker failed: \(error.localizedDescription)")
             }
         }
+        .sheet(item: $selectedBundledReference) { document in
+            BundledReferenceDocumentSheet(
+                document: document,
+                url: session.bundledReferenceDocumentURL(fileName: document.fileName)
+            )
+        }
     }
 
     // MARK: - Inspector (Right Pane)
@@ -266,6 +296,71 @@ struct WorkspacesCard: View {
                     Divider()
 
                     VStack(alignment: .leading, spacing: 10) {
+                        Text("REFERENCE LIBRARY")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+
+                        ForEach(session.bundledReferenceDocuments()) { document in
+                            HStack(alignment: .top, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(document.title)
+                                        .font(.caption.weight(.semibold))
+                                    Text(document.audience)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Open") {
+                                    selectedBundledReference = document
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                            }
+                            .padding(8)
+                            .background(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("CONTEXT ROUTING")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+
+                        Picker("Surface", selection: $selectedContextSurface) {
+                            ForEach(AtlasContextSurface.allCases) { surface in
+                                Text(surface.title).tag(surface)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Custom system prompt")
+                                .font(.caption.weight(.semibold))
+                            TextEditor(text: currentContextPrompt)
+                                .font(.caption)
+                                .frame(minHeight: 88)
+                                .padding(8)
+                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.65))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            Text(contextScopeCaption)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Toggle("Include survey answers", isOn: contextFlagBinding(\.includeSurveyAnswers))
+                        Toggle("Include notes", isOn: contextFlagBinding(\.includeNotes))
+                        Toggle("Include workspace memory", isOn: contextFlagBinding(\.includeWorkspaceMemory))
+                        Toggle("Include enabled files", isOn: contextFlagBinding(\.includeKnowledgeFiles))
+                        Toggle("Include account usage patterns", isOn: contextFlagBinding(\.includeAccountUsagePatterns))
+                        Toggle("Include recent usage trends", isOn: contextFlagBinding(\.includeRecentUsageTrends))
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Text("KNOWLEDGE FILES")
                                 .font(.caption.weight(.bold))
@@ -286,28 +381,36 @@ struct WorkspacesCard: View {
                                 .foregroundStyle(.secondary)
                         } else {
                             ForEach(session.knowledgeFiles.prefix(8)) { file in
-                                HStack(alignment: .top, spacing: 8) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(file.fileName)
-                                            .font(.caption.weight(.semibold))
-                                            .lineLimit(1)
-                                        Text("\(file.chunkCount) context chunks · \(byteCountLabel(file.byteCount))")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                        Text(file.preview)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(alignment: .top, spacing: 8) {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(file.fileName)
+                                                .font(.caption.weight(.semibold))
+                                                .lineLimit(1)
+                                            Text("\(file.chunkCount) context chunks · \(byteCountLabel(file.byteCount))")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                            Text(file.preview)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                        }
+                                        Spacer()
+                                        Button(role: .destructive) {
+                                            session.removeKnowledgeFile(file.id)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Remove from shared memory")
                                     }
-                                    Spacer()
-                                    Button(role: .destructive) {
-                                        session.removeKnowledgeFile(file.id)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.plain)
-                                    .help("Remove from shared memory")
+
+                                    Toggle(
+                                        "\(selectedContextSurface.title) can use this source",
+                                        isOn: knowledgeFileEnabledBinding(fileID: file.id)
+                                    )
+                                    .font(.caption2)
                                 }
                                 .padding(8)
                                 .background(Color(nsColor: .controlBackgroundColor).opacity(0.55))
@@ -347,13 +450,61 @@ struct WorkspacesCard: View {
             AtlasChatBubble(text: item.prompt, isUser: true)
 
             if let output = item.output {
-                AtlasChatBubble(text: assistantMessageText(for: output), isUser: false)
+                AtlasAssistantResponseView(output: output)
+            } else if let streamed = item.streamedResponseText?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !streamed.isEmpty {
+                AtlasChatBubble(text: streamed, isUser: false, isStreaming: item.status == .running)
             } else if let error = item.errorMessage, !error.isEmpty {
-                AtlasChatBubble(text: "Runtime notice: \(error)", isUser: false)
+                AtlasChatBubble(text: session.localAIRuntimeChatNotice, isUser: false)
             } else {
-                AtlasChatBubble(text: pendingAssistantStatusText(for: item), isUser: false)
+                AtlasChatBubble(
+                    text: pendingAssistantStatusText(for: item),
+                    isUser: false,
+                    isStreaming: item.status == .running
+                )
             }
         }
+    }
+
+    private var selectedContextLane: WorkspaceLane? {
+        selectedContextSurface == .workspace ? session.activeWorkspaceLane : nil
+    }
+
+    private var activeContextProfile: AtlasContextProfile {
+        session.contextProfile(for: selectedContextSurface, workspaceLane: selectedContextLane)
+    }
+
+    private var currentContextPrompt: Binding<String> {
+        Binding(
+            get: { activeContextProfile.customSystemPrompt },
+            set: { session.setCustomSystemPrompt($0, for: selectedContextSurface, workspaceLane: selectedContextLane) }
+        )
+    }
+
+    private var contextScopeCaption: String {
+        if let lane = selectedContextLane {
+            return "Applies to \(selectedContextSurface.title) for \(lane.title)."
+        }
+        return "Applies to all \(selectedContextSurface.title.lowercased()) prompts for this account."
+    }
+
+    private func contextFlagBinding(_ keyPath: WritableKeyPath<AtlasContextProfile, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { activeContextProfile[keyPath: keyPath] },
+            set: { session.setContextProfileFlag(keyPath, to: $0, for: selectedContextSurface, workspaceLane: selectedContextLane) }
+        )
+    }
+
+    private func knowledgeFileEnabledBinding(fileID: String) -> Binding<Bool> {
+        Binding(
+            get: {
+                let enabled = Set(activeContextProfile.enabledKnowledgeFileIDs)
+                return enabled.contains(fileID)
+            },
+            set: {
+                session.setKnowledgeFile(fileID, enabled: $0, for: selectedContextSurface, workspaceLane: selectedContextLane)
+            }
+        )
     }
 
     // Original computed properties maintained perfectly
@@ -362,7 +513,7 @@ struct WorkspacesCard: View {
         let activeSession = session.activeSessionID(for: lane)
         return session.promptQueue
             .filter { $0.workspaceLane == lane && ($0.workspaceSessionID == nil || $0.workspaceSessionID == activeSession) }
-            .sorted { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt }
+            .sorted { $0.createdAt == $1.createdAt ? $0.id > $1.id : $0.createdAt > $1.createdAt }
     }
 
     private var laneSessions: [WorkspaceNotebookSession] {
@@ -400,12 +551,18 @@ struct WorkspacesCard: View {
         session.enqueueWorkspacePrompt()
     }
 
-    private func assistantMessageText(for output: LocalReasoningOutput) -> String {
-        "\(output.summary)\n\nNext action: \(output.nextAction)"
-    }
-
     private func pendingAssistantStatusText(for item: PromptQueueItem) -> String {
-        "Preparing your response..."
+        let note = item.checkpointNote?.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch item.status {
+        case .queued:
+            return (note?.isEmpty == false ? note! : "Queued. I’ll reply in a moment.")
+        case .running:
+            return (note?.isEmpty == false ? note! : "Working on your response...")
+        case .failed:
+            return "I couldn’t generate a response right now."
+        case .done:
+            return "Completed."
+        }
     }
 
     private func compactLaneTitle(_ lane: WorkspaceLane) -> String {
@@ -416,6 +573,8 @@ struct WorkspacesCard: View {
             return "Wealth"
         case .mobilityOps:
             return "Travel"
+        case .mobileLivingInfrastructure:
+            return "MLI Studio"
         case .deepWork:
             return "Deep Work"
         case .innovation:
@@ -433,5 +592,62 @@ struct WorkspacesCard: View {
 
     private func byteCountLabel(_ bytes: Int) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(max(0, bytes)), countStyle: .file)
+    }
+}
+
+private struct BundledReferenceDocumentSheet: View {
+    let document: BundledReferenceDocument
+    let url: URL?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(document.title)
+                        .font(.headline)
+                    Text(document.audience)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Close") {
+                    dismiss()
+                }
+            }
+            .padding(16)
+            .background(.regularMaterial)
+
+            if let url {
+                BundledPDFView(url: url)
+                    .frame(minWidth: 760, minHeight: 560)
+            } else {
+                ContentUnavailableView(
+                    "Reference Not Available",
+                    systemImage: "doc.richtext",
+                    description: Text("This bundled PDF could not be found in the app resources.")
+                )
+                .frame(minWidth: 760, minHeight: 560)
+            }
+        }
+    }
+}
+
+private struct BundledPDFView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.displaysAsBook = false
+        view.document = PDFDocument(url: url)
+        return view
+    }
+
+    func updateNSView(_ nsView: PDFView, context: Context) {
+        if nsView.document?.documentURL != url {
+            nsView.document = PDFDocument(url: url)
+        }
     }
 }

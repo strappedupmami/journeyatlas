@@ -3,7 +3,7 @@ param(
     [string]$Arch = "x64",
     [string]$Configuration = "Release",
     [string]$Version = "1.0.0",
-    [string]$Publisher = "Atlas Masa",
+    [string]$Publisher = "BlackHaven",
     [string]$Website = "https://atlasmasa.com",
     [switch]$SkipRustBuild,
     [switch]$SkipInstaller,
