@@ -16,5 +16,5 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
-burn = { version = "0.16", optional = true }
+burn = { version = "0.20", optional = true }
 burn-ndarray = { version = "0.16", optional = true }
